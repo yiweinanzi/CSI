@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python3.12
 """Verify the extracted CSI-PAIRS A100 dataset handoff."""
 
 from __future__ import annotations
