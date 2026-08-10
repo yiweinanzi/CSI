@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-python3 "$ROOT/scripts/verify_package.py"
+python3.12 "$ROOT/scripts/verify_package.py"
 
 echo
 echo "PACKAGE_ROOT=$ROOT"

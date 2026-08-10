@@ -266,6 +266,20 @@ class A100DatasetPackageV6Tests(unittest.TestCase):
         self.assertIn("TRUSTED_SERVER_MANIFEST_SHA256", script)
         self.assertIn("require_verified_roles_from_root", script)
 
+    def test_destination_entrypoints_use_python312_and_standard_core_environment(self):
+        entrypoints = (
+            PACKAGE_CONTROL / "package_template/START_HERE.sh",
+            PACKAGE_CONTROL / "package_template/scripts/VERIFY_PACKAGE.sh",
+            PACKAGE_CONTROL / "package_template/scripts/verify_package.py",
+            PACKAGE_CONTROL / "scripts/A100_REGENERATE_AND_VERIFY.sh",
+        )
+        for entrypoint in entrypoints:
+            with self.subTest(entrypoint=entrypoint):
+                script = entrypoint.read_text(encoding="utf-8")
+                self.assertIn("python3.12", script)
+        regeneration = entrypoints[-1].read_text(encoding="utf-8")
+        self.assertIn('CORE_PYTHON="${SERVER_ROOT}/.venv/bin/python"', regeneration)
+
     def test_server_and_anonymous_release_boundaries_are_explicit(self):
         server_builder = (
             SERVER_ROOT / "formal_v2/scripts/build_server_bundle.sh"

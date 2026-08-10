@@ -41,7 +41,7 @@ their highest-level bank or position permission.
 
 ## Start on the A100 host
 
-From this extracted directory:
+Python 3.12 must be available as `python3.12`. From this extracted directory:
 
 ```bash
 ./START_HERE.sh

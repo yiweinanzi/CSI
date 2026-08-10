@@ -26,7 +26,7 @@ VERIFICATION_ROOT="$(cd "$(dirname "${VERIFICATION_ROOT_INPUT}")" && pwd)/$(base
 
 "${PACKAGE_ROOT}/scripts/VERIFY_PACKAGE.sh"
 
-python3 - "${SERVER_ROOT}" "${TRUSTED_SERVER_MANIFEST_SHA256}" <<'PY'
+python3.12 - "${SERVER_ROOT}" "${TRUSTED_SERVER_MANIFEST_SHA256}" <<'PY'
 import hashlib
 import re
 import sys
@@ -106,7 +106,7 @@ echo "REGENERATION_BACKEND=llvm_ad_mono_polarized"
 echo "GPU_ROLE=HOST_PROVENANCE_NOT_COMPUTE_CLAIM"
 
 REGISTRY="${SERVER_ROOT}/formal_v2/configs/sionna_llvm_approved_v1.json"
-python3 - "${REGISTRY}" <<'PY'
+python3.12 - "${REGISTRY}" <<'PY'
 import json
 import sys
 from pathlib import Path
