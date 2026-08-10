@@ -257,41 +257,22 @@ def _validate_manifest(manifest):
     if not isinstance(manifest["command"], list) or not manifest["command"]:
         raise ValueError("RT calibration command must be nonempty argv")
     command = manifest["command"]
-    placeholders = {
-        "{python}",
-        "{adapter_source}",
-        "{fit_dataset}",
-        "{validation_inputs}",
-        "{protocol}",
-        "{output}",
+    expected_arguments = {
+        "--fit": "{fit_dataset}",
+        "--validation-inputs": "{validation_inputs}",
+        "--protocol": "{protocol}",
+        "--output": "{output}",
     }
-    trailing_arguments_are_bounded = all(
-        value in placeholders
-        or (
-            isinstance(value, str)
-            and value.startswith("--")
-            and "=" not in value
-            and "/" not in value
-            and "\\" not in value
-            and "reference" not in value.lower()
-        )
-        for value in command[2:]
+    command_arguments = (
+        dict(zip(command[2::2], command[3::2]))
+        if len(command) == 2 + 2 * len(expected_arguments)
+        and all(isinstance(value, str) for value in command)
+        else {}
     )
     if (
         Path(manifest["adapter_source_path"]).suffix != ".py"
         or command[:2] != ["{python}", "{adapter_source}"]
-        or any(
-            command.count(placeholder) != 1
-            for placeholder in (
-                "{fit_dataset}",
-                "{validation_inputs}",
-                "{protocol}",
-                "{output}",
-            )
-        )
-        or any("validation_reference" in value for value in command)
-        or any("{dataset}" in value for value in command)
-        or not trailing_arguments_are_bounded
+        or command_arguments != expected_arguments
     ):
         raise ValueError(
             "RT calibration command must directly execute the authenticated adapter, bind fit, "

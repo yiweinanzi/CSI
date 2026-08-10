@@ -2075,6 +2075,9 @@ class EvidenceAndPathTests(unittest.TestCase):
         forged["command"] = [*manifest["command"], "--reference", "/tmp/held-out.csv"]
         with self.assertRaisesRegex(ValueError, "exclude validation references"):
             validate_rt_calibration_manifest(forged)
+        leaked = {**manifest, "command": [*manifest["command"], "--secret", "/tmp/gold.csv"]}
+        with self.assertRaisesRegex(ValueError, "authenticated adapter"):
+            validate_rt_calibration_manifest(leaked)
         del manifest["fit_dataset_path"]
         with self.assertRaisesRegex(ValueError, "fields"):
             validate_rt_calibration_manifest(manifest)
