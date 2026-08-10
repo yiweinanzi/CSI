@@ -2,10 +2,11 @@
 set -euo pipefail
 
 PACKAGE_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SERVER_ROOT_INPUT="${1:?usage: A100_REGENERATE_AND_VERIFY.sh SERVER_ROOT CANDIDATE_ROOT INSPECTION_ROOT VERIFICATION_ROOT}"
+SERVER_ROOT_INPUT="${1:?usage: A100_REGENERATE_AND_VERIFY.sh SERVER_ROOT CANDIDATE_ROOT INSPECTION_ROOT VERIFICATION_ROOT TRUSTED_SERVER_MANIFEST_SHA256}"
 CANDIDATE_ROOT_INPUT="${2:?candidate output root is required}"
 INSPECTION_ROOT_INPUT="${3:?inspection output root is required}"
 VERIFICATION_ROOT_INPUT="${4:?verification output root is required}"
+TRUSTED_SERVER_MANIFEST_SHA256="${5:?trusted server SHA256SUMS digest is required from the reviewed handoff sidecar}"
 
 SERVER_ROOT="$(cd "${SERVER_ROOT_INPUT}" && pwd)"
 for path in "${CANDIDATE_ROOT_INPUT}" "${INSPECTION_ROOT_INPUT}" "${VERIFICATION_ROOT_INPUT}"; do
@@ -24,6 +25,62 @@ INSPECTION_ROOT="$(cd "$(dirname "${INSPECTION_ROOT_INPUT}")" && pwd)/$(basename
 VERIFICATION_ROOT="$(cd "$(dirname "${VERIFICATION_ROOT_INPUT}")" && pwd)/$(basename "${VERIFICATION_ROOT_INPUT}")"
 
 "${PACKAGE_ROOT}/scripts/VERIFY_PACKAGE.sh"
+
+python3 - "${SERVER_ROOT}" "${TRUSTED_SERVER_MANIFEST_SHA256}" <<'PY'
+import hashlib
+import re
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1]).resolve(strict=True)
+manifest_path = root / "SHA256SUMS"
+if not manifest_path.is_file() or manifest_path.is_symlink():
+    raise SystemExit("SERVER_BUNDLE_STATIC_INTEGRITY=FAIL: regular root SHA256SUMS is required")
+trusted_manifest_digest = sys.argv[2]
+if not re.fullmatch(r"[0-9a-f]{64}", trusted_manifest_digest):
+    raise SystemExit("SERVER_BUNDLE_STATIC_INTEGRITY=FAIL: trusted manifest digest is invalid")
+if hashlib.sha256(manifest_path.read_bytes()).hexdigest() != trusted_manifest_digest:
+    raise SystemExit("SERVER_BUNDLE_STATIC_INTEGRITY=FAIL: root SHA256SUMS trust anchor mismatch")
+
+def runtime_path(path: Path) -> bool:
+    parts = path.relative_to(root).parts
+    return parts[:1] == (".venv",) or parts[:3] == (
+        "formal_v2", "external_adapters", ".runtime-sionna"
+    )
+
+listed = {}
+for line in manifest_path.read_text(encoding="utf-8").splitlines():
+    match = re.fullmatch(r"([0-9a-f]{64})  (\./[^\n]+)", line)
+    if match is None or match.group(2) in listed:
+        raise SystemExit(f"SERVER_BUNDLE_STATIC_INTEGRITY=FAIL: invalid manifest line {line!r}")
+    relative = match.group(2)
+    path = root / relative
+    if path.is_symlink() or not path.is_file() or not path.resolve().is_relative_to(root):
+        raise SystemExit(f"SERVER_BUNDLE_STATIC_INTEGRITY=FAIL: unsafe file {relative}")
+    listed[relative] = match.group(1)
+
+static_symlinks = [path for path in root.rglob("*") if path.is_symlink() and not runtime_path(path)]
+if static_symlinks:
+    raise SystemExit(f"SERVER_BUNDLE_STATIC_INTEGRITY=FAIL: static symlinks {static_symlinks[:5]}")
+actual = {
+    "./" + path.relative_to(root).as_posix()
+    for path in root.rglob("*")
+    if path.is_file() and path != manifest_path and not runtime_path(path)
+}
+if set(listed) != actual:
+    raise SystemExit(
+        "SERVER_BUNDLE_STATIC_INTEGRITY=FAIL: inventory mismatch "
+        f"missing={sorted(actual - set(listed))[:5]} unexpected={sorted(set(listed) - actual)[:5]}"
+    )
+for relative, expected in listed.items():
+    digest = hashlib.sha256()
+    with (root / relative).open("rb") as stream:
+        for chunk in iter(lambda: stream.read(8 * 1024 * 1024), b""):
+            digest.update(chunk)
+    if digest.hexdigest() != expected:
+        raise SystemExit(f"SERVER_BUNDLE_STATIC_INTEGRITY=FAIL: SHA-256 mismatch {relative}")
+print(f"SERVER_BUNDLE_STATIC_INTEGRITY=PASS files={len(listed)}")
+PY
 
 if [[ "$(uname -s)" != "Linux" || "$(uname -m)" != "x86_64" ]]; then
   echo "A100 regeneration requires reviewed Linux x86_64" >&2
@@ -44,6 +101,9 @@ for index in 0 1; do
     exit 5
   fi
 done
+nvidia-smi --query-gpu=index,uuid,name --format=csv,noheader
+echo "REGENERATION_BACKEND=llvm_ad_mono_polarized"
+echo "GPU_ROLE=HOST_PROVENANCE_NOT_COMPUTE_CLAIM"
 
 REGISTRY="${SERVER_ROOT}/formal_v2/configs/sionna_llvm_approved_v1.json"
 python3 - "${REGISTRY}" <<'PY'
@@ -96,35 +156,25 @@ PYTHONPATH="${SERVER_ROOT}" "${CORE_PYTHON}" -B -m formal_v2.formal_cli verify-d
   --output "${VERIFICATION_ROOT}" \
   --verifier-manifest "${SERVER_ROOT}/formal_v2/configs/sionna_osm_verifier_v2.json"
 
-python3 - "${VERIFICATION_ROOT}/data_verification/gate.json" <<'PY'
-import json
+PYTHONPATH="${SERVER_ROOT}" "${CORE_PYTHON}" -B - \
+  "${SERVER_ROOT}/formal_v2/configs/formal_v2.json" \
+  "${CANDIDATE_ROOT}/dataset.npz" \
+  "${VERIFICATION_ROOT}" <<'PY'
 import sys
 from pathlib import Path
 
-gate = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
-required_roles = {
-    "source_encoder_train",
-    "source_method_selection",
-    "source_probe_train",
-    "source_probe_selection",
-    "source_calibration_fit",
-    "source_calibration_selection",
-    "source_final_unseen_bank",
-    "target",
-    "external_validation",
-}
-roles = gate.get("role_status", {})
-if (
-    gate.get("status") != "PASS"
-    or gate.get("passed") is not True
-    or gate.get("fixture") is not False
-    or gate.get("rtol") != 0.0
-    or gate.get("atol") != 0.0
-    or set(roles) != required_roles
-    or any(value != "PASS" for value in roles.values())
-):
-    raise SystemExit("fresh A100 candidate failed the all-role zero-tolerance gate")
-print("A100_CANDIDATE_REGENERATION=PASS")
+from formal_v2.formal_config import load_formal_config
+from formal_v2.formal_data_verification import require_verified_roles_from_root
+from formal_v2.formal_dataset import FormalDataset, SOURCE_ROLES
+
+config = load_formal_config(Path(sys.argv[1]))
+dataset = FormalDataset.load(
+    Path(sys.argv[2]),
+    require_clean_csi=bool(config["data"]["require_clean_csi"]),
+)
+roles = (*SOURCE_ROLES, "target", "external_validation")
+require_verified_roles_from_root(Path(sys.argv[3]), config, dataset, roles)
+print("A100_HOST_LLVM_CANDIDATE_REGENERATION=PASS")
 print("A100_DATA_VERIFICATION=PASS")
 print("FORMAL_TRAINING_READY=NO")
 print("NEXT=run independent RT, G1/G2, resource, adapter, G8, qualification, and human approval gates")

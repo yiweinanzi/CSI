@@ -48,9 +48,10 @@ From this extracted directory:
 source ./scripts/MOUNT_DATASETS.sh
 ```
 
-The first command runs the quick package verifier and reports visible NVIDIA
-GPUs. The mount script exports separate roots for each dataset family. It does
-not start training or alter an environment.
+The first command recomputes every manifest SHA-256, checks the exact inventory
+and status boundaries, and reports visible NVIDIA GPUs. The mount script exports
+separate roots for each dataset family. It does not start training or alter an
+environment.
 
 The large public sources remain in their upstream ZIP/NPZ form to keep this
 handoff compact and fast to transfer. Extract a source into a new work
@@ -65,28 +66,30 @@ and fresh output directories:
   /absolute/path/CSI-PAIRS-v2.1-server \
   /new/path/a100-candidate \
   /new/path/a100-inspection \
-  /new/path/a100-verification
+  /new/path/a100-verification \
+  TRUSTED_SERVER_SHA256SUMS_DIGEST
 ```
 
-This command intentionally stops before formal qualification or training.
+Take the final digest from the reviewed server handoff's external
+`.manifest.sha256` sidecar. The command refuses a self-authored or modified
+server tree and intentionally stops before formal qualification or training.
 
-## Verification levels
+## Verification
 
-The normal verifier checks the exact manifest, byte sizes, critical JSON
-status boundaries, NPZ readability, and ZIP central directories:
+The verifier always checks every source SHA-256, the exact manifest and byte
+sizes, critical JSON status boundaries, NPZ readability, and ZIP central
+directories:
 
 ```bash
 ./scripts/VERIFY_PACKAGE.sh
 ```
 
-Full per-file SHA-256 is optional because the package already ships with the
-133 upstream checksums and the outer ZIP has one transfer checksum:
+The `--deep-hash` spelling remains accepted for compatibility, but hashing can
+no longer be skipped. Before extraction, independently verify the outer ZIP
+against its reviewed `.sha256` sidecar; the manifest inside the ZIP is an
+integrity inventory, not an external authenticity trust anchor.
 
-```bash
-./scripts/VERIFY_PACKAGE.sh --deep-hash
-```
-
-Neither mode proves physical channel realism, leakage freedom, independent RT
+This verification does not prove physical channel realism, leakage freedom, independent RT
 agreement, model quality, or any paper result.
 
 ## Formal experiment boundary

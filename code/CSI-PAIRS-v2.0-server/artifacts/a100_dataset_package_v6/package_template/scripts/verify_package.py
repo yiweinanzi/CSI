@@ -20,6 +20,16 @@ EXPECTED_EXTERNAL_GROUPS = {
     "RadioMapSeer": 5,
     "WWM": 5,
 }
+EXPECTED_ROLE_COUNTS = {
+    "external_public_payload": 133,
+    "primary_raw_inputs": 8,
+    "cpu_llvm22_34bank_candidate": 266,
+    "cpu_same_engine_verification_evidence": 12,
+    "a100_sionna_fixture": 9,
+    "workspace_metadata": 7,
+    "package_control_plane": 20,
+}
+EXPECTED_A100_FIXTURE_SHA256 = "ae3445739fa3415f7676f544bab28b102459d9819c40028b5ed7e23f7cd5cead"
 EXPECTED_OSM_FILES = {
     "external-denver.json",
     "external-miami.json",
@@ -72,10 +82,32 @@ def sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def verify_manifest(root: Path, deep_hash: bool) -> tuple[list[dict], int]:
-    manifest = load_json(root / "MANIFEST.json")
+def verify_manifest(root: Path) -> tuple[list[dict], int]:
+    require(root.is_dir() and not root.is_symlink(), f"unsafe package root: {root}")
+    members = list(root.rglob("*"))
+    symlinks = [path.relative_to(root).as_posix() for path in members if path.is_symlink()]
+    require(not symlinks, f"symlinks are forbidden in the package: {symlinks[:5]}")
+
+    manifest_path = root / "MANIFEST.json"
+    require(manifest_path.is_file() and not manifest_path.is_symlink(), "MANIFEST.json is missing or unsafe")
+    manifest = load_json(manifest_path)
     require(manifest.get("schema_version") == "csi-pairs-a100-package-manifest-v1", "bad manifest schema")
     require(manifest.get("package_id") == PACKAGE_ID, "bad package_id")
+    require(
+        manifest.get("package_distribution") == "INTERNAL_RESEARCH_TEAM_TRANSFER_ONLY",
+        "manifest package distribution changed",
+    )
+    require(
+        manifest.get("statuses")
+        == {
+            "PACKAGE_INTEGRITY": "VERIFY_AFTER_EXTRACTION",
+            "TRAINING_CORE_COMPLETE": True,
+            "ALL_ORIGINAL_SOURCES_COMPLETE": False,
+            "FORMAL_TRAINING_READY": "NO",
+            "SCIENTIFIC_EVIDENCE": "NOT_ASSESSED",
+        },
+        "manifest status boundaries changed",
+    )
     entries = manifest.get("entries")
     require(isinstance(entries, list) and entries, "manifest entries are missing")
 
@@ -85,21 +117,29 @@ def verify_manifest(root: Path, deep_hash: bool) -> tuple[list[dict], int]:
         require(isinstance(entry, dict), "manifest entry is not an object")
         rel = entry.get("path")
         expected_bytes = entry.get("bytes")
+        expected_digest = entry.get("source_sha256")
+        require(set(entry) == {"path", "bytes", "role", "source_sha256"}, f"manifest entry fields changed: {rel}")
         require(isinstance(rel, str) and rel, "manifest path is invalid")
         pure = PurePosixPath(rel)
         require(not pure.is_absolute() and ".." not in pure.parts, f"unsafe manifest path: {rel}")
         require(isinstance(expected_bytes, int) and expected_bytes >= 0, f"bad byte count: {rel}")
+        require(
+            isinstance(expected_digest, str)
+            and len(expected_digest) == 64
+            and all(char in "0123456789abcdef" for char in expected_digest),
+            f"missing or invalid source SHA-256: {rel}",
+        )
         require(not (set(pure.parts) & FORBIDDEN_PATH_PARTS), f"forbidden path in package: {rel}")
         require(not rel.endswith((".part", ".partial")), f"partial payload in package: {rel}")
         require(PACKAGE_ID not in pure.parts, f"manifest path must be relative to package root: {rel}")
 
         path = root.joinpath(*pure.parts)
-        require(path.is_file(), f"missing file: {rel}")
+        require(path.is_file() and not path.is_symlink(), f"missing or unsafe file: {rel}")
+        require(path.resolve(strict=True).is_relative_to(root.resolve(strict=True)), f"file escaped package root: {rel}")
         actual_bytes = path.stat().st_size
         require(actual_bytes == expected_bytes, f"size mismatch: {rel}: {actual_bytes} != {expected_bytes}")
-        if deep_hash and entry.get("source_sha256"):
-            actual_digest = sha256(path)
-            require(actual_digest == entry["source_sha256"], f"SHA-256 mismatch: {rel}")
+        actual_digest = sha256(path)
+        require(actual_digest == expected_digest, f"SHA-256 mismatch: {rel}")
         listed_paths.append(rel)
         total_bytes += actual_bytes
 
@@ -111,10 +151,22 @@ def verify_manifest(root: Path, deep_hash: bool) -> tuple[list[dict], int]:
     actual_paths = {
         path.relative_to(root).as_posix()
         for path in root.rglob("*")
-        if path.is_file() and path.name != "MANIFEST.json"
+        if path.is_file() and path != manifest_path
     }
     expected_paths = set(listed_paths)
     require(actual_paths == expected_paths, f"inventory mismatch: missing={sorted(expected_paths - actual_paths)[:5]} unexpected={sorted(actual_paths - expected_paths)[:5]}")
+    expected_dirs = {
+        parent.as_posix()
+        for relative in expected_paths | {"MANIFEST.json"}
+        for parent in PurePosixPath(relative).parents
+        if parent.as_posix() != "."
+    }
+    actual_dirs = {
+        path.relative_to(root).as_posix()
+        for path in root.rglob("*")
+        if path.is_dir()
+    }
+    require(actual_dirs == expected_dirs, f"directory inventory mismatch: missing={sorted(expected_dirs - actual_dirs)[:5]} unexpected={sorted(actual_dirs - expected_dirs)[:5]}")
     return entries, total_bytes
 
 
@@ -125,6 +177,8 @@ def verify_external_inventory(entries: list[dict]) -> None:
     groups = Counter(path.removeprefix(prefix).split("/", 1)[0] for path in paths)
     require(dict(groups) == EXPECTED_EXTERNAL_GROUPS, f"external group counts differ: {dict(groups)}")
     require(all(path.startswith(prefix) for path in paths), "external payload escaped its package root")
+    roles = Counter(entry.get("role") for entry in entries)
+    require(dict(roles) == EXPECTED_ROLE_COUNTS, f"package role counts differ: {dict(roles)}")
 
 
 def _split_assignment(city_id: str, bank_index: int, role: str) -> dict[str, object]:
@@ -232,7 +286,12 @@ def verify_status_boundaries(root: Path) -> None:
     require(registry.get("silent_stage0_use") == "FORBIDDEN", "silent Stage-0 use must remain forbidden")
 
     licenses = load_json(root / "docs/LICENSE_STATUS.json")
+    require(licenses.get("package_distribution") == "INTERNAL_RESEARCH_TEAM_TRANSFER_ONLY", "package distribution boundary changed")
     require(licenses.get("public_redistribution") == "FORBIDDEN_PENDING_DATASET_LEVEL_REVIEW", "license boundary changed")
+
+    split_policy = load_json(root / "docs/SPLIT_POLICY.json")
+    require(split_policy.get("assignment_status") == "BLOCKED_NOT_FROZEN", "external split status changed")
+    require(split_policy.get("paper_experiment_use") == "FORBIDDEN_UNTIL_IMMUTABLE_ASSIGNMENT_LEDGER", "external paper-use split gate changed")
 
     candidate = load_json(root / "cpu_llvm22_34bank_candidate/inspect-v4/data_contract.json")
     require(candidate.get("status") == "PASS", "CPU candidate contract did not pass")
@@ -241,6 +300,9 @@ def verify_status_boundaries(root: Path) -> None:
     expected_shape = {"scenes": 34, "worlds": 4, "positions": 256, "repeats": 3, "channels": 16, "bits": 2}
     shape = candidate.get("shape", {})
     require(all(shape.get(key) == value for key, value in expected_shape.items()), f"CPU candidate shape changed: {shape}")
+    candidate_dataset = root / "cpu_llvm22_34bank_candidate/dataset.npz"
+    require(candidate_dataset.is_file(), "CPU candidate dataset.npz is missing")
+    require(sha256(candidate_dataset) == candidate.get("dataset_sha256"), "CPU candidate dataset hash mismatch")
     verify_formal_split_ledger(root, candidate)
 
     gate = load_json(root / "cpu_same_engine_verification_evidence/live_regeneration/data_verification/gate.json")
@@ -253,6 +315,9 @@ def verify_status_boundaries(root: Path) -> None:
     require(fixture_dataset.get("fixture") is True, "A100 fixture marker is missing")
     require(fixture_dataset.get("scientific_use") == "FORBIDDEN", "A100 fixture scientific boundary changed")
     require(fixture.get("validation", {}).get("contract_status") == "PASS", "A100 fixture contract did not pass")
+    fixture_path = root / "a100_sionna_fixture/csi_pairs_v2_1_v6_sionna_rt_dual_a100/csi_pairs_v2_1_v6_sionna_rt_dual_a100.npz"
+    require(fixture_path.is_file(), "A100 fixture NPZ is missing")
+    require(sha256(fixture_path) == EXPECTED_A100_FIXTURE_SHA256, "A100 fixture dataset hash mismatch")
 
     osm_root = root / "primary_raw_inputs/CSI-PAIRS-A100-input-v2/raw_osm"
     osm_files = {path.name for path in osm_root.glob("*.json") if path.is_file()}
@@ -281,12 +346,12 @@ def probe_zip_containers(root: Path, entries: list[dict]) -> tuple[int, int]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--deep-hash", action="store_true", help="recompute source SHA-256 values; slow and optional")
-    args = parser.parse_args()
+    parser.add_argument("--deep-hash", action="store_true", help="compatibility flag; full hashing is always mandatory")
+    parser.parse_args()
     root = Path(__file__).resolve().parents[1]
 
     try:
-        entries, total_bytes = verify_manifest(root, args.deep_hash)
+        entries, total_bytes = verify_manifest(root)
         verify_external_inventory(entries)
         verify_status_boundaries(root)
         zip_count, npz_count = probe_zip_containers(root, entries)
@@ -306,7 +371,8 @@ def main() -> int:
     print("TARGET_BANKS=16")
     print("TARGET_SUPPORT_POSITIONS_PER_BANK=128")
     print("TARGET_QUERY_POSITIONS_PER_BANK=128")
-    print(f"DEEP_HASH={'PASS' if args.deep_hash else 'SKIPPED_BY_POLICY'}")
+    print(f"SHA256_FILES_CHECKED={len(entries)}")
+    print("DEEP_HASH=PASS")
     print("TRAINING_CORE_COMPLETE=true")
     print("ALL_ORIGINAL_SOURCES_COMPLETE=false")
     print("A100_PACKAGE_ENGINEERING_READY=YES")

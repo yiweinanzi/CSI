@@ -40,7 +40,7 @@ if symlinks:
 actual = {
     "./" + path.relative_to(root).as_posix()
     for path in root.rglob("*")
-    if path.is_file() and path.name != "SHA256SUMS"
+    if path.is_file() and path != root / "SHA256SUMS"
 }
 if listed != actual:
     raise SystemExit(

@@ -59,9 +59,36 @@ def load_json(path: Path) -> dict:
 
 
 def safe_relative(value: str, label: str) -> PurePosixPath:
+    require(isinstance(value, str), f"invalid {label}: {value!r}")
     path = PurePosixPath(value)
-    require(value and not path.is_absolute() and ".." not in path.parts, f"unsafe {label}: {value}")
+    require(
+        value
+        and bool(path.parts)
+        and "\\" not in value
+        and "\x00" not in value
+        and not path.is_absolute()
+        and ".." not in path.parts
+        and path.as_posix() == value
+        and not path.parts[0].endswith(":"),
+        f"unsafe or non-canonical {label}: {value}",
+    )
     return path
+
+
+def confined_path(base: Path, relative: str, label: str) -> Path:
+    pure = safe_relative(relative, label)
+    require(base.exists() and not base.is_symlink(), f"unsafe {label} base: {base}")
+    base_resolved = base.resolve(strict=True)
+    current = base
+    for part in pure.parts:
+        current = current / part
+        require(not current.is_symlink(), f"symlink is not allowed in {label}: {current}")
+    try:
+        resolved = current.resolve(strict=True)
+    except OSError as error:
+        raise BuildError(f"missing {label}: {current}") from error
+    require(resolved.is_relative_to(base_resolved), f"{label} escaped its declared root: {relative}")
+    return current
 
 
 def entry_for(
@@ -72,6 +99,7 @@ def entry_for(
     executable: bool = False,
     source_sha256: str | None = None,
 ) -> PackageEntry:
+    require(not source.is_symlink(), f"symlink source file is not allowed: {source}")
     require(source.is_file(), f"missing source file: {source}")
     safe_relative(archive_path, "archive path")
     observed_sha256 = sha256(source)
@@ -118,7 +146,9 @@ def excluded(relative: PurePosixPath, exact_exclusions: set[str], global_exclusi
 
 
 def add_tree(entries: list[PackageEntry], source_root: Path, destination: str, role: str, exclusions: set[str], global_exclusions: set[str]) -> None:
+    require(not source_root.is_symlink(), f"symlink component root is not allowed: {source_root}")
     require(source_root.is_dir(), f"missing source directory: {source_root}")
+    safe_relative(destination, "component destination")
     for source in sorted(source_root.rglob("*")):
         if source.is_symlink():
             raise BuildError(f"symlink is not allowed in component {role}: {source}")
@@ -283,6 +313,15 @@ def validate_scientific_boundaries(workspace: Path, repo_root: Path) -> None:
     require(candidate_contract.get("fixture") is False, "CPU 34-bank candidate is marked as a fixture")
     require(candidate_contract.get("scientific_use") == "CANDIDATE", "CPU candidate source status changed")
     require(all(shape.get(key) == value for key, value in expected_shape.items()), f"CPU candidate shape changed: {shape}")
+    candidate_dataset = confined_path(
+        workspace,
+        "deliveries/CSI-PAIRS-2xA100-FORMAL-HANDOFF-c1b4419d/formal_candidate/dataset.npz",
+        "CPU candidate dataset",
+    )
+    require(
+        sha256(candidate_dataset) == candidate_contract.get("dataset_sha256"),
+        "CPU candidate dataset bytes do not match the inspected frozen hash",
+    )
     validate_formal_split_ledger(workspace, repo_root, candidate_contract)
 
     verification_gate = load_json(
@@ -301,11 +340,34 @@ def validate_scientific_boundaries(workspace: Path, repo_root: Path) -> None:
     require(fixture_dataset.get("fixture") is True, "dual-A100 dataset is not marked fixture=true")
     require(fixture_dataset.get("scientific_use") == "FORBIDDEN", "dual-A100 fixture scientific boundary changed")
     require(fixture.get("validation", {}).get("contract_status") == "PASS", "dual-A100 fixture contract is not PASS")
+    fixture_dataset_path = confined_path(
+        workspace,
+        "CSI_PAIRS_DATASET_SUITE_V6/04_FIXTURES_SOFTWARE_ONLY/csi_pairs_v2_1_v6_sionna_rt_dual_a100/csi_pairs_v2_1_v6_sionna_rt_dual_a100.npz",
+        "dual-A100 fixture dataset",
+    )
+    require(
+        sha256(fixture_dataset_path) == "ae3445739fa3415f7676f544bab28b102459d9819c40028b5ed7e23f7cd5cead",
+        "dual-A100 fixture dataset bytes do not match the frozen fixture hash",
+    )
 
     registry = load_json(repo_root / "artifacts/a100_dataset_package_v6/external_dataset_registry/EXTERNAL_DATASET_REGISTRY.json")
     require(registry.get("training_core_complete") is True, "external training core is not complete")
     require(registry.get("all_original_sources_complete") is False, "all original sources must remain incomplete")
     require(registry.get("silent_stage0_use") == "FORBIDDEN", "silent Stage-0 use boundary changed")
+
+    licenses = load_json(repo_root / "formal_v2/external_data_bundle/LICENSE_STATUS.json")
+    require(
+        licenses.get("package_distribution") == "INTERNAL_RESEARCH_TEAM_TRANSFER_ONLY",
+        "only internal research-team package distribution is allowed",
+    )
+    require(
+        licenses.get("public_redistribution") == "FORBIDDEN_PENDING_DATASET_LEVEL_REVIEW",
+        "public redistribution must remain blocked until dataset-level license review",
+    )
+
+    split_policy = load_json(repo_root / "formal_v2/external_data_bundle/SPLIT_POLICY.json")
+    require(split_policy.get("assignment_status") == "BLOCKED_NOT_FROZEN", "external split assignment boundary changed")
+    require(split_policy.get("paper_experiment_use") == "FORBIDDEN_UNTIL_IMMUTABLE_ASSIGNMENT_LEDGER", "external split gate changed")
 
 
 def build_plan(config: dict, workspace: Path, repo_root: Path) -> list[PackageEntry]:
@@ -313,13 +375,13 @@ def build_plan(config: dict, workspace: Path, repo_root: Path) -> list[PackageEn
     global_exclusions = set(config.get("required_exclusions", []))
 
     external = config["external_payload"]
-    checksum_path = repo_root / external["source_checksum_manifest"]
+    checksum_path = confined_path(repo_root, external["source_checksum_manifest"], "external checksum manifest")
     records = parse_checksum_manifest(checksum_path)
     validate_external_groups(config, records)
-    external_root = workspace / external["source_root"]
+    external_root = confined_path(workspace, external["source_root"], "external payload root")
     destination_root = external["destination_root"].rstrip("/")
     for digest, relative in records:
-        source = external_root.joinpath(*PurePosixPath(relative).parts)
+        source = confined_path(external_root, relative, "external payload")
         entries.append(
             entry_for(
                 source,
@@ -330,19 +392,34 @@ def build_plan(config: dict, workspace: Path, repo_root: Path) -> list[PackageEn
         )
 
     for component in config["workspace_components"]:
+        source_root = confined_path(workspace, component["source"], f"{component['component_id']} root")
+        before = len(entries)
         add_tree(
             entries,
-            workspace / component["source"],
+            source_root,
             component["destination"],
             component["component_id"],
             set(component.get("exclude", [])),
             global_exclusions,
         )
+        observed_count = len(entries) - before
+        require(
+            observed_count == component["expected_file_count"],
+            f"{component['component_id']} has {observed_count} files, expected {component['expected_file_count']}",
+        )
+        for required in component.get("required_files", []):
+            required_path = safe_relative(required["path"], "required component file").as_posix()
+            archive_path = f"{component['destination'].rstrip('/')}/{required_path}"
+            matches = [entry for entry in entries[before:] if entry.archive_path == archive_path]
+            require(len(matches) == 1, f"required component file is missing: {archive_path}")
+            expected_sha256 = required.get("sha256")
+            if expected_sha256 is not None:
+                require(matches[0].source_sha256 == expected_sha256, f"required component SHA-256 mismatch: {archive_path}")
 
     for metadata in config["workspace_metadata"]:
         entries.append(
             entry_for(
-                workspace / metadata["source"],
+                confined_path(workspace, metadata["source"], "workspace metadata"),
                 metadata["destination"],
                 "workspace_metadata",
             )
@@ -351,7 +428,7 @@ def build_plan(config: dict, workspace: Path, repo_root: Path) -> list[PackageEn
     for document in config["repository_files"]:
         entries.append(
             entry_for(
-                repo_root / document["source"],
+                confined_path(repo_root, document["source"], "repository package file"),
                 document["destination"],
                 "package_control_plane",
                 executable=document.get("executable", False),
@@ -375,6 +452,7 @@ def manifest_for(config: dict, entries: list[PackageEntry]) -> bytes:
         "package_id": config["package_id"],
         "archive_root": config["archive_root"],
         "target_platform": config["target_platform"],
+        "package_distribution": config["package_distribution"],
         "build_timestamp_policy": config["fixed_zip_timestamp"],
         "compression": "ZIP_STORED_WITH_ZIP64",
         "file_count": len(entries),
@@ -412,8 +490,16 @@ def zip_info(path: str, mode: int) -> zipfile.ZipInfo:
 def write_file(archive: zipfile.ZipFile, package_root: str, entry: PackageEntry) -> None:
     info = zip_info(f"{package_root}/{entry.archive_path}", entry.mode)
     info.file_size = entry.bytes
+    digest = hashlib.sha256()
+    written = 0
     with entry.source.open("rb") as source, archive.open(info, "w", force_zip64=True) as destination:
-        shutil.copyfileobj(source, destination, length=BUFFER_BYTES)
+        for chunk in iter(lambda: source.read(BUFFER_BYTES), b""):
+            destination.write(chunk)
+            digest.update(chunk)
+            written += len(chunk)
+    require(written == entry.bytes, f"source size changed while packaging: {entry.source}")
+    require(entry.source_sha256 is not None, f"source hash is missing: {entry.source}")
+    require(digest.hexdigest() == entry.source_sha256, f"source content changed while packaging: {entry.source}")
 
 
 def sha256(path: Path) -> str:
@@ -455,14 +541,16 @@ def build_archive(config: dict, entries: list[PackageEntry], output: Path) -> tu
                 )
             manifest = manifest_for(config, entries)
             archive.writestr(zip_info(f"{config['archive_root']}/MANIFEST.json", 0o644), manifest)
-        os.replace(partial, output)
+        os.link(partial, output, follow_symlinks=False)
+        partial.unlink()
     except BaseException:
         partial.unlink(missing_ok=True)
         raise
 
     print("Computing the single outer ZIP SHA-256...", flush=True)
     digest = sha256(output)
-    sidecar.write_text(f"{digest}  {output.name}\n", encoding="ascii")
+    with sidecar.open("x", encoding="ascii") as stream:
+        stream.write(f"{digest}  {output.name}\n")
     return digest, time.monotonic() - started
 
 
@@ -488,6 +576,10 @@ def main() -> int:
         require(config.get("schema_version") == "csi-pairs-a100-dataset-suite-config-v1", "unexpected config schema")
         require(config.get("package_id") == PACKAGE_ID, "unexpected package_id")
         require(config.get("archive_root") == config.get("package_id"), "archive_root must match package_id")
+        require(
+            config.get("package_distribution") == "INTERNAL_RESEARCH_TEAM_TRANSFER_ONLY",
+            "unsupported package distribution mode",
+        )
         validate_scientific_boundaries(workspace, repo_root)
         entries = build_plan(config, workspace, repo_root)
         role_counts = Counter(entry.role for entry in entries)

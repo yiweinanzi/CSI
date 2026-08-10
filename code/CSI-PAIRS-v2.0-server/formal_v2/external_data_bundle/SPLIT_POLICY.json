@@ -1,5 +1,8 @@
 {
   "schema_version": "csi-pairs-a100-external-baseline-split-policy-v1",
+  "assignment_status": "BLOCKED_NOT_FROZEN",
+  "paper_experiment_use": "FORBIDDEN_UNTIL_IMMUTABLE_ASSIGNMENT_LEDGER",
+  "required_next_artifact": "A reviewed machine-readable ledger assigning every scenario/map/transmitter/configuration/sequence/location group to exactly one train, validation, or test partition, with source SHA-256 and overlap audit.",
   "global_rules": [
     "Never concatenate sources and then randomly split rows.",
     "Fit normalization on the registered training partition only.",

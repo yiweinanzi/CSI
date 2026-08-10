@@ -2,7 +2,7 @@
   "schema_version": "csi-pairs-a100-external-baseline-contract-v1",
   "bundle_role": "external_baseline_data_companion",
   "target_platform": "Linux x86_64 with optional NVIDIA A100 compute",
-  "engineering_status_after_full_verification": "A100_EXTERNAL_DATA_READY",
+  "engineering_status_after_full_verification": "PAYLOAD_ENGINEERING_READY_SPLITS_BLOCKED",
   "scientific_use": "EXTERNAL_BASELINE_CANDIDATE_NOT_CLAIM",
   "training_core_complete": true,
   "all_original_sources_complete": false,
@@ -10,11 +10,13 @@
   "formal_go_effect": "UNCHANGED",
   "license_review_required_before_paper_run": true,
   "preregistration_required_before_paper_run": true,
+  "external_split_assignments_complete": false,
+  "paper_experiment_use": "BLOCKED_UNTIL_LICENSE_REVIEW_AND_IMMUTABLE_SPLIT_LEDGER",
   "allowed_roles": [
-    "external baseline",
     "adapter development",
-    "preregistered external-domain evaluation",
-    "common warm-start ablation after an equal-information control is frozen"
+    "external baseline only after license review and immutable split-ledger approval",
+    "preregistered external-domain evaluation only after license review and immutable split-ledger approval",
+    "common warm-start ablation only after license review, immutable split-ledger approval, and an equal-information control is frozen"
   ],
   "forbidden_roles": [
     "CSI-PAIRS formal sibling-world main data",

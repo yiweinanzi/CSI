@@ -18,4 +18,4 @@ else
 fi
 
 echo
-echo "Run: source $ROOT/scripts/MOUNT_DATASETS.sh"
+printf 'Run: source %q\n' "$ROOT/scripts/MOUNT_DATASETS.sh"

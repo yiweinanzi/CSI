@@ -15,13 +15,13 @@ POLICY_PATH = PACKAGE_CONTROL / "PACKAGE_POLICY.json"
 REGISTRY_PATH = PACKAGE_CONTROL / "external_dataset_registry/EXTERNAL_DATASET_REGISTRY.json"
 CONFIG_PATH = SERVER_ROOT / "formal_v2/configs/a100_dataset_suite_v6.json"
 BUILDER_PATH = PACKAGE_CONTROL / "build_a100_dataset_package_v6.py"
+VERIFIER_PATH = PACKAGE_CONTROL / "package_template/scripts/verify_package.py"
 SPLIT_LEDGER_PATH = PACKAGE_CONTROL / "FORMAL_MAIN_SPLIT_LEDGER.json"
 PACKAGE_ID = "CSI-PAIRS-A100-DATASETS-v2"
 
 
-def load_builder():
-    name = "a100_dataset_builder"
-    spec = importlib.util.spec_from_file_location(name, BUILDER_PATH)
+def load_module(name, path):
+    spec = importlib.util.spec_from_file_location(name, path)
     if spec is None or spec.loader is None:
         raise RuntimeError("unable to load A100 dataset builder")
     module = importlib.util.module_from_spec(spec)
@@ -37,7 +37,8 @@ class A100DatasetPackageV6Tests(unittest.TestCase):
         cls.registry = json.loads(REGISTRY_PATH.read_text(encoding="utf-8"))
         cls.config = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
         cls.split_ledger = json.loads(SPLIT_LEDGER_PATH.read_text(encoding="utf-8"))
-        cls.builder = load_builder()
+        cls.builder = load_module("a100_dataset_builder", BUILDER_PATH)
+        cls.verifier = load_module("a100_dataset_verifier", VERIFIER_PATH)
 
     def test_binary_payload_stays_out_of_git_and_formal_use_is_blocked(self):
         archive_policy = self.policy["archive_policy"]
@@ -66,6 +67,15 @@ class A100DatasetPackageV6Tests(unittest.TestCase):
         )
         self.assertEqual(components["cpu_llvm22_34bank_candidate"]["scientific_use"], "CANDIDATE_NOT_CLAIM")
         self.assertEqual(components["a100_sionna_fixture"]["scientific_use"], "FORBIDDEN")
+        self.assertEqual(sum(row["expected_file_count"] for row in components.values()), 295)
+        candidate_required = components["cpu_llvm22_34bank_candidate"]["required_files"]
+        fixture_required = components["a100_sionna_fixture"]["required_files"]
+        self.assertEqual(candidate_required[0]["path"], "dataset.npz")
+        self.assertEqual(candidate_required[0]["sha256"], self.split_ledger["dataset_sha256"])
+        self.assertEqual(
+            fixture_required[0]["path"],
+            "csi_pairs_v2_1_v6_sionna_rt_dual_a100.npz",
+        )
 
     def test_main_shape_and_two_target_cities_are_frozen(self):
         contract = self.policy["formal_main_contract"]
@@ -134,6 +144,18 @@ class A100DatasetPackageV6Tests(unittest.TestCase):
         )
         with self.assertRaises(self.builder.BuildError):
             self.builder.safe_relative("../escape", "test path")
+        for unsafe in ("a//b", "a/./b", "..\\escape", "C:/escape"):
+            with self.subTest(unsafe=unsafe), self.assertRaises(self.builder.BuildError):
+                self.builder.safe_relative(unsafe, "test path")
+
+    def test_confined_path_rejects_symlink_sources(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "real").mkdir()
+            (root / "real/payload").write_bytes(b"payload")
+            (root / "link").symlink_to(root / "real", target_is_directory=True)
+            with self.assertRaises(self.builder.BuildError):
+                self.builder.confined_path(root, "link/payload", "test source")
 
     def test_zip64_writer_uses_fixed_stored_bytes_and_manifest_boundary(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -156,6 +178,7 @@ class A100DatasetPackageV6Tests(unittest.TestCase):
                     "package_id": PACKAGE_ID,
                     "archive_root": PACKAGE_ID,
                     "target_platform": "Linux x86_64 with NVIDIA A100 GPUs",
+                    "package_distribution": "INTERNAL_RESEARCH_TEAM_TRANSFER_ONLY",
                     "fixed_zip_timestamp": "2026-08-10T00:00:00Z",
                 },
                 [entry],
@@ -164,11 +187,84 @@ class A100DatasetPackageV6Tests(unittest.TestCase):
         self.assertEqual(manifest["statuses"]["FORMAL_TRAINING_READY"], "NO")
         self.assertFalse(manifest["statuses"]["ALL_ORIGINAL_SOURCES_COMPLETE"])
 
+    def test_zip_writer_rejects_source_changed_after_planning(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = root / "payload.bin"
+            source.write_bytes(b"original")
+            entry = self.builder.entry_for(source, "data/payload.bin", "smoke")
+            source.write_bytes(b"modified")
+            with zipfile.ZipFile(root / "changed.zip", "w", allowZip64=True) as archive:
+                with self.assertRaises(self.builder.BuildError):
+                    self.builder.write_file(archive, PACKAGE_ID, entry)
+
+    def test_verifier_always_hashes_and_rejects_symlinks(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            payload = root / "payload.bin"
+            payload.write_bytes(b"original")
+            digest = self.builder.sha256(payload)
+            manifest = {
+                "schema_version": "csi-pairs-a100-package-manifest-v1",
+                "package_id": PACKAGE_ID,
+                "package_distribution": "INTERNAL_RESEARCH_TEAM_TRANSFER_ONLY",
+                "statuses": {
+                    "PACKAGE_INTEGRITY": "VERIFY_AFTER_EXTRACTION",
+                    "TRAINING_CORE_COMPLETE": True,
+                    "ALL_ORIGINAL_SOURCES_COMPLETE": False,
+                    "FORMAL_TRAINING_READY": "NO",
+                    "SCIENTIFIC_EVIDENCE": "NOT_ASSESSED",
+                },
+                "file_count": 1,
+                "payload_bytes": 8,
+                "entries": [
+                    {
+                        "path": "payload.bin",
+                        "bytes": 8,
+                        "role": "smoke",
+                        "source_sha256": digest,
+                    }
+                ],
+            }
+            (root / "MANIFEST.json").write_text(json.dumps(manifest), encoding="utf-8")
+            self.verifier.verify_manifest(root)
+
+            payload.write_bytes(b"modified")
+            with self.assertRaises(self.verifier.VerificationError):
+                self.verifier.verify_manifest(root)
+
+            payload.unlink()
+            with tempfile.TemporaryDirectory() as external_temporary:
+                external = Path(external_temporary) / "external.bin"
+                external.write_bytes(b"original")
+                payload.symlink_to(external)
+                with self.assertRaises(self.verifier.VerificationError):
+                    self.verifier.verify_manifest(root)
+
+            payload.unlink()
+            payload.write_bytes(b"original")
+            del manifest["entries"][0]["source_sha256"]
+            (root / "MANIFEST.json").write_text(json.dumps(manifest), encoding="utf-8")
+            with self.assertRaises(self.verifier.VerificationError):
+                self.verifier.verify_manifest(root)
+
+    def test_external_paper_use_remains_blocked_without_frozen_splits(self):
+        split_policy = json.loads(
+            (SERVER_ROOT / "formal_v2/external_data_bundle/SPLIT_POLICY.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(split_policy["assignment_status"], "BLOCKED_NOT_FROZEN")
+        self.assertEqual(
+            split_policy["paper_experiment_use"],
+            "FORBIDDEN_UNTIL_IMMUTABLE_ASSIGNMENT_LEDGER",
+        )
+
     def test_destination_script_preserves_linux_preapproval_gate(self):
         script = (PACKAGE_CONTROL / "scripts/A100_REGENERATE_AND_VERIFY.sh").read_text(encoding="utf-8")
         self.assertIn("no pre-approved Linux x86_64 libLLVM", script)
         self.assertIn("FORMAL_TRAINING_READY=NO", script)
         self.assertIn("two visible A100 GPUs are required", script)
+        self.assertIn("TRUSTED_SERVER_MANIFEST_SHA256", script)
+        self.assertIn("require_verified_roles_from_root", script)
 
     def test_server_and_anonymous_release_boundaries_are_explicit(self):
         server_builder = (
@@ -184,6 +280,7 @@ class A100DatasetPackageV6Tests(unittest.TestCase):
             "artifacts/dataset_suite_v6/external_wireless_metadata/SHA256SUMS",
             server_builder,
         )
+        self.assertIn("! -path ./SHA256SUMS", server_builder)
         self.assertIn(
             "--exclude='formal_v2/tests/test_a100_dataset_package_v6.py'",
             anonymous_builder,

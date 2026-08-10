@@ -27,7 +27,7 @@ SCIENTIFIC_EVIDENCE=NOT_ASSESSED
 | Package path | Contents | Permitted use |
 | --- | --- | --- |
 | `primary_raw_inputs/` | Six frozen OpenStreetMap JSON responses | Regenerate a new 34-bank candidate under a pre-approved Linux runtime |
-| `external_public_datasets/` | DeepMIMO, UrbanMIMOMap, RadioMapSeer, and DeepSense public data | Explicit baselines, adapter work, or preregistered external-domain experiments |
+| `external_public_datasets/` | DeepMIMO, UrbanMIMOMap, RadioMapSeer, and DeepSense public data | Adapter engineering only until license review and an immutable split ledger pass |
 | `cpu_llvm22_34bank_candidate/` | M4 CPU/LLVM22 34-bank candidate, assets, shards, logs, and inspection | `CANDIDATE_NOT_CLAIM` transfer diagnostic and reference only |
 | `cpu_same_engine_verification_evidence/` | Same-host, same-engine zero-tolerance evidence without `regenerated.npz` | Internal consistency evidence only |
 | `a100_sionna_fixture/` | Real dual-A100 Sionna RT fixture | Software, loader, and multi-GPU smoke tests only |
@@ -65,10 +65,11 @@ cd /new/empty/directory/CSI-PAIRS-A100-DATASETS-v2
 ./scripts/VERIFY_PACKAGE.sh
 ```
 
-The normal verifier validates the exact manifest and byte sizes, opens every
-ZIP/NPZ central directory, and checks the scientific-use labels. The optional
-`--deep-hash` mode recomputes the 133 registered public-source hashes. Neither
-mode proves leakage control, physical validity, independent-engine agreement,
+The verifier recomputes all 455 source hashes, validates the exact manifest and
+byte sizes, rejects symlinks and extra files, opens every ZIP/NPZ central
+directory, and checks the scientific-use labels. `--deep-hash` is retained only
+as a compatibility spelling; hashing cannot be skipped. Verification does not
+prove leakage control, physical validity, independent-engine agreement,
 model performance, or any paper claim.
 
 ## A100 progression

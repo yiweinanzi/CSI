@@ -3,6 +3,7 @@
   "package_id": "CSI-PAIRS-A100-DATASETS-v2",
   "archive_root": "CSI-PAIRS-A100-DATASETS-v2",
   "target_platform": "Linux x86_64 with NVIDIA A100 GPUs",
+  "package_distribution": "INTERNAL_RESEARCH_TEAM_TRANSFER_ONLY",
   "fixed_zip_timestamp": "2026-08-10T00:00:00Z",
   "external_payload": {
     "source_root": "datasets/external_wireless",
@@ -41,6 +42,7 @@
       "component_id": "primary_raw_inputs",
       "source": "deliveries/CSI-PAIRS-A100-input-v2",
       "destination": "primary_raw_inputs/CSI-PAIRS-A100-input-v2",
+      "expected_file_count": 8,
       "scientific_use": "AUTHORITATIVE_REGENERATION_INPUT",
       "exclude": []
     },
@@ -48,6 +50,13 @@
       "component_id": "cpu_llvm22_34bank_candidate",
       "source": "deliveries/CSI-PAIRS-2xA100-FORMAL-HANDOFF-c1b4419d/formal_candidate",
       "destination": "cpu_llvm22_34bank_candidate",
+      "expected_file_count": 266,
+      "required_files": [
+        {
+          "path": "dataset.npz",
+          "sha256": "e89034302d6c4a64c838c244a60ad7c42b081e760ef2c9fc548440b0d5458d2e"
+        }
+      ],
       "scientific_use": "CANDIDATE_NOT_CLAIM",
       "exclude": []
     },
@@ -55,6 +64,7 @@
       "component_id": "cpu_same_engine_verification_evidence",
       "source": "deliveries/CSI-PAIRS-2xA100-FORMAL-HANDOFF-c1b4419d/mac_live_verification",
       "destination": "cpu_same_engine_verification_evidence",
+      "expected_file_count": 12,
       "scientific_use": "ENGINEERING_EVIDENCE_NOT_PAPER_RESULT",
       "exclude": [
         "live_regeneration/data_verification/regenerated.npz"
@@ -64,6 +74,13 @@
       "component_id": "a100_sionna_fixture",
       "source": "CSI_PAIRS_DATASET_SUITE_V6/04_FIXTURES_SOFTWARE_ONLY/csi_pairs_v2_1_v6_sionna_rt_dual_a100",
       "destination": "a100_sionna_fixture/csi_pairs_v2_1_v6_sionna_rt_dual_a100",
+      "expected_file_count": 9,
+      "required_files": [
+        {
+          "path": "csi_pairs_v2_1_v6_sionna_rt_dual_a100.npz",
+          "sha256": "ae3445739fa3415f7676f544bab28b102459d9819c40028b5ed7e23f7cd5cead"
+        }
+      ],
       "scientific_use": "FORBIDDEN",
       "exclude": []
     }

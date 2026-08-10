@@ -1,11 +1,10 @@
 #!/usr/bin/env bash
 
-if [[ -n "${BASH_SOURCE[0]:-}" ]]; then
-  CSI_PAIRS_DATA_SUITE_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-else
-  echo "MOUNT_DATASETS.sh must be sourced from Bash." >&2
-  return 2 2>/dev/null || exit 2
+if [[ "${BASH_SOURCE[0]:-}" == "$0" ]]; then
+  echo "MOUNT_DATASETS.sh must be sourced: source ./scripts/MOUNT_DATASETS.sh" >&2
+  exit 2
 fi
+CSI_PAIRS_DATA_SUITE_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 export CSI_PAIRS_DATA_SUITE_ROOT
 export CSI_PAIRS_RAW_OSM_ROOT="$CSI_PAIRS_DATA_SUITE_ROOT/primary_raw_inputs/CSI-PAIRS-A100-input-v2/raw_osm"
@@ -16,6 +15,27 @@ export DEEP_MIMO_ROOT="$CSI_PAIRS_DATA_SUITE_ROOT/external_public_datasets/exter
 export URBAN_MIMO_ROOT="$CSI_PAIRS_DATA_SUITE_ROOT/external_public_datasets/external_wireless/UrbanMIMOMap"
 export RADIO_MAP_ROOT="$CSI_PAIRS_DATA_SUITE_ROOT/external_public_datasets/external_wireless/RadioMapSeer"
 export DEEP_SENSE_ROOT="$CSI_PAIRS_DATA_SUITE_ROOT/external_public_datasets/external_wireless/WWM/alternatives/DeepSense6G"
+
+for path in \
+  "$CSI_PAIRS_RAW_OSM_ROOT" \
+  "$DEEP_MIMO_ROOT" \
+  "$URBAN_MIMO_ROOT" \
+  "$RADIO_MAP_ROOT" \
+  "$DEEP_SENSE_ROOT"; do
+  if [[ ! -d "$path" || -L "$path" ]]; then
+    echo "required dataset directory is missing or unsafe: $path" >&2
+    return 3
+  fi
+done
+for path in \
+  "$CSI_PAIRS_CPU_CANDIDATE" \
+  "$CSI_PAIRS_FORMAL_SPLIT_LEDGER" \
+  "$CSI_PAIRS_A100_FIXTURE"; do
+  if [[ ! -f "$path" || -L "$path" ]]; then
+    echo "required dataset file is missing or unsafe: $path" >&2
+    return 3
+  fi
+done
 
 echo "CSI_PAIRS_DATA_SUITE_ROOT=$CSI_PAIRS_DATA_SUITE_ROOT"
 echo "CSI_PAIRS_RAW_OSM_ROOT=$CSI_PAIRS_RAW_OSM_ROOT"

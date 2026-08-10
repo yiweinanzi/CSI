@@ -6,7 +6,7 @@ OUTPUT_INPUT="${1:?usage: build_server_bundle.sh UNUSED_OUTPUT_ZIP}"
 OUTPUT_PARENT="$(cd "$(dirname "${OUTPUT_INPUT}")" && pwd)"
 OUTPUT_ZIP="${OUTPUT_PARENT}/$(basename "${OUTPUT_INPUT}")"
 
-if [[ -e "${OUTPUT_ZIP}" || -e "${OUTPUT_ZIP}.sha256" ]]; then
+if [[ -e "${OUTPUT_ZIP}" || -e "${OUTPUT_ZIP}.sha256" || -e "${OUTPUT_ZIP}.manifest.sha256" ]]; then
   echo "refusing to overwrite server bundle output" >&2
   exit 2
 fi
@@ -76,7 +76,7 @@ find "${BUNDLE_ROOT}/formal_v2/external_adapters" -maxdepth 1 -type d \
 find "${BUNDLE_ROOT}" -type f \( -name '*.pyc' -o -name '.DS_Store' \) -delete
 
 cd "${BUNDLE_ROOT}"
-find . -type f ! -name SHA256SUMS -print | LC_ALL=C sort | while IFS= read -r path; do
+find . -type f ! -path ./SHA256SUMS -print | LC_ALL=C sort | while IFS= read -r path; do
   shasum -a 256 "${path}"
 done > SHA256SUMS
 
@@ -89,5 +89,7 @@ cd "${STAGING_ROOT}"
 TZ=UTC find CSI-PAIRS-v2.1-server -type f -print | LC_ALL=C sort | TZ=UTC zip -X -q "${OUTPUT_ZIP}" -@
 cd "${OUTPUT_PARENT}"
 shasum -a 256 "$(basename "${OUTPUT_ZIP}")" > "${OUTPUT_ZIP}.sha256"
+MANIFEST_SHA256="$(shasum -a 256 "${BUNDLE_ROOT}/SHA256SUMS" | awk '{print $1}')"
+printf '%s  SHA256SUMS\n' "${MANIFEST_SHA256}" > "${OUTPUT_ZIP}.manifest.sha256"
 
 echo "${OUTPUT_ZIP}"
