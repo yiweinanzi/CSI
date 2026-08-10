@@ -30,7 +30,10 @@ mkdir -p "${BUNDLE_ROOT}/paper/official_style"
     --exclude='formal_v2/scripts/build_v6_requirement_matrix.py' \
     --exclude='formal_v2/scripts/v6_trace_registry.py' \
     --exclude='formal_v2/anonymous_release.py' \
+    --exclude='formal_v2/configs/a100_dataset_suite_v6.json' \
+    --exclude='formal_v2/external_data_bundle' \
     --exclude='formal_v2/tests/test_anonymous_release.py' \
+    --exclude='formal_v2/tests/test_a100_dataset_package_v6.py' \
     --exclude='formal_v2/tests/test_audit_artifacts.py' \
     --exclude='formal_v2/tests/test_m4_scene0_exact_gate.py' \
     --exclude='formal_v2/tests/test_m4_candidate_evidence.py' \

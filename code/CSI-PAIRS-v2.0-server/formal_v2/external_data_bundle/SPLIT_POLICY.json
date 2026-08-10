@@ -1,0 +1,31 @@
+{
+  "schema_version": "csi-pairs-a100-external-baseline-split-policy-v1",
+  "global_rules": [
+    "Never concatenate sources and then randomly split rows.",
+    "Fit normalization on the registered training partition only.",
+    "Do not use target labels checkpoints or test metrics for selection.",
+    "Bind every emitted row to source dataset scenario map sequence and split IDs."
+  ],
+  "datasets": {
+    "DeepMIMO": {
+      "independent_unit": "scenario",
+      "required_split": "group by scenario before any receiver-level sampling",
+      "registered_candidate": "asu_campus_3p5 and i1_2p5 are separate domains"
+    },
+    "UrbanMIMOMap": {
+      "independent_unit": "transmitter/configuration group within map 0",
+      "required_split": "group by transmitter/configuration; never randomize individual rows",
+      "scope_limit": "one map only; no cross-map generalization claim"
+    },
+    "RadioMapSeer": {
+      "independent_unit": "city map",
+      "required_split": "hold out complete maps and keep derived Loc/ToA views joined",
+      "scope_limit": "RadioMap3DSeer is a public geometric substitute, not IRT2HighRes"
+    },
+    "DeepSense6G": {
+      "independent_unit": "collection sequence and location",
+      "required_split": "group by seq_index; use Scenario 8 versus 33 only with shared modalities",
+      "scope_limit": "hardware and 2D versus 3D LiDAR differences confound pure location claims"
+    }
+  }
+}

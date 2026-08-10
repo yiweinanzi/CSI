@@ -1,0 +1,109 @@
+{
+  "schema_version": "csi-pairs-external-dataset-registry-v1",
+  "registry_date": "2026-08-10",
+  "training_core_complete": true,
+  "all_original_sources_complete": false,
+  "public_substitutions_used": true,
+  "formal_sibling_world_compatible": false,
+  "silent_stage0_use": "FORBIDDEN",
+  "datasets": [
+    {
+      "id": "deepmimo_public_core",
+      "source_name": "DeepMIMO",
+      "included": [
+        "asu_campus_3p5",
+        "i1_2p5",
+        "official_code_license_snapshot"
+      ],
+      "source_status": "PUBLIC_ORIGINAL_CORE_COMPLETE",
+      "allowed_roles": [
+        "named_channel_baseline",
+        "adapter_development",
+        "scenario_grouped_external_evaluation"
+      ],
+      "formal_main_data": false
+    },
+    {
+      "id": "urbanmimomap_public_map0",
+      "source_name": "UrbanMIMOMap",
+      "included": [
+        "map_0_all_120_npz",
+        "official_repository_snapshot"
+      ],
+      "source_status": "PUBLIC_ONE_MAP_CORE_COMPLETE_NOT_FULL_350_MAP_SET",
+      "allowed_roles": [
+        "single_map_grouped_mimo_baseline",
+        "adapter_development"
+      ],
+      "formal_main_data": false
+    },
+    {
+      "id": "radiomapseer_public_core",
+      "source_name": "RadioMapSeer",
+      "included": [
+        "RadioMapSeer",
+        "RadioLocSeer",
+        "RadioToASeer",
+        "RadioMap3DSeer",
+        "RadioUNet_code"
+      ],
+      "missing_originals": [
+        "IRT2HighRes"
+      ],
+      "source_status": "PUBLIC_CORE_COMPLETE_WITH_3D_SUBSTITUTE",
+      "substitution": "RadioMap3DSeer is not IRT2HighRes",
+      "allowed_roles": [
+        "radio_map_baseline",
+        "localization_baseline",
+        "toa_baseline",
+        "geometry_conditioned_baseline"
+      ],
+      "formal_main_data": false
+    },
+    {
+      "id": "deepsense_for_unreleased_wwm",
+      "requested_source_name": "Wireless World Model",
+      "actual_included_source": "DeepSense6G",
+      "included": [
+        "scenario_8",
+        "scenario_33",
+        "WWM_public_metadata_only"
+      ],
+      "missing_originals": [
+        "WWM_train_data",
+        "WWM_test_data",
+        "WWM_field_data",
+        "WWM_beam_prediction_data",
+        "WWM_3D_point_clouds",
+        "WWM_checkpoints"
+      ],
+      "source_status": "PUBLIC_NON_EQUIVALENT_SUBSTITUTE_COMPLETE",
+      "substitution": "DeepSense Scenarios 8 and 33 are not original WWM data",
+      "allowed_roles": [
+        "explicit_deepsense_multimodal_baseline",
+        "sensor_fusion_adapter_development",
+        "sequence_grouped_pilot_evaluation"
+      ],
+      "forbidden_claims": [
+        "WWM_reproduction",
+        "original_WWM_data_used",
+        "equivalent_WWM_pretraining"
+      ],
+      "formal_main_data": false
+    }
+  ],
+  "not_redistributed": [
+    {
+      "id": "qualcomm_wireless_indoor",
+      "reason": "local source provenance, upstream checksum, and redistribution license snapshots are missing"
+    },
+    {
+      "id": "original_wwm",
+      "reason": "provider files are not public"
+    },
+    {
+      "id": "irt2highres",
+      "reason": "paid source was not acquired"
+    }
+  ]
+}

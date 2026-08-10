@@ -1,0 +1,84 @@
+{
+  "schema_version": "csi-pairs-a100-data-suite-policy-v1",
+  "package_id": "CSI-PAIRS-A100-DATASETS-v2",
+  "delivery_type": "internal_research_data_handoff",
+  "archive_policy": {
+    "commit_binary_zip_to_git": false,
+    "commit_dataset_payloads_to_git": false,
+    "approved_transfer_targets": [
+      "reviewed_A100_host",
+      "access_controlled_object_storage",
+      "release_asset_if_license_review_passes"
+    ],
+    "anonymous_supplement_ready": false
+  },
+  "readiness": {
+    "PACKAGE_INTEGRITY": "REQUIRES_FRESH_EXTRACTION_VERIFICATION",
+    "FORMAL_CANDIDATE_READY": "BLOCKED_REGENERATE_ON_PREAPPROVED_LINUX_RUNTIME",
+    "FORMAL_INPUT_READY": "BLOCKED",
+    "FORMAL_TRAINING_READY": "NO",
+    "LAUNCH_READY": "BLOCKED",
+    "SCIENTIFIC_EVIDENCE": "NOT_ASSESSED"
+  },
+  "formal_main_contract": {
+    "independent_unit": "bank_or_tile",
+    "payload_layout": "single_dataset_selected_by_scene_roles_and_position_roles",
+    "split_ledger": "docs/FORMAL_MAIN_SPLIT_LEDGER.json",
+    "dimensions": {
+      "banks": 34,
+      "cities": 6,
+      "intervention_bits": 2,
+      "worlds_per_bank": 4,
+      "positions_per_bank": 256,
+      "channels": 16,
+      "observation_repeats": 3
+    },
+    "city_banks": {
+      "source-austin": 7,
+      "source-chicago": 7,
+      "target-boston": 8,
+      "target-seattle": 8,
+      "external-denver": 2,
+      "external-miami": 2
+    }
+  },
+  "components": {
+    "primary_raw_inputs": {
+      "scientific_use": "AUTHORITATIVE_REGENERATION_INPUT",
+      "formal_training_input": false
+    },
+    "external_public_datasets": {
+      "scientific_use": "EXPLICIT_BASELINE_OR_PREREGISTERED_EXTERNAL_DOMAIN_ONLY",
+      "formal_sibling_world_data": false,
+      "silent_stage0_use": "FORBIDDEN"
+    },
+    "cpu_llvm22_34bank_candidate": {
+      "scientific_use": "CANDIDATE_NOT_CLAIM",
+      "formal_training_input": false,
+      "reason": "destination_deep_verification_and_fresh_live_regeneration_required"
+    },
+    "local_verification_evidence": {
+      "mode": "same_host_same_engine_live_regeneration",
+      "independent_rt_engine": false,
+      "scientific_evidence": false
+    },
+    "a100_sionna_fixture": {
+      "fixture": true,
+      "scientific_use": "FORBIDDEN",
+      "software_testing_only": true
+    }
+  },
+  "required_exclusions": [
+    "local_python_virtual_environments",
+    "git_object_databases",
+    "partial_or_aborted_downloads",
+    "duplicate_extracted_RadioMapSeer_payload",
+    "verification_regenerated.npz",
+    "legacy_pathless_or_failed_candidates",
+    "Qualcomm_Wi3R_WiPTR_payload_pending_redistribution_review",
+    "original_WWM_files_not_public",
+    "paid_IRT2HighRes_not_acquired",
+    "model_checkpoints",
+    "paper_results"
+  ]
+}

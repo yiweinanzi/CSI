@@ -1,0 +1,39 @@
+{
+  "schema_version": "csi-pairs-a100-external-baseline-contract-v1",
+  "bundle_role": "external_baseline_data_companion",
+  "target_platform": "Linux x86_64 with optional NVIDIA A100 compute",
+  "engineering_status_after_full_verification": "A100_EXTERNAL_DATA_READY",
+  "scientific_use": "EXTERNAL_BASELINE_CANDIDATE_NOT_CLAIM",
+  "training_core_complete": true,
+  "all_original_sources_complete": false,
+  "formal_paired_world_eligible": false,
+  "formal_go_effect": "UNCHANGED",
+  "license_review_required_before_paper_run": true,
+  "preregistration_required_before_paper_run": true,
+  "allowed_roles": [
+    "external baseline",
+    "adapter development",
+    "preregistered external-domain evaluation",
+    "common warm-start ablation after an equal-information control is frozen"
+  ],
+  "forbidden_roles": [
+    "CSI-PAIRS formal sibling-world main data",
+    "headline Stage-0 teacher data",
+    "route selection",
+    "normalization selection",
+    "RT calibration substitution",
+    "G8 independent-engine substitution",
+    "claiming DeepSense is original WWM",
+    "claiming RadioMap3DSeer is IRT2HighRes",
+    "public redistribution before dataset-level license review"
+  ],
+  "required_paper_evidence": [
+    "dataset-level license and citation records",
+    "frozen adapter and preprocessing hashes",
+    "grouped train validation and test splits",
+    "leakage audit across scenarios maps sequences and locations",
+    "equal-information and equal-compute controls",
+    "failed-run and checkpoint-selection accounting",
+    "explicit original-versus-substitute labels"
+  ]
+}

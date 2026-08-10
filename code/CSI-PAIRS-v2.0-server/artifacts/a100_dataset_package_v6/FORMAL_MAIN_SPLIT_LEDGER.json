@@ -1,0 +1,176 @@
+{
+  "schema_version": "csi-pairs-formal-main-split-ledger-v1",
+  "dataset_sha256": "e89034302d6c4a64c838c244a60ad7c42b081e760ef2c9fc548440b0d5458d2e",
+  "dataset_status": "CANDIDATE_NOT_CLAIM",
+  "independent_unit": "base_map_cluster_or_bank",
+  "storage_policy": "ONE_DATASET_WITH_ROLE_INDEXES_NO_PAYLOAD_DUPLICATION",
+  "source": {
+    "cities_in_scene_order": [
+      "source-chicago",
+      "source-austin"
+    ],
+    "expected_banks_per_role": 2,
+    "bank_index_to_role": [
+      {
+        "bank_index": 0,
+        "role": "source_encoder_train",
+        "plain_name": "encoder and main-method training",
+        "allowed": [
+          "fit Stage-0 teacher and readout",
+          "fit the four final method arms and source localization head",
+          "fit training-only normalization statistics"
+        ],
+        "forbidden": [
+          "probe fitting",
+          "calibrator fitting",
+          "threshold or architecture selection",
+          "final reporting"
+        ]
+      },
+      {
+        "bank_index": 1,
+        "role": "source_method_selection",
+        "plain_name": "validation and method selection",
+        "allowed": [
+          "freeze route thresholds and noise floors",
+          "select margins loss weights masks queries architecture and checkpoint rules",
+          "run preregistered short pilots"
+        ],
+        "forbidden": [
+          "update the final encoder",
+          "fit the unified probes",
+          "fit calibrators",
+          "final reporting"
+        ]
+      },
+      {
+        "bank_index": 2,
+        "role": "source_probe_train",
+        "plain_name": "probe training",
+        "allowed": [
+          "fit unified compatibility and response probes on frozen representations"
+        ],
+        "forbidden": [
+          "select the probe family",
+          "fit calibrators",
+          "update the encoder",
+          "final reporting"
+        ]
+      },
+      {
+        "bank_index": 3,
+        "role": "source_probe_selection",
+        "plain_name": "probe selection",
+        "allowed": [
+          "select the probe family regularization and checkpoint"
+        ],
+        "forbidden": [
+          "fit calibrators",
+          "update the encoder or probe on this data",
+          "final reporting"
+        ]
+      },
+      {
+        "bank_index": 4,
+        "role": "source_calibration_fit",
+        "plain_name": "calibration fitting",
+        "allowed": [
+          "fit alignment temperature risk calibrator feature standardization and support estimator"
+        ],
+        "forbidden": [
+          "select the probe family",
+          "read target-city results",
+          "update the encoder or probe",
+          "final reporting"
+        ]
+      },
+      {
+        "bank_index": 5,
+        "role": "source_calibration_selection",
+        "plain_name": "calibration selection",
+        "allowed": [
+          "select only preregistered calibration regularization and family choices",
+          "freeze the support quantile"
+        ],
+        "forbidden": [
+          "refit the chosen calibrator on this data",
+          "update the encoder or probe",
+          "serve as a calibration final test",
+          "final reporting"
+        ]
+      },
+      {
+        "bank_index": 6,
+        "role": "source_final_unseen_bank",
+        "plain_name": "source-city final held-out test",
+        "allowed": [
+          "one-time source-city audit and final statistical test"
+        ],
+        "forbidden": [
+          "any training",
+          "normalization",
+          "threshold calibration architecture or checkpoint selection"
+        ]
+      }
+    ]
+  },
+  "target": {
+    "cities_in_scene_order": [
+      "target-seattle",
+      "target-boston"
+    ],
+    "bank_indices": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+    ],
+    "scene_role": "target",
+    "positions_per_bank": 256,
+    "position_partition": {
+      "support_pool": {
+        "index_rule": "position_index_mod_2_eq_0",
+        "positions_per_bank": 128,
+        "allowed": "headline adaptation support only; one preregistered correct or natural observation per unique receiver position"
+      },
+      "query": {
+        "index_rule": "position_index_mod_2_eq_1",
+        "positions_per_bank": 128,
+        "allowed": "frozen final target evaluation only",
+        "forbidden": "gradient updates early stopping normalization threshold selection hyperparameter selection and checkpoint selection"
+      }
+    },
+    "label_budgets_unique_positions": [
+      0,
+      8,
+      32,
+      128
+    ],
+    "support_sibling_rule": "all sibling worlds edges masks and queries of a selected support position are excluded from final target statistics",
+    "query_freeze_rule": "query positions and their sibling data never enter fitting or model selection"
+  },
+  "external_validation": {
+    "cities_in_scene_order": [
+      "external-denver",
+      "external-miami"
+    ],
+    "bank_indices": [
+      0,
+      1
+    ],
+    "scene_role": "external_validation",
+    "allowed": "preregistered external-city or stress evaluation after all source decisions are frozen",
+    "forbidden": "training normalization calibration threshold architecture or checkpoint selection"
+  },
+  "global_no_leakage_rules": [
+    "Never randomly split receiver rows across permissions.",
+    "All four sibling worlds all edges all repeats all masks and all queries follow their highest-level bank or position unit.",
+    "A base-map cluster may not cross a role or city.",
+    "Observation repeats estimate variability and never count as independent scenes.",
+    "External public datasets follow docs/SPLIT_POLICY.json and never silently enter the formal main dataset."
+  ]
+}

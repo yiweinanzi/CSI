@@ -22,6 +22,7 @@ trap 'rm -rf "${STAGING_ROOT}"' EXIT
 echo "building internal research delivery; do not submit this bundle as anonymous supplementary" >&2
 
 mkdir -p "${BUNDLE_ROOT}/artifacts" "${BUNDLE_ROOT}/output/pdf" "${BUNDLE_ROOT}/paper/official_style"
+mkdir -p "${BUNDLE_ROOT}/artifacts/dataset_suite_v6/external_wireless_metadata"
 (
   cd "${PROJECT_ROOT}"
   tar \
@@ -59,6 +60,13 @@ cp -p "${PROJECT_ROOT}/artifacts/waibu_integration_audit_2026-08-06.md" "${BUNDL
 cp -p "${PROJECT_ROOT}/artifacts/v6_traceability_audit_2026-08-07.md" "${BUNDLE_ROOT}/artifacts/"
 cp -R "${PROJECT_ROOT}/artifacts/m4_formal_candidate_v2" "${BUNDLE_ROOT}/artifacts/"
 cp -R "${PROJECT_ROOT}/artifacts/m4_llvm22_candidate_v1" "${BUNDLE_ROOT}/artifacts/"
+cp -R "${PROJECT_ROOT}/artifacts/a100_dataset_package_v6" "${BUNDLE_ROOT}/artifacts/"
+cp -p "${PROJECT_ROOT}/artifacts/dataset_suite_v6/ROLE_ASSIGNMENTS.csv" \
+  "${BUNDLE_ROOT}/artifacts/dataset_suite_v6/"
+cp -p "${PROJECT_ROOT}/artifacts/dataset_suite_v6/DATA_AVAILABILITY.md" \
+  "${BUNDLE_ROOT}/artifacts/dataset_suite_v6/"
+cp -p "${PROJECT_ROOT}/artifacts/dataset_suite_v6/external_wireless_metadata/SHA256SUMS" \
+  "${BUNDLE_ROOT}/artifacts/dataset_suite_v6/external_wireless_metadata/"
 cp -p "${PROJECT_ROOT}/output/pdf/CSI-PAIRS-paper-v2.1-draft.pdf" "${BUNDLE_ROOT}/output/pdf/"
 
 find "${BUNDLE_ROOT}" -type d -name __pycache__ -prune -exec rm -rf {} +
