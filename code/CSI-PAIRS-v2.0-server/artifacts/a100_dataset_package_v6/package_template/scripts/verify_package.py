@@ -65,6 +65,11 @@ def require(condition: bool, message: str) -> None:
         raise VerificationError(message)
 
 
+def verify_python_version(version: tuple[int, int] | None = None) -> None:
+    observed = version if version is not None else sys.version_info[:2]
+    require(observed == (3, 12), f"package verification requires exactly Python 3.12, found {observed[0]}.{observed[1]}")
+
+
 def load_json(path: Path) -> dict:
     try:
         value = json.loads(path.read_text(encoding="utf-8"))
@@ -351,6 +356,7 @@ def main() -> int:
     root = Path(__file__).resolve().parents[1]
 
     try:
+        verify_python_version()
         entries, total_bytes = verify_manifest(root)
         verify_external_inventory(entries)
         verify_status_boundaries(root)

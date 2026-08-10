@@ -267,8 +267,8 @@ class A100DatasetPackageV6Tests(unittest.TestCase):
         self.assertIn("require_verified_roles_from_root", script)
 
     def test_destination_entrypoints_use_python312_and_standard_core_environment(self):
+        start_here = PACKAGE_CONTROL / "package_template/START_HERE.sh"
         entrypoints = (
-            PACKAGE_CONTROL / "package_template/START_HERE.sh",
             PACKAGE_CONTROL / "package_template/scripts/VERIFY_PACKAGE.sh",
             PACKAGE_CONTROL / "package_template/scripts/verify_package.py",
             PACKAGE_CONTROL / "scripts/A100_REGENERATE_AND_VERIFY.sh",
@@ -277,6 +277,13 @@ class A100DatasetPackageV6Tests(unittest.TestCase):
             with self.subTest(entrypoint=entrypoint):
                 script = entrypoint.read_text(encoding="utf-8")
                 self.assertIn("python3.12", script)
+        self.assertIn(
+            '"$ROOT/scripts/VERIFY_PACKAGE.sh"',
+            start_here.read_text(encoding="utf-8"),
+        )
+        self.verifier.verify_python_version((3, 12))
+        with self.assertRaises(self.verifier.VerificationError):
+            self.verifier.verify_python_version((3, 11))
         regeneration = entrypoints[-1].read_text(encoding="utf-8")
         self.assertIn('CORE_PYTHON="${SERVER_ROOT}/.venv/bin/python"', regeneration)
 
