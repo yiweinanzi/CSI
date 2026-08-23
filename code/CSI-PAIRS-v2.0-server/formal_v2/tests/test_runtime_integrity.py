@@ -18,6 +18,7 @@ from formal_v2.formal_runtime_integrity import (
     reviewed_wheel_manifest,
     validate_installed_wheel_closure,
 )
+from formal_v2.formal_evidence import require_source_tree_without_bytecode
 
 
 def _record_hash(payload: bytes) -> str:
@@ -240,6 +241,20 @@ class RuntimeIntegrityTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "forbidden bytecode"):
             self.validate()
 
+    def test_project_source_bytecode_is_rejected_but_isolated_runtimes_are_excluded(self):
+        source = self.root / "formal_v2"
+        (source / ".runtime-engine" / "package").mkdir(parents=True)
+        (source / ".runtime-engine" / "package" / "allowed.pyc").write_bytes(b"runtime")
+        (source / ".venv-adapter" / "package").mkdir(parents=True)
+        (source / ".venv-adapter" / "package" / "allowed.pyc").write_bytes(b"venv")
+        require_source_tree_without_bytecode(source)
+
+        forbidden = source / "module" / "__pycache__" / "module.cpython-312.pyc"
+        forbidden.parent.mkdir(parents=True)
+        forbidden.write_bytes(b"unbound-project-bytecode")
+        with self.assertRaisesRegex(RuntimeError, "project source tree contains forbidden bytecode"):
+            require_source_tree_without_bytecode(source)
+
     def test_forged_report_or_manifest_cannot_replace_locked_wheel(self):
         fake_report = self.prefix / "csi-pairs-install-report.json"
         fake_report.write_text(json.dumps({"claimed_wheel": self.expected["example"]["hashes"][0]}))
@@ -265,7 +280,13 @@ class RuntimeIntegrityTests(unittest.TestCase):
         self.assertIn("-name '*.pyc'", setup)
         scripts = Path(__file__).resolve().parents[1] / "scripts"
         for name in ("run_formal_v2.sh", "run_formal_v2_dry_run.sh"):
-            self.assertIn("export PYTHONDONTWRITEBYTECODE=1", (scripts / name).read_text())
+            source = (scripts / name).read_text()
+            self.assertIn("export PYTHONDONTWRITEBYTECODE=1", source)
+            for line in source.splitlines():
+                if '"${PYTHON_BIN}"' in line:
+                    self.assertIn(
+                        " -B ", line, f"unguarded Python startup in {name}: {line}"
+                    )
 
     def test_documented_python_commands_disable_bytecode(self):
         formal_root = Path(__file__).resolve().parents[1]

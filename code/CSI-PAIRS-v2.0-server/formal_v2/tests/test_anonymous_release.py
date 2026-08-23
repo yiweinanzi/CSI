@@ -211,9 +211,73 @@ class AnonymousReleaseTests(unittest.TestCase):
         self.assertFalse(
             (release_root / "formal_v2/tests/test_audit_artifacts.py").exists()
         )
+        self.assertFalse(
+            (
+                release_root
+                / "formal_v2/tests/test_formal_data_pilot_projection.py"
+            ).exists()
+        )
+        self.assertFalse(
+            (release_root / "formal_v2/tests/test_v5_pilot_tools.py").exists()
+        )
+        self.assertFalse(
+            (
+                release_root
+                / "formal_v2/tests/test_v5_action_inverse_response_probe.py"
+            ).exists()
+        )
+        self.assertFalse(
+            (release_root / "formal_v2/tests/test_v5_protocol_freeze.py").exists()
+        )
+        self.assertFalse(
+            (
+                release_root
+                / "formal_v2/tests/test_v5_response_pilot_aggregate.py"
+            ).exists()
+        )
+        self.assertFalse(
+            (release_root / "formal_v2/external_adapters/.runtime-differt").exists()
+        )
+        strict_candidates = []
+        configured = os.environ.get("CSI_PAIRS_ANONYMOUS_TEST_PYTHON")
+        if configured:
+            strict_candidates.append(Path(configured).absolute())
+        strict_candidates.append(Path(sys.executable).resolve())
+        strict_candidates.extend(
+            path.absolute()
+            for path in reversed(
+                sorted(project_root.glob(".venv-core-formal-*/bin/python"))
+            )
+        )
+        strict_python = next(
+            (
+                path
+                for path in strict_candidates
+                if path.is_file()
+                and os.access(path, os.X_OK)
+                and (path.parents[1] / "csi-pairs-install-report.json").is_file()
+                and (
+                    path.parents[1] / "csi-pairs-reviewed-wheel-manifest.json"
+                ).is_file()
+            ),
+            None,
+        )
+        if strict_python is None:
+            self.skipTest(
+                "recursive public-suite validation requires the README's "
+                "hash-locked environment"
+            )
+        runtime_root = strict_python.parents[1]
+        bytecode_before = {
+            path.relative_to(runtime_root)
+            for path in runtime_root.rglob("*")
+            if path.is_file() and path.suffix in {".pyc", ".pyo"}
+        }
+        recursive_cache = self.root / "recursive-pycache"
         completed = subprocess.run(
             [
-                sys.executable,
+                str(strict_python),
+                "-B",
                 "-m",
                 "unittest",
                 "discover",
@@ -225,9 +289,24 @@ class AnonymousReleaseTests(unittest.TestCase):
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
+            env={
+                **os.environ,
+                "PYTHONDONTWRITEBYTECODE": "1",
+                "PYTHONPYCACHEPREFIX": str(recursive_cache.resolve()),
+                "OMP_NUM_THREADS": "1",
+                "MKL_NUM_THREADS": "1",
+                "OPENBLAS_NUM_THREADS": "1",
+                "NUMEXPR_NUM_THREADS": "1",
+            },
             # This recursively runs the public suite on a hosted CPU runner.
             timeout=900,
         )
+        bytecode_after = {
+            path.relative_to(runtime_root)
+            for path in runtime_root.rglob("*")
+            if path.is_file() and path.suffix in {".pyc", ".pyo"}
+        }
+        self.assertEqual(bytecode_after, bytecode_before)
         self.assertEqual(
             completed.returncode,
             0,

@@ -813,11 +813,17 @@ def _validate_execution_manifest(adapter, output_dir, result_path, dataset):
             }
         )
     if external_wigatr_runtime:
-        required.add("runtime_environment_sha256")
+        required.update(
+            {
+                "runtime_environment_sha256",
+                "mesh_surface_audit_path",
+                "mesh_surface_audit_sha256",
+            }
+        )
     if not isinstance(payload, dict) or set(payload) != required:
         raise RuntimeError("external execution manifest fields must be exact")
     if external_wigatr_runtime:
-        expected_schema = "csi-pairs-v6-external-execution-v3"
+        expected_schema = "csi-pairs-v6-external-execution-v4"
     elif main_pmnet_runtime:
         expected_schema = "csi-pairs-v6-external-execution-v4"
     else:
@@ -859,6 +865,61 @@ def _validate_execution_manifest(adapter, output_dir, result_path, dataset):
         or training_record.get("target_roles_read") != []
     ):
         raise RuntimeError("external training record violates the source-only role ledger")
+    if external_wigatr_runtime:
+        audit_path = (output_dir / payload["mesh_surface_audit_path"]).resolve()
+        if output_dir.resolve() not in audit_path.parents or not audit_path.is_file():
+            raise RuntimeError("Wi-GATr mesh surface audit is missing or escapes adapter output")
+        if sha256_file(audit_path) != payload["mesh_surface_audit_sha256"]:
+            raise RuntimeError("Wi-GATr mesh surface audit hash mismatch")
+        audit = read_strict_json(audit_path)
+        required_audit = {
+            "schema_version",
+            "status",
+            "passed",
+            "dataset_sha256",
+            "preprocessing",
+            "scene_count",
+            "world_count",
+            "map_count",
+            "role_map_counts",
+            "reference_face_count",
+            "compact_face_count",
+            "canonical_surface_ledger_sha256",
+            "rule",
+        }
+        expected_role_counts = {
+            str(role): int(np.sum(dataset.scene_roles == role)) * dataset.world_count
+            for role in sorted(set(str(value) for value in dataset.scene_roles))
+        }
+        if (
+            not isinstance(audit, dict)
+            or set(audit) != required_audit
+            or audit["schema_version"]
+            != "csi-pairs-v6-wigatr-mesh-surface-audit-v1"
+            or audit["status"] != "PASS"
+            or audit["passed"] is not True
+            or audit["dataset_sha256"] != sha256_file(dataset.source_path)
+            or audit["preprocessing"]
+            != "surface-ledger-equivalent-rectangle-compaction-v1"
+            or audit["scene_count"] != dataset.scene_count
+            or audit["world_count"] != dataset.world_count
+            or audit["map_count"] != dataset.scene_count * dataset.world_count
+            or audit["role_map_counts"] != expected_role_counts
+            or type(audit["reference_face_count"]) is not int
+            or type(audit["compact_face_count"]) is not int
+            or audit["reference_face_count"] < audit["compact_face_count"]
+            or not _lower_sha256(audit["canonical_surface_ledger_sha256"])
+            or not isinstance(audit["rule"], str)
+            or not audit["rule"].strip()
+        ):
+            raise RuntimeError("Wi-GATr mesh surface audit contract mismatch")
+        if (
+            training_record.get("mesh_surface_audit_path")
+            != payload["mesh_surface_audit_path"]
+            or training_record.get("mesh_surface_audit_sha256")
+            != payload["mesh_surface_audit_sha256"]
+        ):
+            raise RuntimeError("Wi-GATr training record does not bind the mesh surface audit")
     if sha256_file(result_path) != payload["results_sha256"]:
         raise RuntimeError("external result hash mismatch")
     if external_wigatr_runtime:

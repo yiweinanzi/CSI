@@ -35,6 +35,8 @@ DATA_KEYS = {
     "minimum_banks_per_target_city",
     "minimum_independent_base_map_clusters_per_target_city",
     "minimum_banks_per_source_role",
+    "minimum_independent_source_final_unseen_clusters",
+    "minimum_independent_external_validation_clusters",
 }
 QUALIFICATION_KEYS = {
     "noise_floor_quantile",
@@ -241,6 +243,16 @@ def validate_formal_config(config: object) -> None:
         data["minimum_banks_per_source_role"],
         "data.minimum_banks_per_source_role",
         minimum=1,
+    )
+    _positive_int(
+        data["minimum_independent_source_final_unseen_clusters"],
+        "data.minimum_independent_source_final_unseen_clusters",
+        minimum=1,
+    )
+    _positive_int(
+        data["minimum_independent_external_validation_clusters"],
+        "data.minimum_independent_external_validation_clusters",
+        minimum=0,
     )
 
     qualification = config["qualification"]

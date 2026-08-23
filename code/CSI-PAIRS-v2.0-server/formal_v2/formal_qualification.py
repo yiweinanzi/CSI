@@ -5,12 +5,23 @@ from pathlib import Path
 import numpy as np
 import torch
 
-from .formal_baselines import RidgeRegressor, normalized_mse
+from .formal_baselines import (
+    RidgeRegressor,
+    RidgeSufficientStatistics,
+    ZeroPreservingRidgeRegressor,
+    ZeroPreservingRidgeSufficientStatistics,
+    normalized_mse,
+)
 from .formal_config import public_formal_config
 from .formal_dataset import FormalDataset
 from .formal_evidence import QUALIFICATION_SCHEMA, bind_rows, complete_gate_vector, evidence_context
-from .formal_features import protocol_response_features, variant_features
-from .formal_io import artifact_manifest, sha256_file, write_csv, write_json
+from .formal_features import (
+    assemble_protocol_response_feature_matrix,
+    assemble_protocol_response_features,
+    multichannel_spatial_features,
+    variant_features,
+)
+from .formal_io import artifact_manifest, read_strict_json, sha256_file, write_csv, write_json
 from .formal_model import module_device, resolve_execution_device
 from .formal_protocol import PatchSpec, delay_angle_power, patchify_csi, typed_signed_edit, zero_typed_edit
 from .formal_routing import (
@@ -22,7 +33,9 @@ from .formal_routing import (
 )
 from .formal_teacher import (
     TeacherBundle,
+    load_teacher_bundle,
     masked_reconstruction_nmse,
+    normalized_teacher_patches,
     save_teacher_bundle,
     teacher_targets,
     train_teacher_bundle,
@@ -32,12 +45,31 @@ from .formal_teacher import (
 QUALIFICATION_METHODS = (
     "no_x",
     "oracle_x",
-    "no_action",
     "map_edit_only",
     "csi_only",
     "variant_id_only",
 )
+ZERO_PRESERVING_METHODS = ("no_x", "oracle_x", "map_edit_only")
 BASELINES = ("copy", "no_action", "action_swap")
+QUALIFICATION_STREAM_BATCH_ROWS = 2048
+QUALIFICATION_FINAL_ARTIFACT_NAMES = (
+    "repeat_noise.csv",
+    "route_noise_floor.csv",
+    "route_coverage.csv",
+    "teacher_qualification.csv",
+    "response_scene_metrics.csv",
+    "null_safety.csv",
+    "response_gate.csv",
+    "shortcut_audit.json",
+    "gate.json",
+    "manifest.json",
+)
+QUALIFICATION_RESUME_REQUIRED_FILES = (
+    "data_contract.json",
+    "teacher_resume.json",
+    "checkpoints/stage0_csi_teacher.pt",
+)
+TEACHER_RESUME_RECEIPT_SCHEMA = "csi-pairs-stage0-resume-receipt-v1-v6"
 
 
 def _qualification_scientific_use(dataset: FormalDataset, passed: bool) -> str:
@@ -54,17 +86,18 @@ def run_formal_qualification(
     output_root: str | Path,
     data_verification_gate: dict,
     data_verification_gate_path: str | Path | None = None,
+    resume: bool = False,
 ) -> dict:
     from .formal_data_verification import require_data_verification
 
+    output_dir = Path(output_root) / "qualification"
+    _prepare_qualification_output(output_dir, resume=resume)
     data_verification_gate = require_data_verification(
         data_verification_gate,
         config,
         dataset,
         gate_path=data_verification_gate_path,
     )
-    output_dir = Path(output_root) / "qualification"
-    output_dir.mkdir(parents=True, exist_ok=True)
     data_config = config["data"]
     dataset.validate(
         require_clean_csi=bool(data_config["require_clean_csi"]),
@@ -76,25 +109,54 @@ def run_formal_qualification(
             data_config["minimum_independent_base_map_clusters_per_target_city"]
         ),
         minimum_banks_per_source_role=int(data_config["minimum_banks_per_source_role"]),
+        minimum_independent_source_final_unseen_clusters=int(
+            data_config["minimum_independent_source_final_unseen_clusters"]
+        ),
+        minimum_independent_external_validation_clusters=int(
+            data_config["minimum_independent_external_validation_clusters"]
+        ),
     )
     provisional_evidence = evidence_context(config, dataset, "FORBIDDEN")
     contract = {**dataset.contract_report(), **provisional_evidence}
-    write_json(output_dir / "data_contract.json", contract)
+    contract_path = output_dir / "data_contract.json"
+    if resume:
+        if read_strict_json(contract_path) != contract:
+            raise RuntimeError("qualification resume data contract no longer matches")
+    else:
+        write_json(contract_path, contract)
 
     blocking = qualification_blocking_scenes(dataset)
     train_scenes = blocking["teacher_train"]
     selection_scenes = blocking["method_selection"]
     patch_spec = PatchSpec.from_metadata(dataset.metadata)
     execution_device = resolve_execution_device(dataset)
-    teacher_bundle = train_teacher_bundle(
-        dataset.csi[train_scenes],
-        patch_spec,
-        config,
-        seed=int(config["seeds"][0]) + 1009,
-        device=execution_device,
-    )
     teacher_checkpoint = output_dir / "checkpoints" / "stage0_csi_teacher.pt"
-    save_teacher_bundle(teacher_checkpoint, teacher_bundle, config, int(config["seeds"][0]) + 1009)
+    teacher_seed = int(config["seeds"][0]) + 1009
+    teacher_receipt_path = output_dir / "teacher_resume.json"
+    if resume:
+        teacher_bundle = _load_resumed_teacher(
+            teacher_checkpoint,
+            teacher_receipt_path,
+            config,
+            provisional_evidence,
+            teacher_seed,
+            execution_device,
+        )
+    else:
+        teacher_bundle = train_teacher_bundle(
+            dataset.csi[train_scenes],
+            patch_spec,
+            config,
+            seed=teacher_seed,
+            device=execution_device,
+        )
+        save_teacher_bundle(teacher_checkpoint, teacher_bundle, config, teacher_seed)
+        write_json(
+            teacher_receipt_path,
+            _teacher_resume_receipt(
+                teacher_checkpoint, provisional_evidence, teacher_seed
+            ),
+        )
     route_normalization = fit_route_normalization(dataset, teacher_bundle)
     routed_selection = route_dataset(
         dataset,
@@ -119,10 +181,18 @@ def run_formal_qualification(
         route_normalization,
         config,
     )
+    selection_wrong_actions = _build_wrong_action_plan(
+        dataset, selection_scenes, int(dataset.metadata["assets"]["material_category_count"])
+    )
     selection_coverage_rows = route_coverage(dataset, routed_selection, selection_scenes)
     branch_rows = {
         row["scene_id"]: row
-        for row in _branch_coverage(dataset, routed_selection, selection_scenes)
+        for row in _branch_coverage(
+            dataset,
+            routed_selection,
+            selection_scenes,
+            wrong_action_plan=selection_wrong_actions,
+        )
     }
     qualification = config["qualification"]
     for row in selection_coverage_rows:
@@ -144,21 +214,23 @@ def run_formal_qualification(
         dataset, teacher_bundle, routed_selection, selection_scenes, config
     )
 
-    train_records = _build_records(dataset, train_scenes, train_routed, teacher_bundle.mask_bank)
-    selection_records = _build_records(
-        dataset, selection_scenes, routed_selection, teacher_bundle.mask_bank
+    train_wrong_actions = _build_wrong_action_plan(
+        dataset, train_scenes, int(dataset.metadata["assets"]["material_category_count"])
     )
-    if not train_records or not selection_records:
-        raise ValueError("V6 qualification requires nonempty train and selection records")
-    targets = np.vstack([row["target_delta"] for row in train_records])
-    models: dict[str, RidgeRegressor] = {}
-    for method in QUALIFICATION_METHODS:
-        features = np.vstack([row[method] for row in train_records])
-        model = RidgeRegressor(float(qualification["ridge"])).fit(features, targets)
+    probe_attempt = _reserve_qualification_probe_attempt(output_dir)
+    models = _fit_qualification_probes_streaming(
+        dataset,
+        train_scenes,
+        train_routed,
+        teacher_bundle.mask_bank,
+        train_wrong_actions,
+        qualification,
+    )
+    for method, model in models.items():
         model.save(
-            output_dir / "checkpoints" / f"{method}.npz",
+            probe_attempt / f"{method}.npz",
             {
-                "schema_version": "csi-pairs-v6-qualification-probe-v1",
+                "schema_version": "csi-pairs-v6-qualification-probe-v2",
                 "input_contract": _method_contract(method),
                 "target": "source-normalized clean physical CSI patch delta",
                 "source_roles": ["source_encoder_train"],
@@ -166,16 +238,140 @@ def run_formal_qualification(
                 **provisional_evidence,
             },
         )
-        models[method] = model
-    selection_target = np.vstack([row["target_delta"] for row in selection_records])
-    predictions = {
-        method: model.predict(np.vstack([row[method] for row in selection_records]))
-        for method, model in models.items()
-    }
-    predictions["copy"] = np.zeros_like(predictions["no_x"])
-    predictions["action_swap"] = models["no_x"].predict(
-        np.vstack([row["action_swap"] for row in selection_records])
+    selection_records, selection_target, predictions = (
+        _predict_qualification_probes_streaming(
+            dataset,
+            selection_scenes,
+            routed_selection,
+            teacher_bundle.mask_bank,
+            selection_wrong_actions,
+            models,
+        )
     )
+    physical_response_checkpoint = None
+    if dataset.is_fixture:
+        physical_response_audit = {
+            "status": "NOT_ASSESSED_FIXTURE_FORBIDDEN",
+            "contract": "ridge-fixture-engineering-path-only",
+            "formal_physical_response_required_for_nonfixture": True,
+        }
+    else:
+        from .formal_action_inverse_response import (
+            PHYSICAL_RESPONSE_CONTRACT,
+            fit_and_predict_qualification_response,
+            load_physical_response_checkpoint,
+            save_physical_response_checkpoint,
+        )
+
+        (
+            physical_response_model,
+            physical_keys,
+            physical_no_x,
+            physical_action_swap,
+            physical_oracle_x,
+            physical_wrong_action_status,
+            physical_response_audit,
+        ) = fit_and_predict_qualification_response(
+            dataset,
+            train_scenes,
+            selection_scenes,
+            train_routed,
+            routed_selection,
+            config,
+            train_wrong_actions,
+            selection_wrong_actions,
+            seed=int(config["seeds"][0]),
+            device=execution_device,
+        )
+        expected_keys = list(
+            zip(
+                selection_records["scene"].astype(np.int64).tolist(),
+                selection_records["source_world"].astype(np.int64).tolist(),
+                selection_records["target_world"].astype(np.int64).tolist(),
+                selection_records["bit"].astype(np.int64).tolist(),
+                selection_records["position"].astype(np.int64).tolist(),
+                selection_records["query"].astype(np.int64).tolist(),
+                strict=True,
+            )
+        )
+        if physical_keys != expected_keys:
+            raise RuntimeError(
+                "physical response rows do not align with qualification records"
+            )
+        if not np.array_equal(
+            physical_wrong_action_status,
+            selection_records["wrong_action_match_status"],
+        ):
+            raise RuntimeError(
+                "physical response wrong-action statuses do not align with qualification"
+            )
+        if (
+            physical_no_x.shape != selection_target.shape
+            or physical_action_swap.shape != selection_target.shape
+            or physical_oracle_x.shape != selection_target.shape
+        ):
+            raise RuntimeError(
+                "physical response predictions differ from qualification target shape"
+            )
+        predictions["ridge_no_x_diagnostic"] = predictions["no_x"]
+        predictions["ridge_action_swap_diagnostic"] = predictions["action_swap"]
+        predictions["ridge_oracle_x_diagnostic"] = predictions["oracle_x"]
+        predictions["no_x"] = physical_no_x
+        predictions["action_swap"] = physical_action_swap
+        predictions["oracle_x"] = physical_oracle_x
+        physical_response_checkpoint = probe_attempt / "physical_response.pt"
+        checkpoint_bindings = {
+            "dataset": str(dataset.source_path),
+            "dataset_sha256": sha256_file(dataset.source_path),
+            "formal_config_sha256": provisional_evidence["config_sha256"],
+            "train_bank_ids": [
+                str(dataset.bank_ids[int(scene)]) for scene in train_scenes
+            ],
+            "selection_bank_ids": [
+                str(dataset.bank_ids[int(scene)]) for scene in selection_scenes
+            ],
+            "physical_config_sha256": physical_response_audit[
+                "physical_config_sha256"
+            ],
+            "candidate_config": physical_response_audit["candidate_config"],
+            "candidate_config_sha256": physical_response_audit[
+                "candidate_config_sha256"
+            ],
+            "model_source": str(
+                (
+                    Path(__file__).resolve().parent
+                    / "formal_action_inverse_response.py"
+                ).resolve()
+            ),
+            "model_source_sha256": sha256_file(
+                Path(__file__).resolve().parent
+                / "formal_action_inverse_response.py"
+            ),
+        }
+        save_physical_response_checkpoint(
+            physical_response_checkpoint,
+            physical_response_model,
+            checkpoint_bindings,
+        )
+        reloaded_model, reloaded_bindings = load_physical_response_checkpoint(
+            physical_response_checkpoint
+        )
+        if (
+            reloaded_bindings != checkpoint_bindings
+            or len(reloaded_model.gates) != len(physical_response_model.gates)
+            or reloaded_model.thresholds != physical_response_model.thresholds
+        ):
+            raise RuntimeError("physical response checkpoint round trip failed")
+        physical_response_audit.update(
+            {
+                "status": "FORMAL_QUALIFICATION_MODEL_FIT",
+                "contract": PHYSICAL_RESPONSE_CONTRACT,
+                "checkpoint": str(physical_response_checkpoint.resolve()),
+                "checkpoint_sha256": sha256_file(physical_response_checkpoint),
+                "checkpoint_round_trip_valid": True,
+                "bindings": checkpoint_bindings,
+            }
+        )
     response_rows, null_rows, response_gate_rows = _response_gate_rows(
         dataset, selection_records, selection_target, predictions, qualification
     )
@@ -191,6 +387,9 @@ def run_formal_qualification(
     passed = bool(g1_passed and g2_passed)
     scientific_use = _qualification_scientific_use(dataset, passed)
     evidence = evidence_context(config, dataset, scientific_use)
+    final_paths = _qualification_final_paths(output_dir)
+    if any(path.exists() or path.is_symlink() for path in final_paths):
+        raise FileExistsError("qualification refuses to overwrite partial final evidence")
     for path, rows in (
         ("repeat_noise.csv", repeat_rows),
         ("route_noise_floor.csv", route_noise_floor_rows),
@@ -227,6 +426,12 @@ def run_formal_qualification(
         "upstream_gates": gate_vector,
         "teacher_checkpoint": str(teacher_checkpoint.resolve()),
         "teacher_checkpoint_sha256": sha256_file(teacher_checkpoint),
+        "qualification_probe_attempt": str(probe_attempt.relative_to(output_dir)),
+        "qualification_probe_checkpoint_sha256": {
+            method: sha256_file(probe_attempt / f"{method}.npz")
+            for method in QUALIFICATION_METHODS
+        },
+        "physical_response": physical_response_audit,
         "primary_route_contract": PRIMARY_ROUTE_CONTRACT,
         "external_validity": {
             "available": bool(dataset.metadata["external_reference"]["available"]),
@@ -247,7 +452,7 @@ def run_formal_qualification(
             "normalization_source_role": "source_encoder_train",
             "threshold_rule": "each configured null threshold must cover its same-unit per-bank repeat-pair quantile",
         },
-        "decision_rule": "Source-encoder-train banks determine route normalization and per-bank train-route coverage. Alignment primary inclusion uses full-channel physical distance only; Response primary inclusion uses query-patch physical distance only. Teacher sensitivity is an independent audit stratum and auxiliary G2 qualification condition, never a primary inclusion rule. Source-method-selection banks determine repeat noise, same-unit noise floors, branch, teacher, and response qualification. Target, external, probe, calibration, and final-unseen banks are unread.",
+        "decision_rule": "Source-encoder-train banks determine route normalization, the frozen teacher/readout, physical inverse-response coefficient/gate fitting, and per-bank train-route coverage. Alignment primary inclusion uses full-channel physical distance only; Response primary inclusion uses query-patch physical distance only. The formal no-X response uses visible source CSI, source map, ID-free action geometry, radio/BS context, mask, and query; its internal receiver hypothesis is inferred from source CSI and is never supplied ground-truth receiver position. Teacher sensitivity is measured after the source-train-frozen readout decodes normalized CSI; it is an independent audit stratum and auxiliary G2 qualification condition, never a primary inclusion rule. Source-method-selection banks determine repeat noise, same-unit noise floors, branch, teacher, and full-position response qualification. Target, external, probe, calibration, and final-unseen banks are unread.",
         "config": public_formal_config(config),
     }
     write_json(output_dir / "gate.json", gate)
@@ -260,6 +465,93 @@ def run_formal_qualification(
         },
     )
     return gate
+
+
+def _qualification_final_paths(output_dir: Path) -> tuple[Path, ...]:
+    return tuple(output_dir / name for name in QUALIFICATION_FINAL_ARTIFACT_NAMES)
+
+
+def _prepare_qualification_output(output_dir: Path, *, resume: bool) -> None:
+    """Fail closed before training can overwrite an earlier qualification attempt."""
+    if output_dir.is_symlink():
+        raise RuntimeError("qualification output directory cannot be a symbolic link")
+    if resume:
+        if not output_dir.is_dir():
+            raise RuntimeError("qualification resume requires an existing qualification directory")
+        if any(path.exists() or path.is_symlink() for path in _qualification_final_paths(output_dir)):
+            raise RuntimeError("qualification resume refuses completed or partial final evidence")
+        for relative in QUALIFICATION_RESUME_REQUIRED_FILES:
+            path = output_dir / relative
+            if path.is_symlink() or not path.is_file():
+                raise RuntimeError(
+                    f"qualification resume requires a regular authenticated artifact: {relative}"
+                )
+        checkpoint_dir = output_dir / "checkpoints"
+        if checkpoint_dir.is_symlink() or not checkpoint_dir.is_dir():
+            raise RuntimeError("qualification resume checkpoint directory is invalid")
+        return
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    owned_paths = (
+        output_dir / "data_contract.json",
+        output_dir / "teacher_resume.json",
+        output_dir / "checkpoints",
+        *_qualification_final_paths(output_dir),
+    )
+    if any(path.exists() or path.is_symlink() for path in owned_paths):
+        raise FileExistsError("qualification refuses to overwrite an earlier attempt")
+
+
+def _reserve_qualification_probe_attempt(output_dir: Path) -> Path:
+    probe_root = output_dir / "checkpoints" / "qualification_probes"
+    probe_root.mkdir(parents=True, exist_ok=True)
+    if probe_root.is_symlink() or not probe_root.is_dir():
+        raise RuntimeError("qualification probe directory is invalid")
+    attempt_index = 1
+    while True:
+        attempt = probe_root / f"attempt_{attempt_index:04d}"
+        try:
+            attempt.mkdir(exist_ok=False)
+        except FileExistsError:
+            attempt_index += 1
+            continue
+        return attempt
+
+
+def _teacher_resume_receipt(
+    teacher_checkpoint: Path,
+    evidence: dict[str, object],
+    teacher_seed: int,
+) -> dict[str, object]:
+    return {
+        "schema_version": TEACHER_RESUME_RECEIPT_SCHEMA,
+        **evidence,
+        "teacher_checkpoint": str(teacher_checkpoint.resolve()),
+        "teacher_checkpoint_sha256": sha256_file(teacher_checkpoint),
+        "teacher_seed": int(teacher_seed),
+    }
+
+
+def _load_resumed_teacher(
+    teacher_checkpoint: Path,
+    teacher_receipt_path: Path,
+    config: dict,
+    evidence: dict[str, object],
+    teacher_seed: int,
+    execution_device: str | torch.device,
+) -> TeacherBundle:
+    receipt = read_strict_json(teacher_receipt_path)
+    expected = _teacher_resume_receipt(
+        teacher_checkpoint, evidence, teacher_seed
+    )
+    if receipt != expected:
+        raise RuntimeError("qualification resume teacher receipt no longer matches")
+    teacher_bundle = load_teacher_bundle(
+        teacher_checkpoint, config, device=execution_device
+    )
+    if teacher_bundle.seed != int(teacher_seed):
+        raise RuntimeError("qualification resume teacher seed no longer matches")
+    return teacher_bundle
 
 
 def _repeat_rows(
@@ -430,7 +722,10 @@ def _teacher_qualification(dataset, bundle, routed, scenes, config):
     q = config["qualification"]
     for scene_value in scenes:
         scene = int(scene_value)
-        patches = routed.physical_patches[scene]
+        decoded_distances = _frozen_readout_alignment_distances(
+            dataset, bundle, routed, scene
+        )
+        patches = normalized_teacher_patches(bundle, dataset.csi[scene])
         latent = routed.teacher_latent[scene]
         with torch.no_grad():
             prediction = (
@@ -446,12 +741,23 @@ def _teacher_qualification(dataset, bundle, routed, scenes, config):
             )
         readout_nmse = normalized_mse(patches, prediction)
         alignment_items = [
-            distances
+            (
+                float(distances[0]),
+                float(decoded_distances[key]),
+            )
             for key, distances in routed.alignment_distances.items()
             if key[0] == scene
         ]
-        physical_active = [value for value in alignment_items if value[0] >= float(q["physical_active_rms_min"])]
-        physical_null = [value for value in alignment_items if value[0] <= float(q["physical_null_rms_max"])]
+        physical_active = [
+            value
+            for value in alignment_items
+            if value[0] >= float(q["physical_active_rms_min"])
+        ]
+        physical_null = [
+            value
+            for value in alignment_items
+            if value[0] <= float(q["physical_null_rms_max"])
+        ]
         active_agreement = (
             float(np.mean([value[1] >= float(q["latent_active_rms_min"]) for value in physical_active]))
             if physical_active
@@ -480,6 +786,9 @@ def _teacher_qualification(dataset, bundle, routed, scenes, config):
                 "mask_bank": "B_audit_hold",
                 "qualification_role": "source_method_selection",
                 "frozen_readout_nmse": readout_nmse,
+                "teacher_sensitivity_representation": (
+                    "source-train-frozen-readout-decoded-normalized-csi"
+                ),
                 "physical_active_teacher_sensitive_agreement": active_agreement,
                 "physical_null_teacher_null_agreement": null_agreement,
                 "passed": scene_passed,
@@ -488,46 +797,453 @@ def _teacher_qualification(dataset, bundle, routed, scenes, config):
     return rows, bool(passed)
 
 
-def _build_records(dataset, scenes, routed, mask_bank):
-    records = []
+def _frozen_readout_alignment_distances(
+    dataset,
+    bundle: TeacherBundle,
+    routed,
+    scene: int,
+    *,
+    batch_rows: int = 32_768,
+) -> dict[tuple[int, int, int, int], float]:
+    """Measure recoverable CSI change without fitting on selection banks."""
+    latent = np.asarray(routed.teacher_latent[int(scene)], dtype=np.float32)
+    if latent.ndim != 4:
+        raise ValueError("routed teacher latent must be [world,position,patch,dim]")
+    flat = latent.reshape(-1, latent.shape[-1])
+    decoded = []
+    device = module_device(bundle.readout)
+    with torch.no_grad():
+        for start in range(0, flat.shape[0], int(batch_rows)):
+            stop = min(start + int(batch_rows), flat.shape[0])
+            decoded.append(
+                bundle.readout(
+                    torch.as_tensor(
+                        flat[start:stop], dtype=torch.float32, device=device
+                    )
+                )
+                .cpu()
+                .numpy()
+            )
+    reconstructed = np.concatenate(decoded, axis=0).reshape(
+        *latent.shape[:-1], -1
+    )
+    distances = {}
+    for edge in dataset.directed_edges(int(scene)):
+        delta = (
+            reconstructed[int(edge.target_world)]
+            - reconstructed[int(edge.source_world)]
+        )
+        values = np.sqrt(np.mean(delta.astype(np.float64) ** 2, axis=(-2, -1)))
+        for position, value in enumerate(values.tolist()):
+            distances[
+                (
+                    int(scene),
+                    int(edge.source_world),
+                    int(edge.target_world),
+                    int(position),
+                )
+            ] = float(value)
+    expected = {
+        key
+        for key in routed.alignment_distances
+        if int(key[0]) == int(scene)
+    }
+    if set(distances) != expected:
+        raise RuntimeError(
+            "frozen teacher readout rows do not align with routed qualification rows"
+        )
+    if not all(np.isfinite(value) for value in distances.values()):
+        raise RuntimeError("frozen teacher readout produced nonfinite distances")
+    return distances
+
+
+def _fit_qualification_probes_streaming(
+    dataset,
+    scenes,
+    routed,
+    mask_bank,
+    wrong_action_plan,
+    qualification,
+) -> dict[str, RidgeRegressor | ZeroPreservingRidgeRegressor]:
+    alpha = float(qualification["ridge"])
+    statistics = {
+        method: (
+            ZeroPreservingRidgeSufficientStatistics(alpha)
+            if method in ZERO_PRESERVING_METHODS
+            else RidgeSufficientStatistics(alpha)
+        )
+        for method in QUALIFICATION_METHODS
+    }
+    observed = 0
+    for batch in _iter_qualification_record_batches(
+        dataset,
+        scenes,
+        routed,
+        mask_bank,
+        wrong_action_plan=wrong_action_plan,
+    ):
+        target = batch["target_delta"]
+        observed += int(target.shape[0])
+        for method, accumulator in statistics.items():
+            if method in ZERO_PRESERVING_METHODS:
+                accumulator.update(
+                    batch[method], batch[f"{method}_zero_action"], target
+                )
+            else:
+                accumulator.update(batch[method], target)
+    expected = _qualification_record_count(dataset, scenes, mask_bank)
+    if observed != expected or observed <= 0:
+        raise RuntimeError(
+            f"qualification stream emitted {observed} records; expected {expected}"
+        )
+    return {method: accumulator.finalize() for method, accumulator in statistics.items()}
+
+
+def _predict_qualification_probes_streaming(
+    dataset,
+    scenes,
+    routed,
+    mask_bank,
+    wrong_action_plan,
+    models,
+):
+    index_chunks = {
+        name: []
+        for name in (
+            "scene",
+            "source_world",
+            "target_world",
+            "bit",
+            "position",
+            "query",
+            "route",
+            "wrong_action_match_status",
+        )
+    }
+    target_chunks = []
+    prediction_chunks = {
+        name: [] for name in (*QUALIFICATION_METHODS, *BASELINES)
+    }
+    observed = 0
+    for batch in _iter_qualification_record_batches(
+        dataset,
+        scenes,
+        routed,
+        mask_bank,
+        wrong_action_plan=wrong_action_plan,
+    ):
+        target = batch["target_delta"]
+        observed += int(target.shape[0])
+        target_chunks.append(target)
+        for name in index_chunks:
+            index_chunks[name].append(batch[name])
+        for method, model in models.items():
+            if method in ZERO_PRESERVING_METHODS:
+                prediction = model.predict_contrast(
+                    batch[method], batch[f"{method}_zero_action"]
+                )
+            else:
+                prediction = model.predict(batch[method])
+            prediction_chunks[method].append(prediction)
+        zeros = np.zeros_like(prediction_chunks["no_x"][-1])
+        prediction_chunks["copy"].append(zeros)
+        prediction_chunks["no_action"].append(zeros.copy())
+        prediction_chunks["action_swap"].append(
+            models["no_x"].predict_contrast(
+                batch["action_swap"], batch["no_x_zero_action"]
+            )
+        )
+    expected = _qualification_record_count(dataset, scenes, mask_bank)
+    if observed != expected or observed <= 0:
+        raise RuntimeError(
+            f"qualification prediction stream emitted {observed} records; expected {expected}"
+        )
+    records = {
+        name: np.concatenate(chunks, axis=0)
+        for name, chunks in index_chunks.items()
+    }
+    target = np.concatenate(target_chunks, axis=0)
+    predictions = {
+        name: np.concatenate(chunks, axis=0)
+        for name, chunks in prediction_chunks.items()
+    }
+    return records, target, predictions
+
+
+def _qualification_record_count(dataset, scenes, mask_bank) -> int:
+    query_count = len({int(entry.query) for entry in mask_bank if entry.mode == "random_75"})
+    if query_count <= 0:
+        return 0
+    edge_count = sum(
+        1 for scene in np.asarray(scenes) for _edge in dataset.directed_edges(int(scene))
+    )
+    return int(edge_count * dataset.position_count * query_count)
+
+
+def _iter_qualification_record_batches(
+    dataset,
+    scenes,
+    routed,
+    mask_bank,
+    *,
+    wrong_action_plan=None,
+    batch_rows: int = QUALIFICATION_STREAM_BATCH_ROWS,
+):
+    if isinstance(batch_rows, bool) or not isinstance(batch_rows, int) or batch_rows <= 0:
+        raise ValueError("qualification stream batch_rows must be a positive integer")
+    pending: dict[str, list[np.ndarray]] = {}
+    pending_rows = 0
+    for unit in _iter_qualification_record_units(
+        dataset,
+        scenes,
+        routed,
+        mask_bank,
+        wrong_action_plan=wrong_action_plan,
+    ):
+        if not pending:
+            pending = {name: [] for name in unit}
+        if set(unit) != set(pending):
+            raise RuntimeError("qualification record unit fields changed")
+        for name, values in unit.items():
+            pending[name].append(values)
+        pending_rows += int(unit["target_delta"].shape[0])
+        if pending_rows >= batch_rows:
+            yield {
+                name: np.concatenate(chunks, axis=0)
+                for name, chunks in pending.items()
+            }
+            pending = {}
+            pending_rows = 0
+    if pending_rows:
+        yield {
+            name: np.concatenate(chunks, axis=0)
+            for name, chunks in pending.items()
+        }
+
+
+def _iter_qualification_record_units(
+    dataset,
+    scenes,
+    routed,
+    mask_bank,
+    *,
+    wrong_action_plan=None,
+):
     material_categories = int(dataset.metadata["assets"]["material_category_count"])
+    wrong_actions = wrong_action_plan or _build_wrong_action_plan(
+        dataset, scenes, material_categories
+    )
+    patch_spec = PatchSpec.from_metadata(dataset.metadata)
+    patch_mean = patchify_csi(routed.normalization.channel_mean, patch_spec)
+    patch_scale = patchify_csi(routed.normalization.channel_scale, patch_spec)
+    query_entries = {
+        int(entry.query): entry for entry in mask_bank if entry.mode == "random_75"
+    }
+    if set(query_entries) != set(range(patch_spec.patch_count)):
+        raise RuntimeError("qualification mask bank must cover every response query")
+    queries = np.arange(patch_spec.patch_count, dtype=np.int64)
+    mask_rows = np.vstack([query_entries[int(query)].mask for query in queries])
+    zero_action = zero_typed_edit((), dataset.maps.shape[-1], material_categories)
+    zero_action_features = multichannel_spatial_features(zero_action)
     for scene_value in scenes:
         scene = int(scene_value)
+        normalized_patches = (
+            routed.physical_patches[scene] - patch_mean
+        ) / patch_scale
         position_center = dataset.positions[scene].mean(axis=0)
         position_scale = dataset.positions[scene].std(axis=0)
         position_scale[position_scale < 1e-9] = 1.0
+        complete_context = np.concatenate(
+            (dataset.radio_config[scene], dataset.bs_pose[scene])
+        )
+        map_features = {
+            world: multichannel_spatial_features(dataset.maps[scene, world])
+            for world in range(dataset.world_count)
+        }
+        for edge in dataset.directed_edges(scene):
+            action_features = wrong_actions["action_features"][
+                (scene, edge.source_world, edge.bit_index)
+            ]
+            variant = variant_features(
+                dataset.world_bits[edge.source_world],
+                dataset.world_bits[edge.target_world],
+            )
+            for position in range(dataset.position_count):
+                swap_action_features, swap_status, _swap_world = wrong_actions[
+                    "selections"
+                ][(scene, edge.source_world, edge.bit_index, position)]
+                source_patches = normalized_patches[edge.source_world, position]
+                target_patches = normalized_patches[edge.target_world, position]
+                visible_rows = np.broadcast_to(
+                    source_patches,
+                    (patch_spec.patch_count, *source_patches.shape),
+                ).copy()
+                for query in queries:
+                    visible_rows[int(query), mask_rows[int(query)]] = 0.0
+                normalized_position = (
+                    dataset.positions[scene, position] - position_center
+                ) / position_scale
+                common = (visible_rows, map_features[edge.source_world])
+                no_x = assemble_protocol_response_feature_matrix(
+                    *common,
+                    action_features,
+                    complete_context,
+                    mask_rows,
+                    queries,
+                )
+                no_x_zero = assemble_protocol_response_feature_matrix(
+                    *common,
+                    zero_action_features,
+                    complete_context,
+                    mask_rows,
+                    queries,
+                )
+                yield {
+                    "scene": np.full(patch_spec.patch_count, scene, dtype=np.int64),
+                    "source_world": np.full(
+                        patch_spec.patch_count,
+                        int(edge.source_world),
+                        dtype=np.int64,
+                    ),
+                    "target_world": np.full(
+                        patch_spec.patch_count,
+                        int(edge.target_world),
+                        dtype=np.int64,
+                    ),
+                    "bit": np.full(
+                        patch_spec.patch_count,
+                        int(edge.bit_index),
+                        dtype=np.int64,
+                    ),
+                    "position": np.full(
+                        patch_spec.patch_count,
+                        int(position),
+                        dtype=np.int64,
+                    ),
+                    "query": queries.copy(),
+                    "route": np.asarray(
+                        [
+                            routed.response_route[
+                                (
+                                    scene,
+                                    edge.source_world,
+                                    edge.target_world,
+                                    position,
+                                    int(query),
+                                )
+                            ]
+                            for query in queries
+                        ],
+                        dtype=np.int8,
+                    ),
+                    "wrong_action_match_status": np.full(
+                        patch_spec.patch_count, swap_status, dtype="U8"
+                    ),
+                    "target_delta": target_patches - source_patches,
+                    "no_x": no_x,
+                    "no_x_zero_action": no_x_zero,
+                    "oracle_x": assemble_protocol_response_feature_matrix(
+                        *common,
+                        action_features,
+                        complete_context,
+                        mask_rows,
+                        queries,
+                        position=normalized_position,
+                    ),
+                    "oracle_x_zero_action": assemble_protocol_response_feature_matrix(
+                        *common,
+                        zero_action_features,
+                        complete_context,
+                        mask_rows,
+                        queries,
+                        position=normalized_position,
+                    ),
+                    "map_edit_only": assemble_protocol_response_feature_matrix(
+                        *common,
+                        action_features,
+                        complete_context,
+                        mask_rows,
+                        queries,
+                        include_csi=False,
+                    ),
+                    "map_edit_only_zero_action": assemble_protocol_response_feature_matrix(
+                        *common,
+                        zero_action_features,
+                        complete_context,
+                        mask_rows,
+                        queries,
+                        include_csi=False,
+                    ),
+                    "csi_only": assemble_protocol_response_feature_matrix(
+                        visible_rows,
+                        None,
+                        None,
+                        complete_context,
+                        mask_rows,
+                        queries,
+                    ),
+                    "variant_id_only": np.broadcast_to(
+                        variant, (patch_spec.patch_count, variant.size)
+                    ).copy(),
+                    "action_swap": assemble_protocol_response_feature_matrix(
+                        *common,
+                        swap_action_features,
+                        complete_context,
+                        mask_rows,
+                        queries,
+                    ),
+                }
+
+
+def _build_records(dataset, scenes, routed, mask_bank, *, wrong_action_plan=None):
+    records = []
+    material_categories = int(dataset.metadata["assets"]["material_category_count"])
+    wrong_actions = wrong_action_plan or _build_wrong_action_plan(
+        dataset, scenes, material_categories
+    )
+    patch_spec = PatchSpec.from_metadata(dataset.metadata)
+    patch_mean = patchify_csi(routed.normalization.channel_mean, patch_spec)
+    patch_scale = patchify_csi(routed.normalization.channel_scale, patch_spec)
+    query_masks = {
+        int(entry.query): entry for entry in mask_bank if entry.mode == "random_75"
+    }
+    for scene_value in scenes:
+        scene = int(scene_value)
+        normalized_patches = (
+            routed.physical_patches[scene] - patch_mean
+        ) / patch_scale
+        position_center = dataset.positions[scene].mean(axis=0)
+        position_scale = dataset.positions[scene].std(axis=0)
+        position_scale[position_scale < 1e-9] = 1.0
+        complete_context = np.concatenate((dataset.radio_config[scene], dataset.bs_pose[scene]))
+        map_features = {
+            world: multichannel_spatial_features(dataset.maps[scene, world])
+            for world in range(dataset.world_count)
+        }
+        zero_action = zero_typed_edit(
+            (), dataset.maps.shape[-1], material_categories
+        )
+        zero_action_features = multichannel_spatial_features(zero_action)
         for edge in dataset.directed_edges(scene):
             source_map = dataset.maps[scene, edge.source_world]
             target_map = dataset.maps[scene, edge.target_world]
-            action = typed_signed_edit(source_map, target_map, dataset.map_channel_names, material_categories)
-            zero_action = zero_typed_edit((), source_map.shape[-1], material_categories)
+            action_features = wrong_actions["action_features"][
+                (scene, edge.source_world, edge.bit_index)
+            ]
+            variant_id = variant_features(
+                dataset.world_bits[edge.source_world], dataset.world_bits[edge.target_world]
+            )
             for position in range(dataset.position_count):
-                swap_action, swap_status, swap_world = _select_wrong_action(
-                    dataset,
-                    scene,
-                    edge.source_world,
-                    edge.bit_index,
-                    action,
-                    material_categories,
-                    receiver_position=dataset.positions[scene, position],
-                )
-                source_patches = routed.physical_patches[scene][edge.source_world, position]
-                target_patches = routed.physical_patches[scene][edge.target_world, position]
+                swap_action_features, swap_status, swap_world = wrong_actions[
+                    "selections"
+                ][(scene, edge.source_world, edge.bit_index, position)]
+                source_patches = normalized_patches[edge.source_world, position]
+                target_patches = normalized_patches[edge.target_world, position]
                 normalized_position = (dataset.positions[scene, position] - position_center) / position_scale
                 for query in range(source_patches.shape[0]):
-                    entry = next(item for item in mask_bank if item.mode == "random_75" and item.query == query)
+                    entry = query_masks[query]
                     visible = source_patches.copy()
                     visible[entry.mask] = 0.0
-                    complete_context = np.concatenate(
-                        (dataset.radio_config[scene], dataset.bs_pose[scene])
-                    )
-                    common = dict(
-                        visible_patches=visible,
-                        source_map=source_map,
-                        radio_config=complete_context,
-                        mask=entry.mask,
-                        query=query,
-                    )
                     route = routed.response_route[(scene, edge.source_world, edge.target_world, position, query)]
                     records.append(
                         {
@@ -535,21 +1251,44 @@ def _build_records(dataset, scenes, routed, mask_bank):
                             "bank_id": str(dataset.bank_ids[scene]),
                             "route": route,
                             "target_delta": target_patches[query] - source_patches[query],
-                            "no_x": protocol_response_features(**common, typed_action=action),
-                            "oracle_x": protocol_response_features(
-                                **common, typed_action=action, position=normalized_position
+                            "no_x": assemble_protocol_response_features(
+                                visible, map_features[edge.source_world], action_features,
+                                complete_context, entry.mask, query
                             ),
-                            "no_action": protocol_response_features(**common, typed_action=zero_action),
-                            "map_edit_only": protocol_response_features(
-                                **common, typed_action=action, include_csi=False
+                            "no_x_zero_action": assemble_protocol_response_features(
+                                visible, map_features[edge.source_world], zero_action_features,
+                                complete_context, entry.mask, query
                             ),
-                            "csi_only": protocol_response_features(
-                                **common, typed_action=zero_action, include_action=False, include_map=False
+                            "oracle_x": assemble_protocol_response_features(
+                                visible, map_features[edge.source_world], action_features,
+                                complete_context, entry.mask, query,
+                                position=normalized_position,
                             ),
-                            "variant_id_only": variant_features(
-                                dataset.world_bits[edge.source_world], dataset.world_bits[edge.target_world]
+                            "oracle_x_zero_action": assemble_protocol_response_features(
+                                visible, map_features[edge.source_world], zero_action_features,
+                                complete_context, entry.mask, query,
+                                position=normalized_position,
                             ),
-                            "action_swap": protocol_response_features(**common, typed_action=swap_action),
+                            "no_action": assemble_protocol_response_features(
+                                visible, map_features[edge.source_world], zero_action_features,
+                                complete_context, entry.mask, query
+                            ),
+                            "map_edit_only": assemble_protocol_response_features(
+                                visible, map_features[edge.source_world], action_features,
+                                complete_context, entry.mask, query, include_csi=False
+                            ),
+                            "map_edit_only_zero_action": assemble_protocol_response_features(
+                                visible, map_features[edge.source_world], zero_action_features,
+                                complete_context, entry.mask, query, include_csi=False
+                            ),
+                            "csi_only": assemble_protocol_response_features(
+                                visible, None, None, complete_context, entry.mask, query
+                            ),
+                            "variant_id_only": variant_id,
+                            "action_swap": assemble_protocol_response_features(
+                                visible, map_features[edge.source_world], swap_action_features,
+                                complete_context, entry.mask, query
+                            ),
                             "wrong_action_match_status": swap_status,
                             "wrong_action_world": swap_world,
                         }
@@ -561,16 +1300,17 @@ def _response_gate_rows(dataset, records, target, predictions, config):
     metric_rows = []
     null_rows = []
     gate_rows = []
-    routes = np.asarray([row["route"] for row in records])
-    wrong_action_status = np.asarray([row["wrong_action_match_status"] for row in records])
-    for scene in sorted({int(row["scene"]) for row in records}):
-        scene_mask = np.asarray([int(row["scene"]) == scene for row in records])
+    routes = _record_column(records, "route")
+    wrong_action_status = _record_column(records, "wrong_action_match_status")
+    scene_values = _record_column(records, "scene").astype(np.int64, copy=False)
+    for scene in sorted(set(int(value) for value in scene_values)):
+        scene_mask = scene_values == scene
         active = scene_mask & (routes == 2)
         null = scene_mask & (routes == 0)
         active_scores = {}
         for method, prediction in predictions.items():
             for stratum, mask in (("all", scene_mask), ("active", active), ("null", null)):
-                score = normalized_mse(target[mask], prediction[mask]) if np.any(mask) else None
+                score = _optional_descriptive_nmse(target[mask], prediction[mask])
                 metric_rows.append(
                     {
                         "scene_id": str(dataset.scene_ids[scene]),
@@ -637,9 +1377,33 @@ def _response_gate_rows(dataset, records, target, predictions, config):
     return metric_rows, null_rows, gate_rows
 
 
-def _branch_coverage(dataset, routed, scenes):
+def _optional_descriptive_nmse(
+    target: np.ndarray, prediction: np.ndarray
+) -> float | None:
+    """Return N/A for an empty or zero-energy descriptive denominator."""
+    target_values = np.asarray(target)
+    prediction_values = np.asarray(prediction)
+    if target_values.shape != prediction_values.shape:
+        raise ValueError("descriptive NMSE target/prediction shapes differ")
+    if target_values.size == 0:
+        return None
+    denominator = float(np.sum(target_values**2))
+    if not np.isfinite(denominator):
+        raise RuntimeError("descriptive NMSE target energy is non-finite")
+    if denominator <= 1e-15:
+        return None
+    score = normalized_mse(target_values, prediction_values)
+    if not np.isfinite(score):
+        raise RuntimeError("descriptive NMSE is non-finite on a positive denominator")
+    return float(score)
+
+
+def _branch_coverage(dataset, routed, scenes, *, wrong_action_plan=None):
     rows = []
     material_categories = int(dataset.metadata["assets"]["material_category_count"])
+    wrong_actions = wrong_action_plan or _build_wrong_action_plan(
+        dataset, scenes, material_categories
+    )
     for scene_value in scenes:
         scene = int(scene_value)
         active_states = 0
@@ -660,21 +1424,9 @@ def _branch_coverage(dataset, routed, scenes):
                         active_states += 1
                         active_branching += int(len(active_targets) >= 2)
                 for edge in edges:
-                    correct = typed_signed_edit(
-                        dataset.maps[scene, source],
-                        dataset.maps[scene, edge.target_world],
-                        dataset.map_channel_names,
-                        material_categories,
-                    )
-                    _, status, _ = _select_wrong_action(
-                        dataset,
-                        scene,
-                        source,
-                        edge.bit_index,
-                        correct,
-                        material_categories,
-                        receiver_position=dataset.positions[scene, position],
-                    )
+                    _, status, _ = wrong_actions["selections"][
+                        (scene, source, edge.bit_index, position)
+                    ]
                     match_actions[status] += 1
                     routes = [
                         routed.response_route[(scene, source, edge.target_world, position, query)]
@@ -708,6 +1460,111 @@ def _branch_coverage(dataset, routed, scenes):
             }
         )
     return rows
+
+
+def _build_wrong_action_plan(
+    dataset,
+    scenes,
+    material_categories: int,
+    *,
+    positions: np.ndarray | tuple[int, ...] | list[int] | None = None,
+) -> dict:
+    """Precompute equivalent compact wrong-action choices once per scene."""
+    position_values = (
+        tuple(range(dataset.position_count))
+        if positions is None
+        else tuple(int(value) for value in np.asarray(positions).reshape(-1))
+    )
+    if (
+        not position_values
+        or len(set(position_values)) != len(position_values)
+        or min(position_values) < 0
+        or max(position_values) >= dataset.position_count
+    ):
+        raise ValueError("wrong-action plan positions must be unique in-range indices")
+    representation = dataset.metadata.get("representation", {})
+    origin = representation.get("map_origin_xy_m")
+    resolution = representation.get("map_resolution_m")
+    receiver_geometry_available = bool(
+        origin is not None
+        and resolution is not None
+        and np.isfinite(float(resolution))
+        and float(resolution) > 0.0
+    )
+    action_features = {}
+    selections = {}
+    for scene_value in np.asarray(scenes):
+        scene = int(scene_value)
+        actions = {}
+        for edge in dataset.directed_edges(scene):
+            key = (int(edge.source_world), int(edge.bit_index))
+            action = typed_signed_edit(
+                dataset.maps[scene, edge.source_world],
+                dataset.maps[scene, edge.target_world],
+                dataset.map_channel_names,
+                material_categories,
+            )
+            actions[key] = {
+                "features": multichannel_spatial_features(action),
+                "profile": _action_geometry_profile(action),
+                "target_world": int(edge.target_world),
+            }
+            action_features[(scene, *key)] = actions[key]["features"]
+        for (source_world, correct_bit), reference in actions.items():
+            candidates = [
+                candidate
+                for (candidate_source, candidate_bit), candidate in actions.items()
+                if candidate_source == source_world and candidate_bit != correct_bit
+            ]
+            if not candidates:
+                zero = np.zeros_like(reference["features"])
+                for position in position_values:
+                    selections[(scene, source_world, correct_bit, position)] = (
+                        zero,
+                        "failed",
+                        None,
+                    )
+                continue
+            for position in position_values:
+                receiver = (
+                    dataset.positions[scene, position]
+                    if receiver_geometry_available
+                    else None
+                )
+                scored = [
+                    (
+                        candidate,
+                        _wrong_action_profile_distance(
+                            reference["profile"],
+                            candidate["profile"],
+                            receiver_position=receiver,
+                            map_origin_xy_m=(origin if receiver is not None else None),
+                            map_resolution_m=(resolution if receiver is not None else None),
+                        ),
+                    )
+                    for candidate in candidates
+                ]
+                exact = [
+                    item
+                    for item in scored
+                    if receiver is not None and item[1][0] == 0 and item[1][1] == 0
+                ]
+                fallback = [item for item in scored if item[1][0] == 0]
+                if exact:
+                    selected, _ = min(exact, key=lambda item: item[1])
+                    status = "exact"
+                elif fallback:
+                    selected, _ = min(fallback, key=lambda item: item[1])
+                    status = "fallback"
+                else:
+                    selected, _ = min(scored, key=lambda item: item[1])
+                    status = "failed"
+                selections[(scene, source_world, correct_bit, position)] = (
+                    selected["features"],
+                    status,
+                    selected["target_world"],
+                )
+    return {"action_features": action_features, "selections": selections}
 
 
 def _select_wrong_action(
@@ -798,6 +1655,23 @@ def _wrong_action_distance(
         map_origin_xy_m=map_origin_xy_m,
         map_resolution_m=map_resolution_m,
     )
+    return _wrong_action_profile_distance(
+        reference_profile,
+        candidate_profile,
+        receiver_position=receiver_position,
+        map_origin_xy_m=map_origin_xy_m,
+        map_resolution_m=map_resolution_m,
+    )
+
+
+def _wrong_action_profile_distance(
+    reference_profile: dict,
+    candidate_profile: dict,
+    *,
+    receiver_position: np.ndarray | None = None,
+    map_origin_xy_m: np.ndarray | None = None,
+    map_resolution_m: float | None = None,
+) -> tuple:
     family_mismatch = int(reference_profile["family"] != candidate_profile["family"])
     area_relatives = []
     norm_relatives = []
@@ -836,8 +1710,18 @@ def _wrong_action_distance(
     area_relative = max(area_relatives, default=0.0)
     norm_relative = max(norm_relatives, default=0.0)
     receiver_relative = 0.0
-    reference_distances = reference_profile["receiver_plane_distances_m"]
-    candidate_distances = candidate_profile["receiver_plane_distances_m"]
+    reference_distances = _profile_receiver_distances(
+        reference_profile,
+        receiver_position,
+        map_origin_xy_m,
+        map_resolution_m,
+    )
+    candidate_distances = _profile_receiver_distances(
+        candidate_profile,
+        receiver_position,
+        map_origin_xy_m,
+        map_resolution_m,
+    )
     if reference_distances is not None and candidate_distances is not None:
         receiver_relative = max(
             (
@@ -850,7 +1734,7 @@ def _wrong_action_distance(
                 for reference_distance, candidate_distance, active in zip(
                     reference_distances,
                     candidate_distances,
-                    reference_profile["family"],
+                    reference_profile["active_planes"],
                 )
                 if active
             ),
@@ -871,6 +1755,41 @@ def _wrong_action_distance(
     )
 
 
+def _profile_receiver_distances(
+    profile: dict,
+    receiver_position: np.ndarray | None,
+    map_origin_xy_m: np.ndarray | None,
+    map_resolution_m: float | None,
+) -> tuple[float, ...] | None:
+    cached = profile["receiver_plane_distances_m"]
+    if cached is not None:
+        return cached
+    if (
+        receiver_position is None
+        or map_origin_xy_m is None
+        or map_resolution_m is None
+    ):
+        return None
+    receiver_xy = np.asarray(receiver_position, dtype=np.float64).reshape(-1)[:2]
+    origin = np.asarray(map_origin_xy_m, dtype=np.float64).reshape(-1)[:2]
+    resolution = float(map_resolution_m)
+    return tuple(
+        0.0
+        if centroid is None
+        else float(
+            np.linalg.norm(
+                receiver_xy
+                - (
+                    origin
+                    + resolution
+                    * np.asarray([centroid[1] + 0.5, centroid[0] + 0.5])
+                )
+            )
+        )
+        for centroid in profile["plane_centroids_rc"]
+    )
+
+
 def _action_geometry_profile(
     action: np.ndarray,
     *,
@@ -881,8 +1800,30 @@ def _action_geometry_profile(
     values = np.asarray(action, dtype=np.float64)
     if values.ndim != 3 or values.shape[0] < 5:
         raise ValueError("typed action must have shape [channel,row,column]")
-    active_planes = np.any(np.abs(values) > 1e-12, axis=(1, 2))
-    family = tuple(bool(value) for value in active_planes.tolist())
+    material_categories = (values.shape[0] - 4) // 2
+    if values.shape[0] != 4 + 2 * material_categories:
+        raise ValueError("typed action channel count is inconsistent")
+    raw_active = np.any(np.abs(values) > 1e-12, axis=(1, 2))
+    source_materials = tuple(
+        int(index) for index in np.flatnonzero(raw_active[4 : 4 + material_categories])
+    )
+    target_materials = tuple(
+        int(index) for index in np.flatnonzero(raw_active[4 + material_categories :])
+    )
+    family = (
+        bool(raw_active[0] or raw_active[1]),
+        bool(raw_active[2] or raw_active[3]),
+        source_materials,
+        target_materials,
+    )
+    geometry_planes = (
+        np.maximum(np.abs(values[0]), np.abs(values[1])),
+        np.maximum(np.abs(values[2]), np.abs(values[3])),
+        np.max(np.abs(values[4:]), axis=0),
+    )
+    active_planes = np.asarray(
+        [np.any(plane > 1e-12) for plane in geometry_planes], dtype=np.bool_
+    )
     support = np.any(np.abs(values) > 1e-12, axis=0)
     coordinates = np.argwhere(support)
     if coordinates.size:
@@ -894,6 +1835,7 @@ def _action_geometry_profile(
     plane_norms = []
     plane_bbox_shapes = []
     plane_canonical_patterns = []
+    plane_centroids_rc = []
     receiver_plane_distances = []
     geometry_available = bool(
         receiver_position is not None
@@ -911,7 +1853,7 @@ def _action_geometry_profile(
         else None
     )
     resolution = float(map_resolution_m) if geometry_available else None
-    for plane in values:
+    for plane in geometry_planes:
         plane_support = np.abs(plane) > 1e-12
         plane_coordinates = np.argwhere(plane_support)
         plane_areas.append(int(np.sum(plane_support)))
@@ -925,8 +1867,11 @@ def _action_geometry_profile(
             plane_canonical_patterns.append(
                 cropped / max(float(np.max(np.abs(cropped))), np.finfo(np.float64).eps)
             )
+            centroid_rc = plane_coordinates.mean(axis=0)
+            plane_centroids_rc.append(
+                tuple(float(value) for value in centroid_rc.tolist())
+            )
             if geometry_available:
-                centroid_rc = plane_coordinates.mean(axis=0)
                 centroid_xy = origin + resolution * np.asarray(
                     [centroid_rc[1] + 0.5, centroid_rc[0] + 0.5]
                 )
@@ -938,9 +1883,11 @@ def _action_geometry_profile(
         else:
             plane_bbox_shapes.append((0, 0))
             plane_canonical_patterns.append(np.zeros((0, 0), dtype=np.float64))
+            plane_centroids_rc.append(None)
             receiver_plane_distances.append(0.0)
     return {
         "family": family,
+        "active_planes": tuple(bool(value) for value in active_planes.tolist()),
         "area": int(np.sum(support)),
         "norm": float(np.linalg.norm(values)),
         "bbox_shape": bbox_shape,
@@ -948,6 +1895,7 @@ def _action_geometry_profile(
         "plane_norms": tuple(plane_norms),
         "plane_bbox_shapes": tuple(plane_bbox_shapes),
         "plane_canonical_patterns": tuple(plane_canonical_patterns),
+        "plane_centroids_rc": tuple(plane_centroids_rc),
         "receiver_plane_distances_m": (
             tuple(receiver_plane_distances) if geometry_available else None
         ),
@@ -955,7 +1903,7 @@ def _action_geometry_profile(
 
 
 def _shortcut_warnings(records, target, predictions, config):
-    routes = np.asarray([row["route"] for row in records])
+    routes = _record_column(records, "route")
     active = routes == 2
     copy = normalized_mse(target[active], predictions["copy"][active])
     variant = normalized_mse(target[active], predictions["variant_id_only"][active])
@@ -965,7 +1913,8 @@ def _shortcut_warnings(records, target, predictions, config):
     oracle = normalized_mse(target[active], predictions["oracle_x"][active])
     threshold = float(config["shortcut_relative_improvement_max"])
     variant_signal = bool(_relative_improvement(variant, copy) > threshold)
-    csi_signal = bool(_relative_improvement(csi_only, copy) > threshold)
+    conditional_gain = _relative_improvement(no_x, csi_only)
+    csi_signal = bool(conditional_gain <= threshold)
     edit_signal = bool(_relative_improvement(map_edit_only, copy) > threshold)
     map_hurts = bool(_relative_improvement(csi_only, no_x) > threshold)
     return {
@@ -982,7 +1931,9 @@ def _shortcut_warnings(records, target, predictions, config):
             },
             "csi_only_shortcut_signal": {
                 "triggered": csi_signal,
-                "relative_improvement_vs_copy": _relative_improvement(csi_only, copy),
+                "no_x_relative_improvement_vs_csi_only": conditional_gain,
+                "csi_only_relative_improvement_vs_copy": _relative_improvement(csi_only, copy),
+                "criterion": "full map-and-action response must improve over CSI-only on the same active denominator",
             },
             "map_edit_only_shortcut_signal": {
                 "triggered": edit_signal,
@@ -1004,6 +1955,18 @@ def _shortcut_warnings(records, target, predictions, config):
         ),
         "interpretation": "NOT_ASSESSED is never PASS; inherited V1 failures are not overwritten by fixture or proxy output.",
     }
+
+
+def _record_column(records, name: str) -> np.ndarray:
+    if isinstance(records, dict):
+        if name not in records:
+            raise KeyError(f"qualification record index is missing {name}")
+        values = np.asarray(records[name])
+    else:
+        values = np.asarray([row[name] for row in records])
+    if values.ndim != 1:
+        raise ValueError(f"qualification record column {name} must be one-dimensional")
+    return values
 
 
 def _relative_improvement(method_score: float, baseline_score: float) -> float:

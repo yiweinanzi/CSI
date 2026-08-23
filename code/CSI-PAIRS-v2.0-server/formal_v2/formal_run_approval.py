@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import json
 import os
 import re
 import shutil
+import subprocess
+import tempfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Mapping
@@ -15,17 +18,29 @@ from .formal_evidence import (
     require_stage_manifested_gate,
 )
 from .formal_io import read_strict_json, sha256_file, write_json
+from .formal_external_runtime import _cuda_total_memory_bytes
 
 
-COMPUTE_PLAN_SCHEMA = "csi-pairs-full-run-compute-plan-v1"
-PREFLIGHT_SCHEMA = "csi-pairs-full-run-static-preflight-v1"
-APPROVAL_REQUEST_SCHEMA = "csi-pairs-full-run-approval-request-v1"
-PREPARED_RUN_SCHEMA = "csi-pairs-full-run-prepared-v1"
-HUMAN_APPROVAL_SCHEMA = "csi-pairs-full-run-human-approval-v1"
-APPROVAL_ACCEPTED_SCHEMA = "csi-pairs-full-run-approval-accepted-v1"
+COMPUTE_PLAN_SCHEMA = "csi-pairs-full-run-compute-plan-v2"
+FORMAL_COMPUTE_COMPONENTS = (
+    "data_qualification_and_g8",
+    "teacher",
+    "factorial",
+    "evaluation",
+    "baselines",
+    "controls",
+    "io_and_checkpoints",
+    "failure_budget",
+)
+PREFLIGHT_SCHEMA = "csi-pairs-full-run-static-preflight-v2"
+APPROVAL_REQUEST_SCHEMA = "csi-pairs-full-run-approval-request-v2"
+PREPARED_RUN_SCHEMA = "csi-pairs-full-run-prepared-v2"
+HUMAN_APPROVAL_SCHEMA = "csi-pairs-full-run-human-approval-v2"
+APPROVAL_ACCEPTED_SCHEMA = "csi-pairs-full-run-approval-accepted-v2"
 APPROVAL_ATTESTATION = (
-    "I reviewed the bound G0, independent RT, G1/G2, Response-control, input, "
-    "runtime, and compute-plan evidence and authorize only this run nonce."
+    "I reviewed the bound G0, independent RT, G1/G2, Response-control, G8 "
+    "independent external-validity, input, runtime, and compute-plan evidence "
+    "and authorize only this run nonce."
 )
 MAX_APPROVAL_CLOCK_SKEW = timedelta(minutes=5)
 MAX_APPROVAL_LIFETIME = timedelta(hours=24)
@@ -37,6 +52,7 @@ APPROVAL_REVIEW_SCOPE = [
     "oracle_x versus no_x",
     "copy, no_action, and exact action_swap controls",
     "null hallucination safety",
+    "G8 independent external-validity gate",
     "compute and stopping budget",
 ]
 
@@ -62,12 +78,12 @@ EARLY_STAGE_GATES = {
     "G0": (
         "literature_resources/gate.json",
         "literature_resources/manifest.json",
-        "csi-pairs-v6-literature-resource-gate-v3",
+        "csi-pairs-v6-literature-resource-gate-v4",
     ),
     "independent_rt": (
         "qualification/rt_calibration/gate.json",
         "qualification/rt_calibration/manifest.json",
-        "csi-pairs-v6-rt-calibration-gate-v5",
+        "csi-pairs-v6-rt-calibration-gate-v6",
     ),
     "data_verification": (
         "data_verification/gate.json",
@@ -78,6 +94,11 @@ EARLY_STAGE_GATES = {
         "qualification/gate.json",
         "qualification/manifest.json",
         QUALIFICATION_SCHEMA,
+    ),
+    "G8": (
+        "external_validity/gate.json",
+        "external_validity/manifest.json",
+        "csi-pairs-v6-external-validity-gate-v4",
     ),
 }
 
@@ -252,8 +273,6 @@ def authenticate_prepared_run(
     if not output.is_dir() or output.is_symlink():
         raise RuntimeError("all requires an existing, regular prepared run root")
     accepted_path = output / "approval" / "accepted.json"
-    if accepted_path.exists() or accepted_path.is_symlink():
-        raise RuntimeError("the prepared approval has already been consumed")
     prepared_path = output / "approval" / "prepared.json"
     request_path = output / "approval" / "request.json"
     prepared = read_strict_json(_regular_file(prepared_path, "prepared-run record"))
@@ -278,6 +297,47 @@ def authenticate_prepared_run(
         raise RuntimeError("human approval manifest must be external to the prepared run root")
     approval = read_strict_json(approval_path)
     request_sha = sha256_file(request_path)
+    if accepted_path.exists() or accepted_path.is_symlink():
+        accepted = read_strict_json(
+            _regular_file(accepted_path, "accepted approval record")
+        )
+        required = {
+            "schema_version",
+            "status",
+            "run_id",
+            "run_nonce",
+            "request_sha256",
+            "approval_manifest_path",
+            "approval_manifest_sha256",
+            "compute_plan_sha256",
+            "accepted_utc",
+        }
+        if not isinstance(accepted, dict) or set(accepted) != required:
+            raise RuntimeError("accepted approval record fields are invalid")
+        expected = {
+            "schema_version": APPROVAL_ACCEPTED_SCHEMA,
+            "status": "ACCEPTED",
+            "run_id": request["run_id"],
+            "run_nonce": request["run_nonce"],
+            "request_sha256": request_sha,
+            "approval_manifest_path": str(approval_path),
+            "approval_manifest_sha256": sha256_file(approval_path),
+            "compute_plan_sha256": request["compute_plan"]["sha256"],
+        }
+        for key, value in expected.items():
+            if accepted.get(key) != value:
+                raise RuntimeError(f"accepted approval record binding changed: {key}")
+        accepted_at = _parse_utc(accepted["accepted_utc"], "accepted_utc")
+        approved_at = _parse_utc(approval.get("approved_utc"), "approved_utc")
+        if accepted_at < approved_at:
+            raise RuntimeError("accepted approval predates the human approval")
+        _validate_human_approval(
+            approval,
+            request,
+            request_sha,
+            now=accepted_at,
+        )
+        return accepted
     _validate_human_approval(approval, request, request_sha)
     return {
         "schema_version": APPROVAL_ACCEPTED_SCHEMA,
@@ -294,12 +354,53 @@ def authenticate_prepared_run(
 
 def mark_approval_accepted(output_root: str | Path, accepted: dict) -> Path:
     path = Path(output_root).resolve() / "approval" / "accepted.json"
+    if path.is_symlink():
+        raise RuntimeError("accepted approval record cannot be a symlink")
+    if path.exists():
+        existing = read_strict_json(_regular_file(path, "accepted approval record"))
+        if existing != accepted:
+            raise RuntimeError("existing accepted approval differs from resume binding")
+        return path
     try:
-        path.touch(exist_ok=False)
-    except FileExistsError as error:
-        raise RuntimeError("the prepared approval has already been consumed") from error
-    write_json(path, accepted)
+        _write_json_exclusive_atomic(path, accepted)
+    except FileExistsError:
+        existing = read_strict_json(_regular_file(path, "accepted approval record"))
+        if existing != accepted:
+            raise RuntimeError("the prepared approval has already been consumed")
     return path
+
+
+def _write_json_exclusive_atomic(path: Path, payload: object) -> None:
+    parent = path.parent
+    if parent.is_symlink() or not parent.is_dir():
+        raise RuntimeError("accepted approval parent must be a regular directory")
+    encoded = (
+        json.dumps(
+            payload,
+            indent=2,
+            sort_keys=True,
+            ensure_ascii=True,
+            allow_nan=False,
+        )
+        + "\n"
+    ).encode("ascii")
+    with tempfile.NamedTemporaryFile(
+        prefix=f".{path.name}.", suffix=".tmp", dir=parent, delete=False
+    ) as handle:
+        temporary = Path(handle.name)
+        handle.write(encoded)
+        handle.flush()
+        os.fsync(handle.fileno())
+    try:
+        os.link(temporary, path, follow_symlinks=False)
+        flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)
+        descriptor = os.open(parent, flags)
+        try:
+            os.fsync(descriptor)
+        finally:
+            os.close(descriptor)
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 def create_human_approval_manifest(
@@ -382,6 +483,25 @@ def authenticate_early_stages(config: dict, dataset, output_root: str | Path) ->
                 dataset,
                 allow_nonscientific_fixture=bool(dataset.is_fixture),
             )
+        elif name == "G8":
+            require_stage_manifested_gate(
+                gate_path,
+                gate,
+                config,
+                dataset,
+                schema_version=schema,
+            )
+            from .formal_claims import _validate_stage_bound_input
+
+            _validate_stage_bound_input(
+                gate_path,
+                gate,
+                config,
+                "G8",
+                dataset,
+            )
+            if gate.get("passed") is not True and not dataset.is_fixture:
+                raise RuntimeError("G8 gate is not PASS")
         else:
             require_stage_manifested_gate(
                 gate_path,
@@ -470,6 +590,7 @@ def _validate_compute_plan(plan, dataset, output, required_licenses):
         "minimum_gpu_memory_bytes",
         "estimated_gpu_hours",
         "authorized_gpu_hours",
+        "component_estimates",
         "required_environment_variables",
         "license_acknowledgements",
     }
@@ -504,6 +625,7 @@ def _validate_compute_plan(plan, dataset, output, required_licenses):
             raise ValueError(f"full-run compute plan {key} must be nonnegative")
     if plan["authorized_gpu_hours"] < plan["estimated_gpu_hours"]:
         raise ValueError("authorized GPU hours are smaller than the estimate")
+    _validate_compute_components(plan, dataset)
     if dataset.is_fixture:
         if (
             plan["required_gpu_count"] != 0
@@ -566,13 +688,28 @@ def _validate_compute_plan(plan, dataset, output, required_licenses):
     ]
     if undersized:
         raise RuntimeError("available CUDA GPU memory is below the compute-plan minimum")
+    if required_count:
+        _require_exclusive_gpus(gpus[:required_count])
+    stable_gpus = [
+        {
+            key: gpu[key]
+            for key in (
+                "index",
+                "uuid",
+                "name",
+                "total_memory_bytes",
+                "cuda_runtime",
+            )
+        }
+        for gpu in gpus
+    ]
     execution_devices = (
         []
         if dataset.is_fixture
         else _bind_execution_devices(
             environment_values["CSI_PAIRS_DEVICES"],
             environment_values["CUDA_VISIBLE_DEVICES"],
-            gpus,
+            stable_gpus,
             required_count,
         )
     )
@@ -587,7 +724,7 @@ def _validate_compute_plan(plan, dataset, output, required_licenses):
             "estimated_gpu_hours": float(plan["estimated_gpu_hours"]),
             "authorized_gpu_hours": float(plan["authorized_gpu_hours"]),
         },
-        "gpu_inventory": gpus,
+        "gpu_inventory": stable_gpus,
         "required_gpu_count": required_count,
         "execution_devices": execution_devices,
         "required_environment_variables": env_names,
@@ -595,6 +732,72 @@ def _validate_compute_plan(plan, dataset, output, required_licenses):
         "environment_variables_present": True,
         "license_acknowledgements": acknowledgements,
     }
+
+
+def _validate_compute_components(plan, dataset) -> None:
+    components = plan["component_estimates"]
+    if dataset.is_fixture:
+        if components != []:
+            raise ValueError("nonscientific fixture compute plans must have no formal components")
+        return
+    required_fields = {
+        "component",
+        "basis",
+        "basis_artifact_path",
+        "basis_artifact_sha256",
+        "estimated_output_bytes",
+        "estimated_wall_time_seconds",
+        "estimated_gpu_hours",
+    }
+    if not isinstance(components, list) or len(components) != len(FORMAL_COMPUTE_COMPONENTS):
+        raise ValueError("formal compute plan component coverage is incomplete")
+    by_name = {}
+    for row in components:
+        if not isinstance(row, dict) or set(row) != required_fields:
+            raise ValueError("formal compute component fields must be exact")
+        name = row["component"]
+        if name in by_name or name not in FORMAL_COMPUTE_COMPONENTS:
+            raise ValueError("formal compute components are duplicate or unknown")
+        if row["basis"] not in {
+            "measured",
+            "measured_projection",
+            "measured_upper_bound",
+        }:
+            raise ValueError("formal compute component basis is not measurement-backed")
+        if (
+            type(row["estimated_output_bytes"]) is not int
+            or row["estimated_output_bytes"] < 0
+            or type(row["estimated_wall_time_seconds"]) is not int
+            or row["estimated_wall_time_seconds"] <= 0
+            or isinstance(row["estimated_gpu_hours"], bool)
+            or not isinstance(row["estimated_gpu_hours"], (int, float))
+            or row["estimated_gpu_hours"] < 0
+        ):
+            raise ValueError("formal compute component estimates are invalid")
+        artifact = _regular_file(
+            row["basis_artifact_path"],
+            f"{name} compute-basis artifact",
+        )
+        if (
+            not isinstance(row["basis_artifact_sha256"], str)
+            or not re.fullmatch(r"[0-9a-f]{64}", row["basis_artifact_sha256"])
+            or sha256_file(artifact) != row["basis_artifact_sha256"]
+        ):
+            raise ValueError(f"{name} compute-basis artifact hash mismatch")
+        by_name[name] = row
+    if set(by_name) != set(FORMAL_COMPUTE_COMPONENTS):
+        raise ValueError("formal compute plan component coverage is incomplete")
+    failure = by_name["failure_budget"]
+    if failure["estimated_gpu_hours"] <= 0 or failure["estimated_wall_time_seconds"] <= 0:
+        raise ValueError("formal compute plan requires a positive failure budget")
+    if sum(row["estimated_output_bytes"] for row in components) > plan["estimated_output_bytes"]:
+        raise ValueError("component output estimates exceed the full-run estimate")
+    if sum(row["estimated_wall_time_seconds"] for row in components) > plan["estimated_wall_time_seconds"]:
+        raise ValueError("component wall-time estimates exceed the full-run estimate")
+    if sum(float(row["estimated_gpu_hours"]) for row in components) > float(
+        plan["estimated_gpu_hours"]
+    ):
+        raise ValueError("component GPU-hour estimates exceed the full-run estimate")
 
 
 def _validate_static_manifests(
@@ -613,7 +816,9 @@ def _validate_static_manifests(
     from .formal_external import _validate_manifest as validate_external
     from .formal_external_validity import (
         _execution_mode as external_validity_execution_mode,
+        _probe_independent_runtime,
         _validate_manifest as validate_external_validity,
+        _verify_independent_adapter_inputs,
         require_claim_eligible_manifest,
         require_independent_primary_engine,
         _verify_adapter_source,
@@ -624,6 +829,7 @@ def _validate_static_manifests(
     from .formal_rt_calibration import (
         _bound_input as bind_rt_input,
         _validate_manifest as validate_rt,
+        _validate_review_record as validate_rt_review_record,
     )
     from .formal_scene_id import (
         BUILTIN_SCENE_ID_MANIFEST,
@@ -680,31 +886,62 @@ def _validate_static_manifests(
     require_claim_eligible_manifest(external_validity)
     require_independent_primary_engine(dataset, external_validity)
     licenses.add(external_validity["license_id"])
-    if external_validity_execution_mode(external_validity) != "authenticated_sionna_adapter":
+    external_validity_mode = external_validity_execution_mode(external_validity)
+    if external_validity_mode not in {
+        "authenticated_sionna_adapter",
+        "authenticated_independent_rt_adapter",
+    }:
         raise RuntimeError("formal preflight requires an executable G8 adapter")
-    _verify_adapter_source(external_validity)
+    external_validity_source = _verify_adapter_source(external_validity)
     _require_declared_executables([external_validity])
-    _merge_external_runtimes(
-        external_runtimes,
-        _probe_declared_external_runtimes([external_validity]),
-    )
+    if external_validity_mode == "authenticated_independent_rt_adapter":
+        external_validity_path = Path(
+            input_values["external_validity_manifest"]
+        ).resolve()
+        _, engine_config_path, _, _ = _verify_independent_adapter_inputs(
+            external_validity,
+            external_validity_path.parent,
+            dataset,
+        )
+        executable = external_validity["command"][0].replace(
+            "{project_root}", str(Path(__file__).resolve().parents[1])
+        )
+        runtime = _probe_independent_runtime(
+            [executable, str(external_validity_source)], engine_config_path
+        )
+        _merge_external_runtimes(external_runtimes, {"differt": runtime})
+    else:
+        _merge_external_runtimes(
+            external_runtimes,
+            _probe_declared_external_runtimes([external_validity]),
+        )
 
     literature_path = Path(input_values["literature_resource_manifest"]).resolve()
     literature = payloads["literature_resource_manifest"]
-    validate_literature(config, literature, literature_path.parent)
+    validate_literature(config, literature, literature_path.parent, dataset)
     _collect_license_strings(literature.get("licenses_reviewed"), licenses)
 
     rt_path = Path(input_values["rt_calibration_manifest"]).resolve()
     rt = payloads["rt_calibration_manifest"]
     validate_rt(rt)
+    bound_rt_inputs = {}
     for prefix, label in (
         ("protocol", "RT protocol"),
         ("fit_dataset", "RT fit dataset"),
         ("validation_inputs", "RT validation inputs"),
         ("validation_reference", "RT validation reference"),
         ("adapter_source", "RT adapter source"),
+        ("design_record", "RT calibration design record"),
+        ("license_review", "RT license review record"),
     ):
-        bind_rt_input(rt[f"{prefix}_path"], rt[f"{prefix}_sha256"], rt_path.parent, label)
+        bound_rt_inputs[prefix] = bind_rt_input(
+            rt[f"{prefix}_path"],
+            rt[f"{prefix}_sha256"],
+            rt_path.parent,
+            label,
+        )
+    validate_rt_review_record(bound_rt_inputs["design_record"], "design")
+    validate_rt_review_record(bound_rt_inputs["license_review"], "license")
 
     _validate_claim_control_manifest(
         Path(input_values["shuffled_pair_manifest"]),
@@ -1073,15 +1310,96 @@ def _gpu_inventory():
     output = []
     for index in range(torch.cuda.device_count()):
         properties = torch.cuda.get_device_properties(index)
+        free_memory, observed_total = torch.cuda.mem_get_info(index)
+        total_memory = _cuda_total_memory_bytes(torch, index, properties)
+        if observed_total > 0 and observed_total != total_memory:
+            raise RuntimeError("CUDA memory inventory is internally inconsistent")
         output.append(
             {
                 "index": index,
                 "uuid": str(getattr(properties, "uuid", "") or ""),
                 "name": str(properties.name),
-                "total_memory_bytes": int(properties.total_memory),
+                "total_memory_bytes": total_memory,
+                "free_memory_bytes": int(free_memory),
+                "used_memory_bytes": int(total_memory - free_memory),
                 "cuda_runtime": str(torch.version.cuda) if torch.version.cuda else None,
             }
         )
+    return output
+
+
+def _require_exclusive_gpus(gpus) -> None:
+    if not gpus:
+        return
+    process_map = _nvidia_compute_processes()
+    occupied = []
+    for gpu in gpus:
+        total = gpu.get("total_memory_bytes")
+        free = gpu.get("free_memory_bytes")
+        used = gpu.get("used_memory_bytes")
+        if (
+            type(total) is not int
+            or type(free) is not int
+            or type(used) is not int
+            or total <= 0
+            or free < 0
+            or used < 0
+            or free + used != total
+        ):
+            raise RuntimeError("CUDA exclusivity requires a complete memory inventory")
+        uuid = gpu.get("uuid")
+        if not isinstance(uuid, str) or not uuid.strip():
+            raise RuntimeError("CUDA exclusivity requires stable GPU UUIDs")
+        processes = process_map.get(uuid, [])
+        idle_memory_ceiling = min(512 * 1024**2, total // 50)
+        if processes or used > idle_memory_ceiling:
+            occupied.append(
+                {
+                    "index": gpu.get("index"),
+                    "uuid": uuid,
+                    "used_memory_bytes": used,
+                    "compute_processes": processes,
+                }
+            )
+    if occupied:
+        raise RuntimeError(
+            "formal GPUs are not exclusive; active compute or non-idle memory was detected: "
+            f"{occupied}"
+        )
+
+
+def _nvidia_compute_processes() -> dict[str, list[dict[str, int]]]:
+    completed = subprocess.run(
+        [
+            "nvidia-smi",
+            "--query-compute-apps=gpu_uuid,pid,used_memory",
+            "--format=csv,noheader,nounits",
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    if completed.returncode != 0:
+        raise RuntimeError(
+            "cannot prove GPU exclusivity because nvidia-smi process inventory failed: "
+            f"{completed.stderr.strip()}"
+        )
+    output: dict[str, list[dict[str, int]]] = {}
+    for line in completed.stdout.splitlines():
+        if not line.strip():
+            continue
+        parts = [value.strip() for value in line.split(",")]
+        if len(parts) != 3:
+            raise RuntimeError("nvidia-smi compute-process inventory is malformed")
+        uuid, pid_value, memory_value = parts
+        try:
+            row = {"pid": int(pid_value), "used_memory_mib": int(memory_value)}
+        except ValueError as error:
+            raise RuntimeError(
+                "nvidia-smi compute-process inventory contains nonnumeric values"
+            ) from error
+        output.setdefault(uuid, []).append(row)
     return output
 
 

@@ -18,12 +18,15 @@ DATABASE_SEARCH_ENDPOINTS = {
     "OpenAlex": ("/works", {"search"}),
     "Semantic Scholar": ("/graph/v1/paper/search", {"query"}),
 }
+MANIFEST_SCHEMA = "csi-pairs-v6-literature-resource-manifest-v4"
+GATE_SCHEMA = "csi-pairs-v6-literature-resource-gate-v4"
+HUMAN_REVIEW_FILENAME = "HUMAN_REVIEW.md"
 
 
 def run_literature_resource_gate(config, dataset, manifest_path, output_root):
     path = Path(manifest_path).resolve()
     manifest = read_strict_json(path)
-    _validate_manifest(config, manifest, path.parent)
+    review = _validate_manifest(config, manifest, path.parent, dataset)
     output_dir = Path(output_root) / "literature_resources"
     output_dir.mkdir(parents=True, exist_ok=True)
     bound_manifest = output_dir / "literature_manifest.json"
@@ -45,7 +48,12 @@ def run_literature_resource_gate(config, dataset, manifest_path, output_root):
         )
     write_json(
         bound_manifest,
-        {**manifest, "records": bound_records, "search_receipts": bound_receipts},
+        {
+            **manifest,
+            "records": bound_records,
+            "search_receipts": bound_receipts,
+            "human_review_path": str(review["path"]),
+        },
     )
     evidence = evidence_context(
         config, dataset, "FORBIDDEN" if dataset.is_fixture else "CANDIDATE_NOT_CLAIM"
@@ -58,7 +66,7 @@ def run_literature_resource_gate(config, dataset, manifest_path, output_root):
         and decision["external_validity_path_ready"]
     )
     gate = {
-        "schema_version": "csi-pairs-v6-literature-resource-gate-v3",
+        "schema_version": GATE_SCHEMA,
         "status": "PASS" if passed else "FAIL",
         "passed": passed,
         **evidence,
@@ -74,6 +82,12 @@ def run_literature_resource_gate(config, dataset, manifest_path, output_root):
         "resource_plan": manifest["resource_plan"],
         "decision": decision,
         "c13_requires_human_review": True,
+        "human_review_path": str(review["path"]),
+        "human_review_sha256": manifest["human_review_sha256"],
+        "human_reviewer": review["reviewer"],
+        "human_review_completed_utc": review["completed_utc"],
+        "human_review_signature": review["signature"],
+        "human_review_signed_utc": review["signed_utc"],
     }
     write_json(output_dir / "gate.json", gate)
     write_json(
@@ -87,7 +101,7 @@ def run_literature_resource_gate(config, dataset, manifest_path, output_root):
     return gate
 
 
-def _validate_manifest(config, manifest, manifest_root=None):
+def _validate_manifest(config, manifest, manifest_root=None, dataset=None):
     required = {
         "schema_version",
         "search_completed_utc",
@@ -98,10 +112,12 @@ def _validate_manifest(config, manifest, manifest_root=None):
         "resource_plan",
         "licenses_reviewed",
         "decision",
+        "human_review_path",
+        "human_review_sha256",
     }
     if not isinstance(manifest, dict) or set(manifest) != required:
         raise ValueError("literature/resource manifest fields must be exact")
-    if manifest["schema_version"] != "csi-pairs-v6-literature-resource-manifest-v3":
+    if manifest["schema_version"] != MANIFEST_SCHEMA:
         raise ValueError("literature/resource manifest schema mismatch")
     completed = _parse_utc(manifest["search_completed_utc"])
     age = (datetime.now(timezone.utc) - completed).total_seconds() / 86400.0
@@ -158,6 +174,117 @@ def _validate_manifest(config, manifest, manifest_root=None):
     direct_overlap = any(record["relation_to_claim"] == "direct_overlap" for record in manifest["records"])
     if decision["no_direct_overlap"] == direct_overlap:
         raise ValueError("literature direct-overlap decision contradicts its records")
+    return _validate_human_review(
+        manifest,
+        manifest_root,
+        completed,
+        dataset,
+    )
+
+
+def _validate_human_review(manifest, manifest_root, search_completed, dataset):
+    digest = manifest["human_review_sha256"]
+    if not _lower_sha256(digest):
+        raise ValueError("C13 human-review hash is invalid")
+    relative = Path(manifest["human_review_path"])
+    if relative.name != HUMAN_REVIEW_FILENAME:
+        raise ValueError("C13 human review must be named HUMAN_REVIEW.md")
+    path = _resolve_relative(manifest["human_review_path"], manifest_root)
+    if not path.is_file() or path.is_symlink() or sha256_file(path) != digest:
+        raise ValueError("C13 human review is missing or hash-mismatched")
+    try:
+        content = path.read_text(encoding="utf-8")
+    except UnicodeError as error:
+        raise ValueError("C13 human review is not valid UTF-8") from error
+    forbidden = (
+        "TEMPLATE_ONLY_NOT_REVIEWED",
+        "<REQUIRED>",
+        "<true or false>",
+        "<YYYY-MM-DDTHH:MM:SSZ>",
+        "<REQUIRED;",
+    )
+    if len(content.encode("utf-8")) < 512 or any(value in content for value in forbidden):
+        raise ValueError("C13 human review is still a template or is incomplete")
+
+    values = {
+        label: _review_field(content, label)
+        for label in (
+            "Reviewer name or authorized identity",
+            "Affiliation or authorization basis",
+            "Review completed UTC",
+            "Project dataset SHA-256",
+            "Project source-tree SHA-256",
+            "Licenses reviewed for every local PDF/source resource",
+            "No direct overlap with the frozen C13 claim",
+            "RT path ready",
+            "Map path ready",
+            "External-validity path ready",
+            "Allowed novelty scope",
+            "Conflicts or unresolved restrictions",
+            "Reviewer signature or authenticated identity",
+            "Signed UTC",
+        )
+    }
+    completed = _parse_utc(values["Review completed UTC"])
+    signed = _parse_utc(values["Signed UTC"])
+    now = datetime.now(timezone.utc)
+    if completed < search_completed or signed < completed or signed > now:
+        raise ValueError(
+            "C13 human review must follow the frozen searches and use valid UTC ordering"
+        )
+    if values["Licenses reviewed for every local PDF/source resource"].lower() != str(
+        manifest["licenses_reviewed"]
+    ).lower():
+        raise ValueError("C13 human license decision differs from the manifest")
+    decision_fields = {
+        "No direct overlap with the frozen C13 claim": "no_direct_overlap",
+        "RT path ready": "rt_path_ready",
+        "Map path ready": "map_path_ready",
+        "External-validity path ready": "external_validity_path_ready",
+    }
+    for label, key in decision_fields.items():
+        if values[label].lower() != str(manifest["decision"][key]).lower():
+            raise ValueError(f"C13 human decision differs from the manifest: {key}")
+    if values["Allowed novelty scope"] != manifest["decision"]["novelty_scope"]:
+        raise ValueError("C13 human novelty scope differs from the manifest")
+    if dataset is not None:
+        from .formal_evidence import _source_tree_sha256
+
+        if values["Project dataset SHA-256"] != sha256_file(dataset.source_path):
+            raise ValueError("C13 human review dataset hash mismatch")
+        if values["Project source-tree SHA-256"] != _source_tree_sha256():
+            raise ValueError("C13 human review source-tree hash mismatch")
+    missing_records = [
+        Path(record["content_path"]).name
+        for record in manifest["records"]
+        if Path(record["content_path"]).name not in content
+    ]
+    if missing_records:
+        raise ValueError(
+            f"C13 human review omits literature records: {missing_records}"
+        )
+    attestation = (
+        "I attest that I personally reviewed the listed resources and the frozen C13\n"
+        "claim, verified the recorded license/redistribution decisions from the cited\n"
+        "sources, and made the novelty and readiness decisions above."
+    )
+    if attestation not in content:
+        raise ValueError("C13 human review attestation is missing or altered")
+    return {
+        "path": path,
+        "reviewer": values["Reviewer name or authorized identity"],
+        "completed_utc": values["Review completed UTC"],
+        "signature": values["Reviewer signature or authenticated identity"],
+        "signed_utc": values["Signed UTC"],
+    }
+
+
+def _review_field(content, label):
+    prefix = f"- {label}:"
+    matches = [line[len(prefix) :].strip() for line in content.splitlines() if line.startswith(prefix)]
+    if len(matches) != 1 or not matches[0]:
+        raise ValueError(f"C13 human review field is missing or duplicated: {label}")
+    return matches[0].strip("`")
 
 
 def _validate_receipts(receipts, databases, queries, completed, manifest_root):

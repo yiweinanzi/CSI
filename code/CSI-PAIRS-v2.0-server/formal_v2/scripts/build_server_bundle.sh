@@ -27,6 +27,7 @@ mkdir -p "${BUNDLE_ROOT}/artifacts/dataset_suite_v6/external_wireless_metadata"
   cd "${PROJECT_ROOT}"
   tar \
     --exclude='formal_v2/external_adapters/.venv-wigatr' \
+    --exclude='formal_v2/external_adapters/.runtime-differt' \
     --exclude='formal_v2/external_adapters/.runtime-sionna' \
     --exclude='formal_v2/tests/test_m4_scene0_exact_gate.py' \
     --exclude='formal_v2/tests/test_sionna_visibility_one_factor_diagnostic.py' \
@@ -72,7 +73,8 @@ cp -p "${PROJECT_ROOT}/output/pdf/CSI-PAIRS-paper-v2.1-draft.pdf" "${BUNDLE_ROOT
 find "${BUNDLE_ROOT}" -type d -name __pycache__ -prune -exec rm -rf {} +
 find "${BUNDLE_ROOT}" -type d -name '*.egg-info' -prune -exec rm -rf {} +
 find "${BUNDLE_ROOT}/formal_v2/external_adapters" -maxdepth 1 -type d \
-  \( -name '.venv-wigatr' -o -name '.runtime-sionna' \) -prune -exec rm -rf {} +
+  \( -name '.venv-wigatr' -o -name '.runtime-differt' -o -name '.runtime-sionna' \) \
+  -prune -exec rm -rf {} +
 find "${BUNDLE_ROOT}" -type f \( -name '*.pyc' -o -name '.DS_Store' \) -delete
 
 cd "${BUNDLE_ROOT}"

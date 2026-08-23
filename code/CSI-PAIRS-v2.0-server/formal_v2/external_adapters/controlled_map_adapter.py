@@ -33,7 +33,7 @@ from formal_v2.formal_routing import fit_route_normalization, route_dataset
 from formal_v2.formal_teacher import load_teacher_bundle
 
 
-CONFIG_SCHEMA = "csi-pairs-v6-controlled-map-adapter-v1"
+CONFIG_SCHEMA = "csi-pairs-v6-controlled-map-adapter-v2"
 EXECUTION_SCHEMA = "csi-pairs-v6-external-execution-v2"
 METHODS = {"sigmap", "wiser", "rfir"}
 
@@ -171,15 +171,23 @@ def load_controlled_map_config(path: str | Path) -> dict:
     if payload["model"]["scene_dim"] % payload["model"]["heads"]:
         raise ValueError("controlled scene dimension must be divisible by attention heads")
     if set(payload["training"]) != {
-        "seed", "steps", "batch_size", "learning_rate", "weight_decay", "selection_every_steps", "clip_grad_norm"
+        "seed", "steps", "batch_size", "microbatch_size", "precision",
+        "learning_rate", "weight_decay", "selection_every_steps", "clip_grad_norm"
     }:
         raise ValueError("controlled map training fields must be exact")
-    for key in ("seed", "steps", "batch_size", "selection_every_steps"):
+    for key in ("seed", "steps", "batch_size", "microbatch_size", "selection_every_steps"):
         _positive_integer(payload["training"][key], f"training.{key}")
     for key in ("learning_rate", "clip_grad_norm"):
         _positive_number(payload["training"][key], f"training.{key}")
     if payload["training"]["weight_decay"] < 0:
         raise ValueError("controlled map weight decay must be nonnegative")
+    if payload["training"]["batch_size"] % payload["training"]["microbatch_size"]:
+        raise ValueError("controlled map microbatch must divide the effective batch")
+    precision = payload["training"]["precision"]
+    if precision not in {"float32", "bf16"}:
+        raise ValueError("controlled map precision must be float32 or bf16")
+    if payload["method"] in {"wiser", "rfir"} and precision != "float32":
+        raise ValueError("WiSER and RFIR require float32 complex execution")
     if set(payload["inverse"]) != {
         "candidates_per_axis", "candidate_batch_size", "csi_weight", "power_weight", "receiver_z_m"
     }:
@@ -246,6 +254,11 @@ def _train(model, config, dataset, normalizer, output, model_metadata):
     selection_units = _units(dataset, "source_method_selection")
     training = config["training"]
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    configured_precision = str(training["precision"])
+    use_autocast = device.type == "cuda" and configured_precision == "bf16"
+    if use_autocast and not torch.cuda.is_bf16_supported():
+        raise RuntimeError("controlled-map BF16 execution is unsupported on this CUDA device")
+    executed_precision = "bf16" if use_autocast else "float32"
     model.to(device)
     optimizer = torch.optim.AdamW(
         model.parameters(), lr=float(training["learning_rate"]), weight_decay=float(training["weight_decay"])
@@ -257,22 +270,47 @@ def _train(model, config, dataset, normalizer, output, model_metadata):
     best_step = 0
     last_loss = float("nan")
     schedule_counts = {"radiomap": 0, "cir": 0, "joint": 0}
+    effective_batch_size = int(training["batch_size"])
+    microbatch_size = int(training["microbatch_size"])
     for step in range(1, int(training["steps"]) + 1):
-        chosen = rng.choice(len(train_units), size=int(training["batch_size"]), replace=len(train_units) < int(training["batch_size"]))
-        batch = _batch(dataset, [train_units[int(index)] for index in chosen], normalizer, device, config["method"])
+        chosen = rng.choice(
+            len(train_units),
+            size=effective_batch_size,
+            replace=len(train_units) < effective_batch_size,
+        )
+        chosen_units = [train_units[int(index)] for index in chosen]
         task = _training_task(config["method"], step, int(training["steps"]), int(training["selection_every_steps"]))
         schedule_counts[task] += 1
-        loss = _loss(model, config["method"], batch, task=task)
-        if not torch.isfinite(loss):
-            raise RuntimeError("controlled map model produced nonfinite loss")
         optimizer.zero_grad(set_to_none=True)
-        loss.backward()
+        accumulated_loss = 0.0
+        for start in range(0, effective_batch_size, microbatch_size):
+            units = chosen_units[start : start + microbatch_size]
+            batch = _batch(dataset, units, normalizer, device, config["method"])
+            with torch.autocast(
+                device_type=device.type,
+                dtype=torch.bfloat16,
+                enabled=use_autocast,
+            ):
+                loss = _loss(model, config["method"], batch, task=task)
+            if not torch.isfinite(loss):
+                raise RuntimeError("controlled map model produced nonfinite loss")
+            weight = len(units) / effective_batch_size
+            (loss * weight).backward()
+            accumulated_loss += float(loss.detach().cpu()) * weight
         torch.nn.utils.clip_grad_norm_(model.parameters(), float(training["clip_grad_norm"]), error_if_nonfinite=True)
         optimizer.step()
         scheduler.step()
-        last_loss = float(loss.detach().cpu())
+        last_loss = accumulated_loss
         if step % int(training["selection_every_steps"]) == 0 or step == int(training["steps"]):
-            selected = _selection_loss(model, config, dataset, selection_units, normalizer, device)
+            selected = _selection_loss(
+                model,
+                config,
+                dataset,
+                selection_units,
+                normalizer,
+                device,
+                use_autocast=use_autocast,
+            )
             if selected < best_selection:
                 best_selection = selected
                 best_step = step
@@ -285,7 +323,7 @@ def _train(model, config, dataset, normalizer, output, model_metadata):
     checkpoint.parent.mkdir(parents=True, exist_ok=True)
     torch.save(
         {
-            "schema_version": "csi-pairs-v6-controlled-map-checkpoint-v1",
+            "schema_version": "csi-pairs-v6-controlled-map-checkpoint-v2",
             "model_name": config["model_name"],
             "method": config["method"],
             "implementation_status": config["implementation_status"],
@@ -298,16 +336,28 @@ def _train(model, config, dataset, normalizer, output, model_metadata):
             "selection_loss": best_selection,
             "normalizer": {key: value.tolist() for key, value in normalizer.items()},
             "model_metadata": model_metadata,
+            "effective_batch_size": effective_batch_size,
+            "microbatch_size": microbatch_size,
+            "gradient_accumulation_steps": effective_batch_size // microbatch_size,
+            "configured_precision": configured_precision,
+            "executed_precision": executed_precision,
+            "autocast_enabled": use_autocast,
             "state_dict": best_state,
         },
         checkpoint,
     )
     record = {
-        "schema_version": "csi-pairs-v6-controlled-map-training-record-v1",
+        "schema_version": "csi-pairs-v6-controlled-map-training-record-v2",
         "method": config["method"],
         "device": str(device),
         "steps": int(training["steps"]),
         "batch_size": int(training["batch_size"]),
+        "microbatch_size": microbatch_size,
+        "gradient_accumulation_steps": effective_batch_size // microbatch_size,
+        "configured_precision": configured_precision,
+        "executed_precision": executed_precision,
+        "autocast_enabled": use_autocast,
+        "gradient_scaler_enabled": False,
         "optimizer": "AdamW",
         "scheduler": "cosine-to-0.1x",
         "last_training_loss": last_loss,
@@ -498,16 +548,42 @@ def _loss(model, method, batch, *, task="joint"):
     )
 
 
-def _selection_loss(model, config, dataset, units, normalizer, device):
+def _selection_loss(
+    model,
+    config,
+    dataset,
+    units,
+    normalizer,
+    device,
+    *,
+    use_autocast=False,
+):
     model.eval()
-    values = []
-    batch_size = int(config["training"]["batch_size"])
+    total = 0.0
+    count = 0
+    batch_size = int(config["training"]["microbatch_size"])
     with torch.no_grad():
         for start in range(0, len(units), batch_size):
-            batch = _batch(dataset, units[start : start + batch_size], normalizer, device, config["method"])
-            values.append(float(_loss(model, config["method"], batch).cpu()))
+            selected_units = units[start : start + batch_size]
+            batch = _batch(
+                dataset,
+                selected_units,
+                normalizer,
+                device,
+                config["method"],
+            )
+            with torch.autocast(
+                device_type=device.type,
+                dtype=torch.bfloat16,
+                enabled=use_autocast,
+            ):
+                loss = _loss(model, config["method"], batch)
+            total += float(loss.cpu()) * len(selected_units)
+            count += len(selected_units)
     model.train()
-    return float(np.mean(values))
+    if count == 0:
+        raise RuntimeError("controlled map selection role is empty")
+    return total / count
 
 
 def _lower_sha256(value):

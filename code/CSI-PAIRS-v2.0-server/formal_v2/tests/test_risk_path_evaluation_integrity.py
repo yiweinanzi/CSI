@@ -15,11 +15,15 @@ from formal_v2.formal_evaluation import (
     _g3_primary_scope_intervals,
     _gray_cells_complete,
     _native_probe_correlation_macro,
+    _periodic_power_spread,
     _response_effect_rows,
     _shortcut_metadata_features,
     _transition_metrics,
 )
-from formal_v2.formal_factorial import _canonical_bank_digest
+from formal_v2.formal_factorial import (
+    _canonical_bank_digest,
+    _city_budget_arm_interval,
+)
 from formal_v2.formal_io import artifact_manifest, write_json
 from formal_v2.formal_metrics import risk_coverage
 from formal_v2.formal_path import (
@@ -56,6 +60,116 @@ from formal_v2.formal_risk import (
 
 
 class RiskPathEvaluationIntegrityTests(unittest.TestCase):
+    def test_angular_spread_wraps_the_fft_angle_boundary(self):
+        power = np.asarray([1.0, 0.0, 0.0, 1.0])
+        axis = np.linspace(-1.0, 1.0, power.size, endpoint=False)
+        linear_mean = float(np.sum(power * axis) / np.sum(power))
+        linear_spread = float(
+            np.sqrt(np.sum(power * (axis - linear_mean) ** 2) / np.sum(power))
+        )
+        periodic_spread = _periodic_power_spread(power, axis, period=2.0)
+        self.assertAlmostEqual(linear_spread, 0.75)
+        self.assertAlmostEqual(periodic_spread, 0.25)
+
+    def test_periodic_power_spread_rejects_invalid_inputs(self):
+        with self.assertRaises(ValueError):
+            _periodic_power_spread(
+                np.asarray([1.0, -1.0]),
+                np.asarray([-1.0, 0.0]),
+                period=2.0,
+            )
+
+    def test_g3_scope_tests_use_registered_superiority_margins(self):
+        cgs_rows = []
+        response_rows = []
+        effects = (0.08, 0.12) * 6
+        for index, effect in enumerate(effects):
+            common = {
+                "seed": 1,
+                "base_map_cluster_id": f"cluster-{index}",
+                "canonical_base_map_digest": f"cluster-{index}",
+                "bank_id": f"bank-{index}",
+                "canonical_bank_digest": f"bank-{index}",
+                "evaluation_scope": "source_final_unseen_bank",
+            }
+            cgs_rows.extend(
+                (
+                    {**common, "arm": "endpoint", "cgs_auroc": 0.0},
+                    {**common, "arm": "alignment", "cgs_auroc": effect},
+                )
+            )
+            response_rows.extend(
+                (
+                    {
+                        **common,
+                        "arm": "endpoint",
+                        "native_target_free_full_channel_nmse": effect,
+                    },
+                    {
+                        **common,
+                        "arm": "response",
+                        "native_target_free_full_channel_nmse": 0.0,
+                    },
+                )
+            )
+        zero = _g3_primary_scope_intervals(
+            cgs_rows, response_rows, ["source_final_unseen_bank"], 100
+        )["source_final_unseen_bank"]
+        centered = _g3_primary_scope_intervals(
+            cgs_rows,
+            response_rows,
+            ["source_final_unseen_bank"],
+            100,
+            alignment_superiority_margin=0.1,
+            response_superiority_margin=0.1,
+        )["source_final_unseen_bank"]
+        self.assertLess(zero["alignment_superiority"]["p_value_two_sided"], 0.05)
+        self.assertLess(zero["response_superiority"]["p_value_two_sided"], 0.05)
+        self.assertGreater(
+            centered["alignment_superiority"]["p_value_two_sided"], 0.05
+        )
+        self.assertGreater(
+            centered["response_superiority"]["p_value_two_sided"], 0.05
+        )
+        self.assertEqual(centered["alignment_superiority"]["null_difference"], 0.1)
+        self.assertEqual(centered["response_superiority"]["null_difference"], 0.1)
+
+    def test_g5_city_test_uses_registered_improvement_margin(self):
+        rows = []
+        effects = (0.08, 0.12) * 6
+        for index, effect in enumerate(effects):
+            common = {
+                "city_id": "target-a",
+                "base_map_cluster_id": f"cluster-{index}",
+                "canonical_base_map_digest": f"cluster-{index}",
+                "bank_id": f"bank-{index}",
+                "canonical_bank_digest": f"bank-{index}",
+                "seed": 1,
+                "budget": 8,
+                "draw": 0,
+            }
+            rows.extend(
+                (
+                    {**common, "arm": "endpoint", "utility_neg_log_median": 0.0},
+                    {**common, "arm": "full", "utility_neg_log_median": effect},
+                )
+            )
+        zero = _city_budget_arm_interval(
+            rows, "target-a", 8, "endpoint", 100, 1
+        )
+        centered = _city_budget_arm_interval(
+            rows,
+            "target-a",
+            8,
+            "endpoint",
+            100,
+            1,
+            null_threshold=0.1,
+        )
+        self.assertLess(zero["p_value_two_sided"], 0.05)
+        self.assertGreater(centered["p_value_two_sided"], 0.05)
+        self.assertEqual(centered["null_difference"], 0.1)
+
     def test_g3_scope_intervals_cannot_hide_target_regression(self):
         cgs_rows = []
         response_rows = []

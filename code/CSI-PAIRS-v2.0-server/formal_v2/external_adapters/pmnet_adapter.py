@@ -18,6 +18,7 @@ from formal_v2.formal_evidence import (
     runtime_provenance,
     validate_runtime_provenance,
 )
+from formal_v2.formal_external_runtime import _cuda_total_memory_bytes
 from formal_v2.formal_io import read_strict_json, sha256_file, write_csv, write_json
 from formal_v2.formal_routing import fit_route_normalization, route_dataset
 from formal_v2.formal_teacher import load_teacher_bundle
@@ -35,7 +36,7 @@ from formal_v2.external_adapters.wigatr_protocol import (
 MODEL_NAME = "PMNet"
 ADAPTER_ID = "pmnet-official-csi-pairs-v1"
 PMNET_SOURCE_REVISION = "a0e0c5926de721074beeb23f630f2d313f6508dd"
-PMNET_CONFIG_SCHEMA = "csi-pairs-pmnet-official-adapter-v2"
+PMNET_CONFIG_SCHEMA = "csi-pairs-pmnet-official-adapter-v3"
 EXECUTION_SCHEMA = "csi-pairs-v6-external-execution-v4"
 
 
@@ -244,6 +245,7 @@ def load_pmnet_config(path: str | Path) -> dict:
         "epochs",
         "batch_size",
         "microbatch_size",
+        "precision",
         "learning_rate",
         "lr_decay",
         "lr_decay_every_epochs",
@@ -263,6 +265,10 @@ def load_pmnet_config(path: str | Path) -> dict:
         raise ValueError("PMNet formal dose must retain the official 30-epoch batch-16 schedule")
     if training["batch_size"] % training["microbatch_size"]:
         raise ValueError("PMNet microbatch size must divide the effective batch size")
+    if training["microbatch_size"] != 2:
+        raise ValueError("formal PMNet requires the frozen microbatch size of two")
+    if training["precision"] != "bf16":
+        raise ValueError("formal PMNet training requires the frozen BF16 precision")
     if training["learning_rate"] != 1e-4:
         raise ValueError("PMNet formal dose must retain the official Adam learning rate")
     if training["lr_decay"] != 0.5 or training["lr_decay_every_epochs"] != 10:
@@ -456,6 +462,11 @@ def _fit_source_only_model(
         num_workers=0,
     )
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    configured_precision = str(training["precision"])
+    use_autocast = device.type == "cuda" and configured_precision == "bf16"
+    if use_autocast and not torch.cuda.is_bf16_supported():
+        raise RuntimeError("formal PMNet BF16 execution is unsupported on this CUDA device")
+    executed_precision = "bf16" if use_autocast else "float32"
     model.to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=float(training["learning_rate"]))
     scheduler = torch.optim.lr_scheduler.StepLR(
@@ -488,8 +499,15 @@ def _fit_source_only_model(
                 model_input = model_input.to(device)
                 target = target.to(device)
                 mask = mask.to(device)
-                prediction = model(model_input)
-                batch_squared_error = torch.sum((prediction[mask] - target[mask]) ** 2)
+                with torch.autocast(
+                    device_type=device.type,
+                    dtype=torch.bfloat16,
+                    enabled=use_autocast,
+                ):
+                    prediction = model(model_input)
+                    batch_squared_error = torch.sum(
+                        (prediction[mask] - target[mask]) ** 2
+                    )
                 (batch_squared_error / total_observed).backward()
                 squared_error += float(batch_squared_error.detach().cpu())
                 observed += int(mask.sum())
@@ -514,7 +532,7 @@ def _fit_source_only_model(
     checkpoint.parent.mkdir(parents=True, exist_ok=True)
     torch.save(
         {
-            "schema_version": "csi-pairs-pmnet-checkpoint-v1",
+            "schema_version": "csi-pairs-pmnet-checkpoint-v2",
             "source_revision": PMNET_SOURCE_REVISION,
             "adapter_config": config,
             "dataset_sha256": sha256_file(dataset.source_path),
@@ -526,17 +544,28 @@ def _fit_source_only_model(
             "selection_power_mse": best_selection,
             "power_mean": power_mean,
             "power_scale": power_scale,
+            "effective_batch_size": int(training["batch_size"]),
+            "microbatch_size": int(training["microbatch_size"]),
+            "configured_precision": configured_precision,
+            "executed_precision": executed_precision,
+            "autocast_enabled": use_autocast,
             "state_dict": best_state,
         },
         checkpoint,
     )
     return checkpoint, {
-        "schema_version": "csi-pairs-pmnet-training-record-v1",
+        "schema_version": "csi-pairs-pmnet-training-record-v2",
         "source_revision": PMNET_SOURCE_REVISION,
         "device": str(device),
         "epochs": int(training["epochs"]),
         "batch_size": int(training["batch_size"]),
         "microbatch_size": int(training["microbatch_size"]),
+        "gradient_accumulation_steps": int(training["batch_size"])
+        // int(training["microbatch_size"]),
+        "configured_precision": configured_precision,
+        "executed_precision": executed_precision,
+        "autocast_enabled": use_autocast,
+        "gradient_scaler_enabled": False,
         "optimizer": "Adam",
         "scheduler": "StepLR",
         "last_training_power_mse": last_training,
@@ -689,7 +718,9 @@ def _require_formal_resources(config):
     if not torch.cuda.is_available():
         raise RuntimeError("formal PMNet execution requires an NVIDIA CUDA device")
     minimum = int(config["resources"]["minimum_cuda_memory_bytes"])
-    available = int(torch.cuda.get_device_properties(torch.cuda.current_device()).total_memory)
+    device = int(torch.cuda.current_device())
+    properties = torch.cuda.get_device_properties(device)
+    available = _cuda_total_memory_bytes(torch, device, properties)
     if available < minimum:
         raise RuntimeError(
             "formal PMNet CUDA memory is below the frozen minimum: "

@@ -32,7 +32,7 @@ CLAIM_DEPENDENCIES = {
 
 
 STAGE_SPECS = {
-    "G0": ("literature_resources/gate.json", "csi-pairs-v6-literature-resource-gate-v3"),
+    "G0": ("literature_resources/gate.json", "csi-pairs-v6-literature-resource-gate-v4"),
     "G1_G2": ("qualification/gate.json", QUALIFICATION_SCHEMA),
     "G3": ("evaluation/gate.json", "csi-pairs-v6-evaluation-gate-v3"),
     "G3_C3": ("evaluation/gate.json", "csi-pairs-v6-evaluation-gate-v3"),
@@ -57,7 +57,7 @@ STAGE_SPECS = {
     ),
     "rt_calibration": (
         "qualification/rt_calibration/gate.json",
-        "csi-pairs-v6-rt-calibration-gate-v5",
+        "csi-pairs-v6-rt-calibration-gate-v6",
     ),
 }
 
@@ -286,6 +286,30 @@ def _semantic_status(name, payload):
                 or not _lower_sha256(payload.get("adapter_source_sha256"))
                 or payload.get("external_engine_config_path") is not None
                 or payload.get("external_engine_config_sha256") is not None
+                or payload.get("external_runtime_provenance_path")
+                != "runtime_provenance.json"
+                or not _lower_sha256(
+                    payload.get("external_runtime_provenance_sha256")
+                )
+                or not _lower_sha256(
+                    payload.get("external_runtime_environment_sha256")
+                )
+                or not isinstance(payload.get("external_runtime_provenance"), dict)
+                or payload["external_runtime_provenance"].get("environment_sha256")
+                != payload.get("external_runtime_environment_sha256")
+            ):
+                return "FAIL"
+        elif execution_mode == "authenticated_independent_rt_adapter":
+            if (
+                not isinstance(payload.get("engine_family"), str)
+                or not payload["engine_family"].strip()
+                or payload["engine_family"].strip().lower() == "sionna"
+                or not _lower_sha256(payload.get("adapter_source_sha256"))
+                or payload.get("external_engine_config_path")
+                != "external_engine_config.bin"
+                or not _lower_sha256(
+                    payload.get("external_engine_config_sha256")
+                )
                 or payload.get("external_runtime_provenance_path")
                 != "runtime_provenance.json"
                 or not _lower_sha256(
@@ -845,7 +869,17 @@ def _validate_stage_bound_input(
     if stage_name == "G0":
         from .formal_literature import _validate_manifest
 
-        _validate_manifest(config, manifest, path.parent)
+        review = _validate_manifest(config, manifest, path.parent, dataset)
+        for key, expected in (
+            ("human_review_path", str(review["path"])),
+            ("human_review_sha256", manifest["human_review_sha256"]),
+            ("human_reviewer", review["reviewer"]),
+            ("human_review_completed_utc", review["completed_utc"]),
+            ("human_review_signature", review["signature"]),
+            ("human_review_signed_utc", review["signed_utc"]),
+        ):
+            if payload.get(key) != expected:
+                raise RuntimeError(f"G0 gate {key} differs from its human review")
     elif stage_name == "G4":
         from .formal_controls import _validate_manifest
 
@@ -858,6 +892,7 @@ def _validate_stage_bound_input(
             _load_external_csi,
             _load_rt_scene_manifest,
             _paired_bank_equivalence,
+            _probe_independent_runtime,
             _rows_from_external_csi,
             _validate_manifest,
             _verify_adapter_source,
@@ -871,8 +906,20 @@ def _validate_stage_bound_input(
         require_independent_primary_engine(dataset, manifest)
         execution_mode = _execution_mode(manifest)
         require_claim_eligible_manifest(manifest)
-        if execution_mode == "authenticated_sionna_adapter":
-            _verify_adapter_source(manifest)
+        adapter_source = None
+        if execution_mode in {
+            "authenticated_sionna_adapter",
+            "authenticated_independent_rt_adapter",
+        }:
+            adapter_source = _verify_adapter_source(manifest)
+            if (
+                payload.get("adapter_source_sha256")
+                != manifest.get("adapter_source_sha256")
+                or payload.get("adapter_source_path") != str(adapter_source)
+            ):
+                raise RuntimeError(
+                    "G8 gate adapter source differs from its authenticated manifest"
+                )
         if payload.get("execution_mode") != execution_mode:
             raise RuntimeError("G8 gate execution mode differs from its input manifest")
         scene_relative = payload.get("rt_scene_manifest_path")
@@ -896,9 +943,20 @@ def _validate_stage_bound_input(
         scene_manifest = _load_rt_scene_manifest(
             scene_path,
             dataset,
-            manifest if execution_mode == "authenticated_precomputed_rt_archive" else None,
+            (
+                manifest
+                if execution_mode
+                in {
+                    "authenticated_independent_rt_adapter",
+                    "authenticated_precomputed_rt_archive",
+                }
+                else None
+            ),
         )
-        if execution_mode == "authenticated_precomputed_rt_archive":
+        if execution_mode in {
+            "authenticated_independent_rt_adapter",
+            "authenticated_precomputed_rt_archive",
+        }:
             for entry in scene_manifest["worlds"]:
                 source_relative = entry["source_asset_path"]
                 source_digest = entry["source_asset_sha256"]
@@ -932,12 +990,22 @@ def _validate_stage_bound_input(
             or raw_matches[0].get("sha256") != raw_digest
         ):
             raise RuntimeError("G8 raw external CSI is not stage-authenticated")
-        if execution_mode == "authenticated_precomputed_rt_archive" and (
-            manifest.get("external_csi_sha256") != raw_digest
-            or manifest.get("rt_scene_manifest_sha256") != scene_digest
-        ):
-            raise RuntimeError("G8 archive hashes differ from the stage-authenticated inputs")
-        if execution_mode == "authenticated_precomputed_rt_archive":
+        input_hashes_changed = bool(
+            manifest.get("rt_scene_manifest_sha256") != scene_digest
+            or (
+                execution_mode == "authenticated_precomputed_rt_archive"
+                and manifest.get("external_csi_sha256") != raw_digest
+            )
+        )
+        if execution_mode in {
+            "authenticated_independent_rt_adapter",
+            "authenticated_precomputed_rt_archive",
+        } and input_hashes_changed:
+            raise RuntimeError("G8 input hashes differ from the stage-authenticated inputs")
+        if execution_mode in {
+            "authenticated_independent_rt_adapter",
+            "authenticated_precomputed_rt_archive",
+        }:
             config_relative = payload.get("external_engine_config_path")
             config_digest = payload.get("external_engine_config_sha256")
             if (
@@ -946,7 +1014,7 @@ def _validate_stage_bound_input(
                 or manifest.get("engine_config_sha256") != config_digest
                 or scene_manifest.get("configuration_sha256") != config_digest
             ):
-                raise RuntimeError("G8 archive has no authenticated engine configuration")
+                raise RuntimeError("G8 has no authenticated engine configuration")
             config_path = gate_path.parent / config_relative
             config_matches = [
                 row
@@ -990,7 +1058,10 @@ def _validate_stage_bound_input(
             or payload.get("external_scene_count") != external_csi.shape[0]
         ):
             raise RuntimeError("G8 gate statistics differ from raw-CSI outer recomputation")
-        if execution_mode == "authenticated_sionna_adapter":
+        if execution_mode in {
+            "authenticated_sionna_adapter",
+            "authenticated_independent_rt_adapter",
+        }:
             runtime_relative = payload.get("external_runtime_provenance_path")
             runtime_digest = payload.get("external_runtime_provenance_sha256")
             if runtime_relative != "runtime_provenance.json" or not _lower_sha256(
@@ -1011,22 +1082,37 @@ def _validate_stage_bound_input(
                 or runtime_matches[0].get("sha256") != runtime_digest
             ):
                 raise RuntimeError("G8 runtime provenance is not stage-authenticated")
-            from .formal_external_runtime import probe_external_runtime
-            from .formal_external_validity import _authenticate_sionna_runtime
-
             project_root = Path(__file__).resolve().parents[1]
             executable = manifest["command"][0].replace(
                 "{project_root}", str(project_root)
             )
-            independently_probed = probe_external_runtime(
-                executable,
-                "sionna",
-                project_root,
-                require_execution_ready=True,
-            )
-            _, runtime_record = _authenticate_sionna_runtime(
-                [executable], gate_path.parent, independently_probed
-            )
+            if execution_mode == "authenticated_sionna_adapter":
+                from .formal_external_runtime import probe_external_runtime
+                from .formal_external_validity import _authenticate_sionna_runtime
+
+                independently_probed = probe_external_runtime(
+                    executable,
+                    "sionna",
+                    project_root,
+                    require_execution_ready=True,
+                )
+                _, runtime_record = _authenticate_sionna_runtime(
+                    [executable], gate_path.parent, independently_probed
+                )
+            else:
+                from .formal_external_validity import (
+                    _authenticate_independent_runtime,
+                )
+
+                independently_probed = _probe_independent_runtime(
+                    [executable, str(adapter_source)], config_path
+                )
+                _, runtime_record = _authenticate_independent_runtime(
+                    [executable, str(adapter_source)],
+                    gate_path.parent,
+                    independently_probed,
+                    config_path,
+                )
             if (
                 payload.get("external_runtime_provenance") != runtime_record
                 or payload.get("external_runtime_environment_sha256")
@@ -1087,6 +1173,29 @@ def _validate_stage_bound_input(
             path.parent,
             "adapter source",
         )
+        design_record = _bound_input(
+            manifest["design_record_path"],
+            manifest["design_record_sha256"],
+            path.parent,
+            "calibration design record",
+        )
+        license_review = _bound_input(
+            manifest["license_review_path"],
+            manifest["license_review_sha256"],
+            path.parent,
+            "license review record",
+        )
+        from .formal_rt_calibration import _validate_review_record
+
+        _validate_review_record(design_record, "design")
+        _validate_review_record(license_review, "license")
+        if (
+            payload.get("design_record_path") != str(design_record)
+            or payload.get("license_review_path") != str(license_review)
+        ):
+            raise RuntimeError(
+                "RT calibration gate review-record paths differ from its bound manifest"
+            )
         if len({fit, validation_inputs, validation_reference}) != 3:
             raise RuntimeError("RT calibration fit and validation paths are not distinct")
         for key in (
@@ -1095,6 +1204,8 @@ def _validate_stage_bound_input(
             "validation_inputs_sha256",
             "validation_reference_sha256",
             "adapter_source_sha256",
+            "design_record_sha256",
+            "license_review_sha256",
         ):
             if payload.get(key) != manifest[key]:
                 raise RuntimeError(f"RT calibration gate {key} differs from its bound manifest")

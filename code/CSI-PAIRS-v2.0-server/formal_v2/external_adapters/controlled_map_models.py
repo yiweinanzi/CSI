@@ -23,6 +23,23 @@ def relative_power_db(csi: Tensor, floor: float = 1e-12) -> Tensor:
     return 10.0 * torch.log10(torch.mean(values.abs() ** 2, dim=-1).clamp_min(floor))
 
 
+def deterministic_prefix_product(values: Tensor, dim: int = -1) -> Tensor:
+    """Inclusive prefix product using deterministic elementwise CUDA kernels."""
+    normalized_dim = dim if dim >= 0 else values.ndim + dim
+    if normalized_dim < 0 or normalized_dim >= values.ndim:
+        raise IndexError("prefix-product dimension is out of range")
+    prefix = values.movedim(normalized_dim, -1)
+    offset = 1
+    while offset < prefix.shape[-1]:
+        shifted = torch.cat(
+            (torch.ones_like(prefix[..., :offset]), prefix[..., :-offset]),
+            dim=-1,
+        )
+        prefix = prefix * shifted
+        offset *= 2
+    return prefix.movedim(-1, normalized_dim)
+
+
 class MapCNN(nn.Module):
     def __init__(self, channels: int, hidden: int):
         super().__init__()
@@ -371,7 +388,7 @@ class RFIRForward(nn.Module):
         primitive_alpha = valid * (1.0 - torch.exp(-opacity * projected_cross_section.clamp_min(0.0)))
         order = torch.argsort(d_tx + d_rx, dim=1)
         sorted_alpha = torch.gather(primitive_alpha, 1, order)
-        sorted_transmittance = torch.cumprod(
+        sorted_transmittance = deterministic_prefix_product(
             torch.cat((torch.ones_like(sorted_alpha[:, :1]), 1.0 - sorted_alpha[:, :-1]), dim=1),
             dim=1,
         )

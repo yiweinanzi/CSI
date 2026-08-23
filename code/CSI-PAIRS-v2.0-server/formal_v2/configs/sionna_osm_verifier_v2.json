@@ -9,7 +9,7 @@
     "{output}"
   ],
   "verifier_source_path": "../formal_sionna_osm_verifier.py",
-  "verifier_source_sha256": "025981b7b6c7006b16c4a1addae35f5b2d748bceda4cbf4e23e2fea48d53b420",
+  "verifier_source_sha256": "8ffaabaebbe0c8219e44b549c07e4af5c4b0fc2a67a7734a8dab4569697d495e",
   "engine_source_revision": "04ddb9312116b408093b9d3ad363a3df355093a6",
   "engine_license_id": "Apache-2.0",
   "asset_license_ids": ["ODbL-1.0"],

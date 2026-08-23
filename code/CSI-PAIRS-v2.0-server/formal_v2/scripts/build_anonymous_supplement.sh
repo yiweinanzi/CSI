@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+export PYTHONDONTWRITEBYTECODE=1
+
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 OUTPUT_INPUT="${1:?usage: build_anonymous_supplement.sh UNUSED_OUTPUT_ZIP}"
 OUTPUT_PARENT="$(cd "$(dirname "${OUTPUT_INPUT}")" && pwd)"
@@ -24,6 +26,7 @@ mkdir -p "${BUNDLE_ROOT}/paper/official_style"
   cd "${PROJECT_ROOT}"
   tar \
     --exclude='formal_v2/external_adapters/.venv-wigatr' \
+    --exclude='formal_v2/external_adapters/.runtime-differt' \
     --exclude='formal_v2/external_adapters/.runtime-sionna' \
     --exclude='formal_v2/scripts/build_server_bundle.sh' \
     --exclude='formal_v2/scripts/build_anonymous_supplement.sh' \
@@ -35,6 +38,11 @@ mkdir -p "${BUNDLE_ROOT}/paper/official_style"
     --exclude='formal_v2/tests/test_anonymous_release.py' \
     --exclude='formal_v2/tests/test_a100_dataset_package_v6.py' \
     --exclude='formal_v2/tests/test_audit_artifacts.py' \
+    --exclude='formal_v2/tests/test_formal_data_pilot_projection.py' \
+    --exclude='formal_v2/tests/test_v5_action_inverse_response_probe.py' \
+    --exclude='formal_v2/tests/test_v5_pilot_tools.py' \
+    --exclude='formal_v2/tests/test_v5_protocol_freeze.py' \
+    --exclude='formal_v2/tests/test_v5_response_pilot_aggregate.py' \
     --exclude='formal_v2/tests/test_m4_scene0_exact_gate.py' \
     --exclude='formal_v2/tests/test_m4_candidate_evidence.py' \
     --exclude='formal_v2/tests/test_sionna_visibility_one_factor_diagnostic.py' \
@@ -51,7 +59,7 @@ find "${BUNDLE_ROOT}" -type d -name __pycache__ -prune -exec rm -rf {} +
 find "${BUNDLE_ROOT}" -type d -name '*.egg-info' -prune -exec rm -rf {} +
 find "${BUNDLE_ROOT}" -type f \( -name '*.pyc' -o -name '.DS_Store' \) -delete
 
-python3 "${PROJECT_ROOT}/formal_v2/anonymous_release.py" \
+python3 -B "${PROJECT_ROOT}/formal_v2/anonymous_release.py" \
   --tree "${BUNDLE_ROOT}" \
   --project-repository "${PROJECT_ROOT}"
 
@@ -66,7 +74,7 @@ find "${BUNDLE_ROOT}" -exec touch -t 198001010000.00 {} +
 
 cd "${STAGING_ROOT}"
 TZ=UTC find CSI-PAIRS-anonymous-supplement -type f -print | LC_ALL=C sort | TZ=UTC zip -X -q "${OUTPUT_ZIP}" -@
-python3 "${PROJECT_ROOT}/formal_v2/anonymous_release.py" \
+python3 -B "${PROJECT_ROOT}/formal_v2/anonymous_release.py" \
   --zip "${OUTPUT_ZIP}" \
   --project-repository "${PROJECT_ROOT}"
 cd "${OUTPUT_PARENT}"

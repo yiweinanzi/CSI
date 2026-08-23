@@ -9,6 +9,7 @@ import platform
 import shutil
 import subprocess
 import sys
+import sysconfig
 from pathlib import Path
 
 
@@ -31,12 +32,32 @@ PROFILE_DISTRIBUTIONS = {
 }
 
 
+def _interpreter_site_package_roots() -> list[str]:
+    prefix = Path(sys.prefix).resolve()
+    roots = []
+    for kind in ("purelib", "platlib"):
+        configured = sysconfig.get_path(kind)
+        if not isinstance(configured, str) or not configured:
+            raise RuntimeError(f"external runtime {kind} path is unavailable")
+        root = Path(configured).resolve()
+        if root != prefix and prefix not in root.parents:
+            raise RuntimeError(f"external runtime {kind} path escapes interpreter prefix")
+        if not root.is_dir() or root.is_symlink():
+            raise RuntimeError(f"external runtime {kind} path is missing or unsafe")
+        text = str(root)
+        if text not in roots:
+            roots.append(text)
+    return roots
+
+
 def collect_external_runtime(profile: str, project_root: str | Path) -> dict:
     if profile not in PROFILES:
         raise ValueError(f"unsupported external runtime profile: {profile}")
     project = Path(project_root).resolve()
     distributions = {}
-    for distribution in importlib.metadata.distributions():
+    for distribution in importlib.metadata.distributions(
+        path=_interpreter_site_package_roots()
+    ):
         name = distribution.metadata.get("Name")
         if not isinstance(name, str) or not name.strip():
             continue

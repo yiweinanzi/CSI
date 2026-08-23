@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Iterator, Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import hashlib
 import math
@@ -19,7 +20,7 @@ from .formal_evidence import (
     evidence_context,
     require_manifested_formal_qualification,
 )
-from .formal_io import artifact_manifest, sha256_file, write_csv, write_json
+from .formal_io import artifact_manifest, read_strict_json, sha256_file, write_csv, write_json
 from .formal_localization import (
     adapt_position_head,
     fit_source_position_head,
@@ -45,9 +46,14 @@ from .formal_protocol import (
     headline_alignment_edge,
     patchify_csi,
     typed_signed_edit,
-    zero_typed_edit,
 )
-from .formal_routing import RouteNormalization, RoutedEdges, fit_route_normalization, route_dataset
+from .formal_routing import (
+    CompactEdgeTensorMapping,
+    RouteNormalization,
+    RoutedEdges,
+    fit_route_normalization,
+    route_dataset,
+)
 from .formal_statistics import (
     bank_only_factorial_interval,
     exact_factorial_utilities,
@@ -59,6 +65,7 @@ from .formal_statistics import (
     paired_sign_flip_test,
 )
 from .formal_teacher import TeacherBundle, load_teacher_bundle
+from .formal_training_resume import load_factorial_resume, save_factorial_resume
 
 
 ARM_FACTORS = {
@@ -71,6 +78,7 @@ ARM_FACTORS = {
 # V6 lambda_sy is the physical term in the alignment compatibility score.  It
 # is deliberately frozen separately from lambda_By (the endpoint loss weight).
 ALIGNMENT_SCORE_PHYSICAL_WEIGHT = 1.0
+FORMAL_CHECKPOINT_INTERVAL_STEPS = 100
 
 
 @dataclass(frozen=True)
@@ -87,6 +95,153 @@ class TrainingNormalization:
     position_scale: np.ndarray
 
 
+def _sequence_index(index, length: int):
+    if isinstance(index, slice):
+        return tuple(range(*index.indices(length)))
+    value = int(index)
+    if value < 0:
+        value += length
+    if not 0 <= value < length:
+        raise IndexError(index)
+    return value
+
+
+class CartesianEndpointSequence(Sequence):
+    def __init__(
+        self, worlds: tuple[int, ...], position_count: int
+    ) -> None:
+        self.worlds = tuple(int(value) for value in worlds)
+        self.position_count = int(position_count)
+
+    def __len__(self) -> int:
+        return len(self.worlds) * self.position_count
+
+    def __getitem__(self, index):
+        normalized = _sequence_index(index, len(self))
+        if isinstance(normalized, tuple):
+            return tuple(self[value] for value in normalized)
+        world_index, position = divmod(normalized, self.position_count)
+        return self.worlds[world_index], position
+
+
+class EdgePositionSequence(Sequence):
+    def __init__(
+        self,
+        edges: tuple[tuple[int, int], ...],
+        position_count: int,
+        flat_indices: np.ndarray,
+    ) -> None:
+        self.edges = edges
+        self.position_count = int(position_count)
+        self.flat_indices = np.asarray(flat_indices, dtype=np.int32)
+
+    def __len__(self) -> int:
+        return int(self.flat_indices.size)
+
+    def __getitem__(self, index):
+        normalized = _sequence_index(index, len(self))
+        if isinstance(normalized, tuple):
+            return tuple(self[value] for value in normalized)
+        edge_index, position = divmod(
+            int(self.flat_indices[normalized]), self.position_count
+        )
+        source, target = self.edges[edge_index]
+        return source, target, position
+
+
+class ResponseUnitSequence(Sequence):
+    def __init__(
+        self,
+        edges: tuple[tuple[int, int], ...],
+        position_count: int,
+        query_count: int,
+        flat_indices: np.ndarray | None = None,
+    ) -> None:
+        self.edges = edges
+        self.position_count = int(position_count)
+        self.query_count = int(query_count)
+        self.total_count = len(edges) * self.position_count * self.query_count
+        self.flat_indices = (
+            None
+            if flat_indices is None
+            else np.asarray(flat_indices, dtype=np.int32)
+        )
+
+    def __len__(self) -> int:
+        return self.total_count if self.flat_indices is None else int(self.flat_indices.size)
+
+    def __getitem__(self, index):
+        normalized = _sequence_index(index, len(self))
+        if isinstance(normalized, tuple):
+            return tuple(self[value] for value in normalized)
+        flat = normalized if self.flat_indices is None else int(self.flat_indices[normalized])
+        edge_position, query = divmod(flat, self.query_count)
+        edge_index, position = divmod(edge_position, self.position_count)
+        source, target = self.edges[edge_index]
+        return source, target, position, query
+
+
+class ResponseBundleSequence(Sequence):
+    def __init__(
+        self,
+        source_targets: tuple[tuple[int, tuple[int, ...]], ...],
+        position_count: int,
+        query_count: int,
+        flat_indices: np.ndarray | None = None,
+    ) -> None:
+        self.source_targets = source_targets
+        self.position_count = int(position_count)
+        self.query_count = int(query_count)
+        self.total_count = len(source_targets) * self.position_count * self.query_count
+        self.flat_indices = (
+            None
+            if flat_indices is None
+            else np.asarray(flat_indices, dtype=np.int32)
+        )
+
+    def __len__(self) -> int:
+        return self.total_count if self.flat_indices is None else int(self.flat_indices.size)
+
+    def __getitem__(self, index):
+        normalized = _sequence_index(index, len(self))
+        if isinstance(normalized, tuple):
+            return tuple(self[value] for value in normalized)
+        flat = normalized if self.flat_indices is None else int(self.flat_indices[normalized])
+        source_position, query = divmod(flat, self.query_count)
+        source_index, position = divmod(source_position, self.position_count)
+        source, targets = self.source_targets[source_index]
+        return source, targets, position, query
+
+
+class ResponseTargetsBySourceQuery(Mapping):
+    def __init__(
+        self,
+        targets: dict[tuple[int, int], tuple[int, ...]],
+        position_count: int,
+        query_count: int,
+    ) -> None:
+        self.targets = dict(targets)
+        self.position_count = int(position_count)
+        self.query_count = int(query_count)
+
+    def __getitem__(self, key):
+        if not isinstance(key, tuple) or len(key) != 4:
+            raise KeyError(key)
+        scene, source, position, query = (int(value) for value in key)
+        if not 0 <= position < self.position_count or not 0 <= query < self.query_count:
+            raise KeyError(key)
+        return self.targets[(scene, source)]
+
+    def __iter__(self) -> Iterator[tuple[int, int, int, int]]:
+        for scene, source in self.targets:
+            for position in range(self.position_count):
+                for query in range(self.query_count):
+                    yield scene, source, position, query
+
+    def __len__(self) -> int:
+        return len(self.targets) * self.position_count * self.query_count
+
+
 @dataclass
 class TrainingCorpus:
     dataset: FormalDataset
@@ -95,19 +250,23 @@ class TrainingCorpus:
     teacher: TeacherBundle
     normalization: TrainingNormalization
     material_categories: int
+    normalized_maps: dict[tuple[int, int], np.ndarray]
+    normalized_actions: dict[tuple[int, int, int], np.ndarray]
     alignment_bank: tuple
     alignment_audit_bank: tuple
-    endpoint: dict[int, list[tuple[int, int]]]
-    natural_endpoint: dict[int, list[tuple[int, int]]]
-    alignment_active: dict[int, list[tuple[int, int, int]]]
-    alignment_null: dict[int, list[tuple[int, int, int]]]
-    response_all: dict[int, list[tuple[int, int, int, int]]]
-    response_active: dict[int, list[tuple[int, int, int, int]]]
-    response_null: dict[int, list[tuple[int, int, int, int]]]
-    response_bundles: dict[int, list[tuple[int, tuple[int, ...], int, int]]]
-    response_active_bundles: dict[int, list[tuple[int, tuple[int, ...], int, int]]]
-    response_null_bundles: dict[int, list[tuple[int, tuple[int, ...], int, int]]]
-    response_targets_by_source_query: dict[tuple[int, int, int, int], tuple[int, ...]]
+    endpoint: dict[int, Sequence[tuple[int, int]]]
+    natural_endpoint: dict[int, Sequence[tuple[int, int]]]
+    alignment_active: dict[int, Sequence[tuple[int, int, int]]]
+    alignment_null: dict[int, Sequence[tuple[int, int, int]]]
+    response_all: dict[int, Sequence[tuple[int, int, int, int]]]
+    response_active: dict[int, Sequence[tuple[int, int, int, int]]]
+    response_null: dict[int, Sequence[tuple[int, int, int, int]]]
+    response_bundles: dict[int, Sequence[tuple[int, tuple[int, ...], int, int]]]
+    response_active_bundles: dict[int, Sequence[tuple[int, tuple[int, ...], int, int]]]
+    response_null_bundles: dict[int, Sequence[tuple[int, tuple[int, ...], int, int]]]
+    response_targets_by_source_query: Mapping[
+        tuple[int, int, int, int], tuple[int, ...]
+    ]
 
 
 @dataclass(frozen=True)
@@ -130,23 +289,40 @@ class StepPlan:
     response_bundle_count: int
 
 
-def _train_device_queue(config, corpus, pilot, device, jobs, stop_event):
+def _train_device_queue(
+    config,
+    corpus,
+    pilot,
+    device,
+    jobs,
+    stop_event,
+    *,
+    checkpoint_root=None,
+    checkpoint_context=None,
+    checkpoint_interval_steps=FORMAL_CHECKPOINT_INTERVAL_STEPS,
+):
     completed = []
     try:
         for job_index, seed, arm, model in jobs:
             if stop_event.is_set():
                 break
             model.to(device)
-            result = _train_arm(
-                config,
-                corpus,
-                seed,
-                arm,
-                pilot,
-                device=device,
-                prepared_model=model,
-                stop_event=stop_event,
-            )
+            arguments = {
+                "device": device,
+                "prepared_model": model,
+                "stop_event": stop_event,
+            }
+            if checkpoint_root is not None:
+                arguments.update(
+                    {
+                        "checkpoint_path": (
+                            Path(checkpoint_root) / f"seed_{seed}" / arm
+                        ),
+                        "checkpoint_context": checkpoint_context,
+                        "checkpoint_interval_steps": checkpoint_interval_steps,
+                    }
+                )
+            result = _train_arm(config, corpus, seed, arm, pilot, **arguments)
             result[0].to("cpu")
             completed.append((job_index, result))
     except Exception:
@@ -155,13 +331,32 @@ def _train_device_queue(config, corpus, pilot, device, jobs, stop_event):
     return completed
 
 
-def _run_training_jobs(config, corpus, pilot, jobs_by_device):
+def _run_training_jobs(
+    config,
+    corpus,
+    pilot,
+    jobs_by_device,
+    *,
+    checkpoint_root=None,
+    checkpoint_context=None,
+    checkpoint_interval_steps=FORMAL_CHECKPOINT_INTERVAL_STEPS,
+):
     stop_event = threading.Event()
     total_jobs = sum(len(jobs) for jobs in jobs_by_device.values())
     ordered = [None] * total_jobs
     if len(jobs_by_device) == 1:
         device, jobs = next(iter(jobs_by_device.items()))
-        completed = _train_device_queue(config, corpus, pilot, device, jobs, stop_event)
+        completed = _train_device_queue(
+            config,
+            corpus,
+            pilot,
+            device,
+            jobs,
+            stop_event,
+            checkpoint_root=checkpoint_root,
+            checkpoint_context=checkpoint_context,
+            checkpoint_interval_steps=checkpoint_interval_steps,
+        )
     else:
         with ThreadPoolExecutor(
             max_workers=len(jobs_by_device),
@@ -176,6 +371,9 @@ def _run_training_jobs(config, corpus, pilot, jobs_by_device):
                     device,
                     jobs,
                     stop_event,
+                    checkpoint_root=checkpoint_root,
+                    checkpoint_context=checkpoint_context,
+                    checkpoint_interval_steps=checkpoint_interval_steps,
                 )
                 for device, jobs in jobs_by_device.items()
             ]
@@ -230,7 +428,8 @@ def run_formal_factorial(
     selection_scenes = dataset.indices_for_role("source_method_selection")
     route_normalization = fit_route_normalization(dataset, teacher)
     normalization = _training_normalization(dataset, train_scenes, route_normalization, teacher.patch_spec)
-    write_json(output_dir / "normalization.json", _normalization_record(normalization))
+    normalization_path = output_dir / "normalization.json"
+    write_json(normalization_path, _normalization_record(normalization))
     train_corpus = _build_corpus(dataset, train_scenes, teacher, config, route_normalization, normalization)
     selection_corpus = _build_corpus(
         dataset, selection_scenes, teacher, config, route_normalization, normalization
@@ -242,8 +441,9 @@ def run_formal_factorial(
         int(config["seeds"][0]) + 6001,
         device=execution_device,
     )
+    frozen_pilot_path = output_dir / "frozen_pilot.json"
     write_json(
-        output_dir / "frozen_pilot.json",
+        frozen_pilot_path,
         {
             "schema_version": "csi-pairs-v6-frozen-pilot-v1",
             "source_roles": ["source_encoder_train", "source_method_selection"],
@@ -260,6 +460,18 @@ def run_formal_factorial(
     checkpoint_rows = []
     provisional_use = "FORBIDDEN" if dataset.is_fixture else "CANDIDATE_NOT_CLAIM"
     evidence = evidence_context(config, dataset, provisional_use)
+    checkpoint_context = {
+        "schema_version": "csi-pairs-v6-factorial-resume-context-v1",
+        **evidence,
+        "teacher_checkpoint_sha256": qualification_gate["teacher_checkpoint_sha256"],
+        "normalization_sha256": sha256_file(normalization_path),
+        "frozen_pilot_sha256": sha256_file(frozen_pilot_path),
+        "arms": list(ARMS),
+        "seeds": [int(seed) for seed in config["seeds"]],
+        "steps": int(config["factorial"]["steps"]),
+        "batch_size": int(config["factorial"]["batch_size"]),
+        "checkpoint_interval_steps": FORMAL_CHECKPOINT_INTERVAL_STEPS,
+    }
     jobs = []
     jobs_by_device = {device: [] for device in execution_devices}
     for job_index, (seed, arm) in enumerate(
@@ -271,7 +483,16 @@ def run_formal_factorial(
         jobs_by_device[device].append(
             (job_index, seed, arm, model)
         )
-    trained = _run_training_jobs(config, train_corpus, pilot, jobs_by_device)
+    resume_root = output_dir / "resume"
+    trained = _run_training_jobs(
+        config,
+        train_corpus,
+        pilot,
+        jobs_by_device,
+        checkpoint_root=resume_root,
+        checkpoint_context=checkpoint_context,
+        checkpoint_interval_steps=FORMAL_CHECKPOINT_INTERVAL_STEPS,
+    )
 
     for (seed, arm, _device, _prepared), (model, row) in zip(jobs, trained):
         checkpoint = output_dir / "checkpoints" / f"seed_{seed}" / f"{arm}.pt"
@@ -330,6 +551,38 @@ def run_formal_factorial(
             "schema_version": "csi-pairs-formal-checkpoint-index-v2.1-v6",
             **evidence,
             "checkpoints": bind_rows(checkpoint_rows, evidence),
+        },
+    )
+    resume_rows = []
+    for seed, arm, _device, _prepared in jobs:
+        pointer = resume_root / f"seed_{seed}" / f"{arm}.latest.json"
+        receipt = read_strict_json(pointer)
+        if (
+            not isinstance(receipt, dict)
+            or receipt.get("status") != "COMPLETE"
+            or receipt.get("completed_steps") != int(config["factorial"]["steps"])
+        ):
+            raise RuntimeError("formal factorial resume pointer is not complete")
+        resume_rows.append(
+            {
+                "seed": int(seed),
+                "arm": arm,
+                "pointer_path": str(pointer.relative_to(output_dir)),
+                "pointer_sha256": sha256_file(pointer),
+                "checkpoint_path": str(
+                    (pointer.parent / receipt["checkpoint_path"]).relative_to(output_dir)
+                ),
+                "checkpoint_sha256": receipt["checkpoint_sha256"],
+                "completed_steps": receipt["completed_steps"],
+            }
+        )
+    write_json(
+        output_dir / "resume_index.json",
+        {
+            "schema_version": "csi-pairs-v6-factorial-resume-index-v1",
+            **evidence,
+            "checkpoint_interval_steps": FORMAL_CHECKPOINT_INTERVAL_STEPS,
+            "jobs": resume_rows,
         },
     )
 
@@ -427,6 +680,28 @@ def _normalization_record(normalization: TrainingNormalization) -> dict:
 def _build_corpus(dataset, scenes, teacher, config, route_normalization, normalization):
     routed = route_dataset(dataset, teacher, config, scenes, normalization=route_normalization)
     scene_tuple = tuple(int(value) for value in scenes)
+    normalized_maps = {
+        (scene, world): _cached_model_spatial_input(
+            _normalized_map(normalization, dataset.maps[scene, world])
+        )
+        for scene in scene_tuple
+        for world in range(dataset.world_count)
+    }
+    normalized_actions = {}
+    for scene in scene_tuple:
+        for edge in dataset.directed_edges(scene):
+            key = (scene, int(edge.source_world), int(edge.target_world))
+            if key in normalized_actions:
+                raise RuntimeError("duplicate directed edge in response action cache")
+            action = typed_signed_edit(
+                dataset.maps[scene, edge.source_world],
+                dataset.maps[scene, edge.target_world],
+                dataset.map_channel_names,
+                int(dataset.metadata["assets"]["material_category_count"]),
+            )
+            normalized_actions[key] = _cached_model_spatial_input(
+                _normalized_action(normalization, action)
+            )
     endpoint = {}
     natural_endpoint = {}
     alignment_active = {}
@@ -437,76 +712,122 @@ def _build_corpus(dataset, scenes, teacher, config, route_normalization, normali
     response_bundles = {}
     response_active_bundles = {}
     response_null_bundles = {}
+    response_targets = {}
+    query_count = int(teacher.patch_spec.patch_count)
     for scene in scene_tuple:
-        endpoint[scene] = [
-            (world, position)
-            for world in range(dataset.world_count)
-            for position in range(dataset.position_count)
-        ]
+        endpoint[scene] = CartesianEndpointSequence(
+            tuple(range(dataset.world_count)), dataset.position_count
+        )
         natural = int(dataset.natural_world_index[scene])
-        natural_endpoint[scene] = [(natural, position) for position in range(dataset.position_count)]
-        alignment_active[scene] = []
-        alignment_null[scene] = []
-        response_all[scene] = []
-        response_active[scene] = []
-        response_null[scene] = []
-        response_bundles[scene] = []
-        response_active_bundles[scene] = []
-        response_null_bundles[scene] = []
-        for edge in dataset.directed_edges(scene):
-            for position in range(dataset.position_count):
-                if (
-                    edge.source_world < edge.target_world
-                    and headline_alignment_edge(dataset, scene, edge)
-                ):
-                    route = routed.alignment_route[(scene, edge.source_world, edge.target_world, position)]
-                    target = alignment_active if route == 2 else alignment_null if route == 0 else None
-                    if target is not None:
-                        target[scene].append((edge.source_world, edge.target_world, position))
-                for query in range(teacher.patch_spec.patch_count):
-                    unit = (edge.source_world, edge.target_world, position, query)
-                    response_all[scene].append(unit)
-                    route = routed.response_route[(scene, *unit)]
-                    if route == 2:
-                        response_active[scene].append(unit)
-                    elif route == 0:
-                        response_null[scene].append(unit)
-        targets_by_source = {
-            source: tuple(
-                sorted(
-                    edge.target_world
-                    for edge in dataset.directed_edges(scene)
-                    if edge.source_world == source
-                )
+        natural_endpoint[scene] = CartesianEndpointSequence(
+            (natural,), dataset.position_count
+        )
+        scene_edges = tuple(dataset.directed_edges(scene))
+        edge_pairs = tuple(
+            (int(edge.source_world), int(edge.target_world)) for edge in scene_edges
+        )
+        if not isinstance(routed.response_route, CompactEdgeTensorMapping) or not isinstance(
+            routed.alignment_route, CompactEdgeTensorMapping
+        ):
+            raise RuntimeError("training corpus requires compact routed edge tensors")
+        scene_response_routes = routed.response_route.values_for_scene(scene)
+        scene_alignment_routes = routed.alignment_route.values_for_scene(scene)
+        if scene_response_routes.shape != (
+            len(scene_edges),
+            dataset.position_count,
+            query_count,
+        ):
+            raise RuntimeError("compact response route tensor is not aligned to scene edges")
+
+        response_all[scene] = ResponseUnitSequence(
+            edge_pairs, dataset.position_count, query_count
+        )
+        response_active[scene] = ResponseUnitSequence(
+            edge_pairs,
+            dataset.position_count,
+            query_count,
+            np.flatnonzero(scene_response_routes.reshape(-1) == 2),
+        )
+        response_null[scene] = ResponseUnitSequence(
+            edge_pairs,
+            dataset.position_count,
+            query_count,
+            np.flatnonzero(scene_response_routes.reshape(-1) == 0),
+        )
+
+        alignment_edge_indices = tuple(
+            index
+            for index, edge in enumerate(scene_edges)
+            if edge.source_world < edge.target_world
+            and headline_alignment_edge(dataset, scene, edge)
+        )
+        alignment_edges = tuple(edge_pairs[index] for index in alignment_edge_indices)
+        alignment_routes = scene_alignment_routes[
+            np.asarray(alignment_edge_indices, dtype=np.int64)
+        ]
+        alignment_active[scene] = EdgePositionSequence(
+            alignment_edges,
+            dataset.position_count,
+            np.flatnonzero(alignment_routes.reshape(-1) == 2),
+        )
+        alignment_null[scene] = EdgePositionSequence(
+            alignment_edges,
+            dataset.position_count,
+            np.flatnonzero(alignment_routes.reshape(-1) == 0),
+        )
+
+        source_targets = tuple(
+            (
+                source,
+                tuple(
+                    sorted(
+                        edge.target_world
+                        for edge in scene_edges
+                        if edge.source_world == source
+                    )
+                ),
             )
             for source in range(dataset.world_count)
-        }
-        for source, targets in targets_by_source.items():
+        )
+        pair_to_edge = {pair: index for index, pair in enumerate(edge_pairs)}
+        active_bundle_indices = []
+        null_bundle_indices = []
+        bundle_stride = dataset.position_count * query_count
+        for source_index, (source, targets) in enumerate(source_targets):
             if len(targets) < 2:
                 raise RuntimeError("V6 branch bundle requires at least two actions per source state")
-            actions = [
-                typed_signed_edit(
-                    dataset.maps[scene, source],
-                    dataset.maps[scene, target],
-                    dataset.map_channel_names,
-                    int(dataset.metadata["assets"]["material_category_count"]),
-                )
-                for target in targets
-            ]
+            actions = [normalized_actions[(scene, source, target)] for target in targets]
             if len({np.asarray(action).tobytes() for action in actions}) < 2:
                 raise RuntimeError("branch bundle targets are not action-distinguishable")
-            for position in range(dataset.position_count):
-                for query in range(teacher.patch_spec.patch_count):
-                    bundle = (source, targets, position, query)
-                    routes = {
-                        routed.response_route[(scene, source, target, position, query)]
-                        for target in targets
-                    }
-                    response_bundles[scene].append(bundle)
-                    if 2 in routes:
-                        response_active_bundles[scene].append(bundle)
-                    if 0 in routes:
-                        response_null_bundles[scene].append(bundle)
+            response_targets[(scene, source)] = tuple(int(target) for target in targets)
+            target_edge_indices = np.asarray(
+                [pair_to_edge[(source, int(target))] for target in targets],
+                dtype=np.int64,
+            )
+            target_routes = scene_response_routes[target_edge_indices]
+            active_local = np.flatnonzero(np.any(target_routes == 2, axis=0).reshape(-1))
+            null_local = np.flatnonzero(np.any(target_routes == 0, axis=0).reshape(-1))
+            active_bundle_indices.extend(
+                (source_index * bundle_stride + active_local).tolist()
+            )
+            null_bundle_indices.extend(
+                (source_index * bundle_stride + null_local).tolist()
+            )
+        response_bundles[scene] = ResponseBundleSequence(
+            source_targets, dataset.position_count, query_count
+        )
+        response_active_bundles[scene] = ResponseBundleSequence(
+            source_targets,
+            dataset.position_count,
+            query_count,
+            np.asarray(active_bundle_indices, dtype=np.int32),
+        )
+        response_null_bundles[scene] = ResponseBundleSequence(
+            source_targets,
+            dataset.position_count,
+            query_count,
+            np.asarray(null_bundle_indices, dtype=np.int32),
+        )
     for name, table in (
         ("endpoint", endpoint),
         ("natural endpoint", natural_endpoint),
@@ -531,6 +852,8 @@ def _build_corpus(dataset, scenes, teacher, config, route_normalization, normali
         teacher=teacher,
         normalization=normalization,
         material_categories=int(dataset.metadata["assets"]["material_category_count"]),
+        normalized_maps=normalized_maps,
+        normalized_actions=normalized_actions,
         alignment_bank=alignment_bank,
         alignment_audit_bank=tuple(
             entry for entry in teacher.audit_mask_bank if entry.mode == "random_75"
@@ -545,13 +868,9 @@ def _build_corpus(dataset, scenes, teacher, config, route_normalization, normali
         response_bundles=response_bundles,
         response_active_bundles=response_active_bundles,
         response_null_bundles=response_null_bundles,
-        response_targets_by_source_query={
-            (int(scene), int(source), int(position), int(query)): tuple(
-                int(target) for target in targets
-            )
-            for scene, bundles in response_bundles.items()
-            for source, targets, position, query in bundles
-        },
+        response_targets_by_source_query=ResponseTargetsBySourceQuery(
+            response_targets, dataset.position_count, query_count
+        ),
     )
 
 
@@ -687,8 +1006,7 @@ def _new_model(
         model.csi_patch_embedding.load_state_dict(teacher.patch_embedding.state_dict())
         with torch.no_grad():
             model.csi_mask_token.copy_(teacher.mask_token)
-            model.csi_row_position.copy_(teacher.row_position)
-            model.csi_column_position.copy_(teacher.column_position)
+            model.csi_fixed_position.copy_(teacher.fixed_position)
         for index, layer in enumerate(model.csi_encoder.layers):
             layer.load_state_dict(teacher.encoder.layers[index].state_dict(), strict=True)
     return model
@@ -799,7 +1117,9 @@ def _noop_score_gaps(model, corpus, units):
                 batch = _identity_batch(corpus, [(scene, world, position)], [entry], supplied_maps=[supplied])
                 batch = batch_for_module(model, batch)
                 state = model.state(batch["visible"], batch["maps"], batch["radio"], batch["masks"])
-                prediction_z, prediction_y = model.predict(state, batch["zero_action"], batch["query"])
+                prediction_z, prediction_y = model.predict_identity(
+                    state, batch["query"]
+                )
                 errors.append(
                     endpoint_per_sample(
                         prediction_z,
@@ -828,6 +1148,10 @@ def _train_arm(
     device=None,
     prepared_model=None,
     stop_event=None,
+    checkpoint_path=None,
+    checkpoint_context=None,
+    checkpoint_interval_steps=FORMAL_CHECKPOINT_INTERVAL_STEPS,
+    stop_after_step=None,
 ):
     if prepared_model is not None and model_spec is not None:
         raise ValueError("prepared model cannot be combined with a model specification")
@@ -847,6 +1171,20 @@ def _train_arm(
         lr=float(config["model"]["learning_rate"]),
         weight_decay=float(config["model"]["weight_decay"]),
     )
+    steps = int(config["factorial"]["steps"] if step_count is None else step_count)
+    batch_size = int(config["factorial"]["batch_size"])
+    if steps < 1:
+        raise ValueError("control training step count must be positive")
+    if (checkpoint_path is None) != (checkpoint_context is None):
+        raise ValueError("factorial resume path and context must be supplied together")
+    if checkpoint_path is not None and (
+        type(checkpoint_interval_steps) is not int or checkpoint_interval_steps < 1
+    ):
+        raise ValueError("factorial checkpoint interval must be a positive integer")
+    if stop_after_step is not None and (
+        type(stop_after_step) is not int or not 1 <= stop_after_step <= steps
+    ):
+        raise ValueError("injected interruption step is outside the training schedule")
     alignment_factor, response_factor = ARM_FACTORS[arm]
     weights = _loss_weights(
         config,
@@ -860,19 +1198,114 @@ def _train_arm(
     response_gradient_norms = []
     raw_alignment_gradient_norms = []
     raw_response_gradient_norms = []
-    last = None
-    started = time.perf_counter()
     execution = None
-    steps = int(config["factorial"]["steps"] if step_count is None else step_count)
-    if steps < 1:
-        raise ValueError("control training step count must be positive")
-    for step in range(steps):
+    last_losses = None
+    prior_elapsed = 0.0
+    generation = -1
+    start_step = 0
+    if checkpoint_path is not None:
+        payload = load_factorial_resume(
+            checkpoint_path,
+            context=checkpoint_context,
+            seed=int(seed),
+            arm=arm,
+            total_steps=steps,
+            batch_size=batch_size,
+            map_location=module_device(model),
+        )
+        if payload is not None:
+            model.load_state_dict(payload["model_state_dict"], strict=True)
+            optimizer.load_state_dict(payload["optimizer_state_dict"])
+            state = payload["training_state"]
+            required_state = {
+                "execution",
+                "alignment_gradient_norms",
+                "response_gradient_norms",
+                "raw_alignment_gradient_norms",
+                "raw_response_gradient_norms",
+                "last_losses",
+                "elapsed_seconds",
+                "loss_trace",
+            }
+            if not isinstance(state, dict) or set(state) != required_state:
+                raise RuntimeError("factorial resume training state is invalid")
+            execution = state["execution"]
+            alignment_gradient_norms = list(state["alignment_gradient_norms"])
+            response_gradient_norms = list(state["response_gradient_norms"])
+            raw_alignment_gradient_norms = list(state["raw_alignment_gradient_norms"])
+            raw_response_gradient_norms = list(state["raw_response_gradient_norms"])
+            last_losses = state["last_losses"]
+            prior_elapsed = state["elapsed_seconds"]
+            stored_trace = state["loss_trace"]
+            if (
+                not isinstance(execution, dict)
+                or not isinstance(last_losses, dict)
+                or not isinstance(prior_elapsed, (int, float))
+                or isinstance(prior_elapsed, bool)
+                or not math.isfinite(float(prior_elapsed))
+                or prior_elapsed < 0.0
+                or any(
+                    not isinstance(values, list)
+                    for values in (
+                        alignment_gradient_norms,
+                        response_gradient_norms,
+                        raw_alignment_gradient_norms,
+                        raw_response_gradient_norms,
+                    )
+                )
+            ):
+                raise RuntimeError("factorial resume numeric state is invalid")
+            if (loss_trace is None) != (stored_trace is None):
+                raise RuntimeError("factorial resume loss-trace contract changed")
+            if loss_trace is not None:
+                if not isinstance(stored_trace, list):
+                    raise RuntimeError("factorial resume loss trace is invalid")
+                loss_trace.clear()
+                loss_trace.extend(stored_trace)
+            start_step = int(payload["completed_steps"])
+            generation = int(payload["generation"])
+
+    started = time.perf_counter()
+
+    def persist(completed_steps):
+        nonlocal generation
+        if checkpoint_path is None:
+            return
+        if execution is None or last_losses is None:
+            raise RuntimeError("cannot checkpoint factorial training before one complete step")
+        elapsed = prior_elapsed + (time.perf_counter() - started)
+        generation = save_factorial_resume(
+            checkpoint_path,
+            previous_generation=generation,
+            context=checkpoint_context,
+            seed=int(seed),
+            arm=arm,
+            completed_steps=completed_steps,
+            total_steps=steps,
+            batch_size=batch_size,
+            model=model,
+            optimizer=optimizer,
+            training_state={
+                "execution": execution,
+                "alignment_gradient_norms": alignment_gradient_norms,
+                "response_gradient_norms": response_gradient_norms,
+                "raw_alignment_gradient_norms": raw_alignment_gradient_norms,
+                "raw_response_gradient_norms": raw_response_gradient_norms,
+                "last_losses": last_losses,
+                "elapsed_seconds": elapsed,
+                "loss_trace": list(loss_trace) if loss_trace is not None else None,
+            },
+        )
+
+    for step in range(start_step, steps):
         if stop_event is not None and stop_event.is_set():
+            if step > 0 and execution is not None and last_losses is not None:
+                persist(step)
             raise RuntimeError(
                 "formal factorial training cancelled after a peer-device failure"
             )
-        plan = _make_plan(corpus, int(config["factorial"]["batch_size"]), seed, step)
-        if step == 0:
+        plan = _make_plan(corpus, batch_size, seed, step)
+        if execution is None:
             execution = _measure_execution(
                 model,
                 corpus,
@@ -930,9 +1363,26 @@ def _train_arm(
             )
         torch.nn.utils.clip_grad_norm_(model.parameters(), 5.0, error_if_nonfinite=True)
         optimizer.step()
-        last = components
-    elapsed = time.perf_counter() - started
-    if last is None:
+        last_losses = {
+            name: float(value.detach()) for name, value in components.items()
+        }
+        completed_steps = step + 1
+        if checkpoint_path is not None and (
+            completed_steps % checkpoint_interval_steps == 0
+            or completed_steps == steps
+            or completed_steps == stop_after_step
+        ):
+            persist(completed_steps)
+        if stop_after_step == completed_steps and completed_steps < steps:
+            raise RuntimeError(
+                "injected formal factorial interruption after a durable checkpoint"
+            )
+    elapsed = (
+        prior_elapsed
+        if start_step == steps
+        else prior_elapsed + (time.perf_counter() - started)
+    )
+    if last_losses is None:
         raise RuntimeError("training schedule must contain at least one step")
     if execution is None:
         raise RuntimeError("training execution measurement was not performed")
@@ -940,7 +1390,7 @@ def _train_arm(
         "seed": int(seed),
         "arm": arm,
         "steps": steps,
-        "batch_size": int(config["factorial"]["batch_size"]),
+        "batch_size": batch_size,
         "parameters": int(sum(parameter.numel() for parameter in model.parameters())),
         "elapsed_seconds": elapsed,
         "state_calls_per_step": execution["state_calls"],
@@ -965,8 +1415,8 @@ def _train_arm(
         "response_null_anchor_bundles_per_step": int(config["factorial"]["batch_size"]),
         "response_mask_reuse_key": "scene/source/position/query across target and conditional estimators",
     }
-    for name, value in last.items():
-        row[f"final_{name}_loss"] = float(value.detach())
+    for name, value in last_losses.items():
+        row[f"final_{name}_loss"] = float(value)
     return model, row
 
 
@@ -1140,7 +1590,7 @@ def _loss_components(model, corpus, plan, weights, *, pairing_break=None):
 def _endpoint_loss(model, batch, physical_weight):
     batch = batch_for_module(model, batch)
     state = model.state(batch["visible"], batch["maps"], batch["radio"], batch["masks"])
-    prediction_z, prediction_y = model.predict(state, batch["zero_action"], batch["query"])
+    prediction_z, prediction_y = model.predict_identity(state, batch["query"])
     return torch.mean(
         endpoint_per_sample(
             prediction_z,
@@ -1169,25 +1619,19 @@ def _alignment_scores(
     expanded_maps = [
         unit for unit in map_units for _ in corpus.alignment_bank
     ]
-    map_u = [
-        corpus.dataset.maps[scene, source]
-        for scene, source, target, position in expanded_maps
-    ]
-    map_v = [
-        corpus.dataset.maps[scene, target]
-        for scene, source, target, position in expanded_maps
-    ]
+    map_u = [(scene, source) for scene, source, target, position in expanded_maps]
+    map_v = [(scene, target) for scene, source, target, position in expanded_maps]
     batches = (
-        _identity_batch(corpus, left, entries, supplied_maps=map_u),
-        _identity_batch(corpus, left, entries, supplied_maps=map_v),
-        _identity_batch(corpus, right, entries, supplied_maps=map_v),
-        _identity_batch(corpus, right, entries, supplied_maps=map_u),
+        _identity_batch(corpus, left, entries, supplied_map_units=map_u),
+        _identity_batch(corpus, left, entries, supplied_map_units=map_v),
+        _identity_batch(corpus, right, entries, supplied_map_units=map_v),
+        _identity_batch(corpus, right, entries, supplied_map_units=map_u),
     )
     scores = []
     for batch in batches:
         batch = batch_for_module(model, batch)
         state = model.state(batch["visible"], batch["maps"], batch["radio"], batch["masks"])
-        prediction_z, prediction_y = model.predict(state, batch["zero_action"], batch["query"])
+        prediction_z, prediction_y = model.predict_identity(state, batch["query"])
         error = endpoint_per_sample(
             prediction_z,
             prediction_y,
@@ -1212,7 +1656,7 @@ def _response_target_loss(model, batch, sample_weights):
 def _response_active_loss(model, batch, weights, sample_weights):
     batch = batch_for_module(model, batch)
     state = model.state(batch["visible"], batch["maps"], batch["radio"], batch["masks"])
-    identity_z, identity_y = model.predict(state, batch["zero_action"], batch["query"])
+    identity_z, identity_y = model.predict_identity(state, batch["query"])
     prediction_z, prediction_y = model.predict(state, batch["action"], batch["query"])
     return _weighted_mean(
         squared_rms_error(prediction_z - identity_z, batch["target_z"] - batch["source_z"])
@@ -1225,7 +1669,7 @@ def _response_active_loss(model, batch, weights, sample_weights):
 def _response_null_loss(model, batch, weights, sample_weights):
     batch = batch_for_module(model, batch)
     state = model.state(batch["visible"], batch["maps"], batch["radio"], batch["masks"])
-    identity_z, identity_y = model.predict(state, batch["zero_action"], batch["query"])
+    identity_z, identity_y = model.predict_identity(state, batch["query"])
     prediction_z, prediction_y = model.predict(state, batch["action"], batch["query"])
     latent_norm = torch.sqrt(torch.mean((prediction_z - identity_z) ** 2, dim=1) + 1e-12)
     physical_norm = torch.sqrt(torch.mean((prediction_y - identity_y) ** 2, dim=1) + 1e-12)
@@ -1234,6 +1678,67 @@ def _response_null_loss(model, batch, weights, sample_weights):
         + float(weights.response_null_physical)
         * torch.relu(physical_norm - float(weights.response_physical_null_tolerance)) ** 2,
         sample_weights,
+    )
+
+
+def _centered_branch_mse(prediction, target, bundle_sizes):
+    """Average within-source branch error without inventing a separation margin."""
+    sizes = tuple(int(value) for value in bundle_sizes)
+    if not sizes or any(value < 2 for value in sizes) or sum(sizes) != prediction.shape[0]:
+        raise ValueError("response branch bundles must partition rows into sibling sets")
+    if prediction.shape != target.shape:
+        raise ValueError("response branch prediction and target shapes must match")
+    losses = []
+    offset = 0
+    for size in sizes:
+        predicted = prediction[offset : offset + size]
+        expected = target[offset : offset + size]
+        predicted = predicted - predicted.mean(dim=0, keepdim=True)
+        expected = expected - expected.mean(dim=0, keepdim=True)
+        losses.append(torch.mean((predicted - expected) ** 2))
+        offset += size
+    return torch.mean(torch.stack(losses))
+
+
+def _response_branch_contrast_loss(model, corpus, units, entries, physical_weight):
+    """Fit real sibling-action differences for each shared source/query bundle."""
+    if len(units) != len(entries) or not units:
+        raise ValueError("response branch contrast requires aligned non-empty units and masks")
+    bundle_sizes = []
+    offset = 0
+    while offset < len(units):
+        scene, source, _target, position, query = units[offset]
+        key = int(scene), int(source), int(position), int(query)
+        targets = corpus.response_targets_by_source_query.get(key)
+        if targets is None or len(targets) < 2:
+            raise RuntimeError("response branch contrast lacks a registered sibling bundle")
+        size = len(targets)
+        chunk = units[offset : offset + size]
+        if (
+            len(chunk) != size
+            or tuple(int(unit[2]) for unit in chunk) != tuple(int(value) for value in targets)
+            or any(
+                (int(unit[0]), int(unit[1]), int(unit[3]), int(unit[4])) != key
+                for unit in chunk
+            )
+        ):
+            raise RuntimeError("response branch contrast units do not preserve complete bundles")
+        bundle_sizes.append(size)
+        offset += size
+
+    batch = batch_for_module(model, _response_batch(corpus, units, entries))
+    state = model.state(
+        batch["visible"], batch["maps"], batch["radio"], batch["masks"]
+    )
+    prediction_z, prediction_y = model.predict_action_residual(
+        state, model.encode_action(batch["action"]), batch["query"]
+    )
+    target_z = batch["target_z"] - batch["source_z"]
+    target_y = batch["target_y"] - batch["source_y"]
+    return _centered_branch_mse(
+        prediction_z, target_z, bundle_sizes
+    ) + float(physical_weight) * _centered_branch_mse(
+        prediction_y, target_y, bundle_sizes
     )
 
 
@@ -1249,9 +1754,19 @@ def _weighted_mean(values, sample_weights):
     return torch.sum(values * weights) / torch.sum(weights)
 
 
-def _identity_batch(corpus, units, entries, supplied_maps=None):
+def _identity_batch(
+    corpus, units, entries, supplied_maps=None, *, supplied_map_units=None
+):
     dataset = corpus.dataset
     norm = corpus.normalization
+    if not units or len(units) != len(entries):
+        raise ValueError("identity batch requires aligned non-empty units and masks")
+    if supplied_maps is not None and supplied_map_units is not None:
+        raise ValueError("identity batch accepts only one supplied-map representation")
+    if supplied_maps is not None and len(supplied_maps) != len(units):
+        raise ValueError("supplied maps must match the identity batch")
+    if supplied_map_units is not None and len(supplied_map_units) != len(units):
+        raise ValueError("supplied map units must match the identity batch")
     visible = []
     maps = []
     radio = []
@@ -1259,20 +1774,29 @@ def _identity_batch(corpus, units, entries, supplied_maps=None):
     query = []
     target_z = []
     target_y = []
-    map_size = dataset.maps.shape[-1]
     for index, ((scene, world, position), entry) in enumerate(zip(units, entries)):
         patches = _normalized_patches(corpus, scene, world, position)
         visible_patches = patches.copy()
         visible_patches[entry.mask] = 0.0
         visible.append(visible_patches)
-        supplied = supplied_maps[index] if supplied_maps is not None else dataset.maps[scene, world]
-        maps.append(_normalized_map(norm, supplied))
+        if supplied_map_units is not None:
+            map_key = tuple(map(int, supplied_map_units[index]))
+            if len(map_key) != 2 or map_key not in corpus.normalized_maps:
+                raise RuntimeError("supplied map unit is outside the corpus map cache")
+            maps.append(corpus.normalized_maps[map_key])
+        elif supplied_maps is not None:
+            maps.append(
+                _cached_model_spatial_input(_normalized_map(norm, supplied_maps[index]))
+            )
+        else:
+            maps.append(corpus.normalized_maps[(int(scene), int(world))])
         radio.append(_normalized_radio(norm, dataset.radio_config[scene], dataset.bs_pose[scene]))
         masks.append(entry.mask)
         query.append(entry.query)
         target_z.append(_normalized_latent(corpus, scene, world, position, entry.query))
         target_y.append(patches[entry.query])
-    zero = zero_typed_edit((len(units),), map_size, corpus.material_categories)
+    action_shape = next(iter(corpus.normalized_actions.values())).shape
+    zero = np.zeros((len(units), *action_shape), dtype=np.float32)
     return {
         "visible": torch.as_tensor(np.asarray(visible), dtype=torch.float32),
         "maps": torch.as_tensor(np.asarray(maps), dtype=torch.float32),
@@ -1281,12 +1805,11 @@ def _identity_batch(corpus, units, entries, supplied_maps=None):
         "query": torch.as_tensor(np.asarray(query), dtype=torch.long),
         "target_z": torch.as_tensor(np.asarray(target_z), dtype=torch.float32),
         "target_y": torch.as_tensor(np.asarray(target_y), dtype=torch.float32),
-        "zero_action": torch.as_tensor(_normalized_action(norm, zero), dtype=torch.float32),
+        "zero_action": torch.as_tensor(zero, dtype=torch.float32),
     }
 
 
 def _response_batch(corpus, units, entries, *, target_units=None):
-    dataset = corpus.dataset
     base_units = [(scene, source, position) for scene, source, target, position, query in units]
     identity = _identity_batch(corpus, base_units, entries)
     actions = []
@@ -1302,13 +1825,10 @@ def _response_batch(corpus, units, entries, *, target_units=None):
         target_scene, _target_source, target_world, target_position, target_query = supervision
         if int(target_query) != int(query):
             raise ValueError("response pairing override must preserve the query patch")
-        action = typed_signed_edit(
-            dataset.maps[scene, source],
-            dataset.maps[scene, target],
-            dataset.map_channel_names,
-            corpus.material_categories,
-        )
-        actions.append(action)
+        action_key = (int(scene), int(source), int(target))
+        if action_key not in corpus.normalized_actions:
+            raise RuntimeError("response unit is outside the corpus action cache")
+        actions.append(corpus.normalized_actions[action_key])
         source_z.append(_normalized_latent(corpus, scene, source, position, query))
         target_z.append(
             _normalized_latent(
@@ -1323,9 +1843,7 @@ def _response_batch(corpus, units, entries, *, target_units=None):
         )
     identity.update(
         {
-            "action": torch.as_tensor(
-                _normalized_action(corpus.normalization, np.asarray(actions)), dtype=torch.float32
-            ),
+            "action": torch.as_tensor(np.asarray(actions), dtype=torch.float32),
             "source_z": torch.as_tensor(np.asarray(source_z), dtype=torch.float32),
             "source_y": torch.as_tensor(np.asarray(source_y), dtype=torch.float32),
             "target_z": torch.as_tensor(np.asarray(target_z), dtype=torch.float32),
@@ -1379,6 +1897,55 @@ def _normalized_action(norm, action):
     )
 
 
+def _deterministic_adaptive_avg_pool2d(values, output_size=(16, 16)):
+    """NumPy equivalent of the model's deterministic adaptive average pool."""
+    array = np.asarray(values)
+    if array.ndim < 2:
+        raise ValueError("spatial values must have row and column dimensions")
+    output_rows, output_columns = (int(value) for value in output_size)
+    input_rows, input_columns = array.shape[-2:]
+    if output_rows < 1 or output_columns < 1:
+        raise ValueError("spatial pool output dimensions must be positive")
+    if input_rows < output_rows or input_columns < output_columns:
+        raise ValueError("spatial inputs must be at least as large as the pooled grid")
+    if input_rows % output_rows == 0 and input_columns % output_columns == 0:
+        row_block = input_rows // output_rows
+        column_block = input_columns // output_columns
+        reshaped = array.reshape(
+            *array.shape[:-2],
+            output_rows,
+            row_block,
+            output_columns,
+            column_block,
+        )
+        return reshaped.mean(axis=(-3, -1))
+    output = np.empty(
+        (*array.shape[:-2], output_rows, output_columns), dtype=array.dtype
+    )
+    for row in range(output_rows):
+        row_start = (row * input_rows) // output_rows
+        row_end = ((row + 1) * input_rows + output_rows - 1) // output_rows
+        for column in range(output_columns):
+            column_start = (column * input_columns) // output_columns
+            column_end = (
+                ((column + 1) * input_columns + output_columns - 1)
+                // output_columns
+            )
+            output[..., row, column] = array[
+                ..., row_start:row_end, column_start:column_end
+            ].mean(axis=(-2, -1))
+    return output
+
+
+def _cached_model_spatial_input(values):
+    array = np.asarray(values)
+    if array.shape[-2] >= 16 and array.shape[-1] >= 16:
+        array = _deterministic_adaptive_avg_pool2d(array, (16, 16))
+    output = np.ascontiguousarray(array, dtype=np.float32)
+    output.setflags(write=False)
+    return output
+
+
 def _retained_parameters(model):
     prefixes = ("csi_", "map_encoder", "map_projection", "radio_encoder", "fusion", "state_norm")
     return [parameter for name, parameter in model.named_parameters() if name.startswith(prefixes)]
@@ -1399,11 +1966,14 @@ def _measure_execution(model, corpus, plan, weights):
             "state_calls", counts["state_calls"] + 1
         )
     )
-    predict_hook = model.predictor.register_forward_hook(
-        lambda _module, _inputs, _output: counts.__setitem__(
-            "predict_calls", counts["predict_calls"] + 1
+    predict_hooks = [
+        module.register_forward_hook(
+            lambda _module, _inputs, _output: counts.__setitem__(
+                "predict_calls", counts["predict_calls"] + 1
+            )
         )
-    )
+        for module in (model.predictor, model.response_predictor)
+    ]
     try:
         from torch.utils.flop_counter import FlopCounterMode
 
@@ -1424,7 +1994,8 @@ def _measure_execution(model, corpus, plan, weights):
         counts["flop_measurement_status"] = "NOT_ASSESSED"
     finally:
         state_hook.remove()
-        predict_hook.remove()
+        for hook in predict_hooks:
+            hook.remove()
     return counts
 
 
@@ -1763,6 +2334,9 @@ def _preliminary_factorial_gate(
                 "endpoint",
                 int(config["evaluation"]["bootstrap_resamples"]),
                 735000 + len(localization_checks),
+                null_threshold=float(
+                    config["localization"]["minimum_city_improvement"]
+                ),
             )
             localization_checks.append(
                 {
@@ -1846,6 +2420,7 @@ def _city_budget_arm_interval(
     *,
     familywise_alpha=None,
     family_size=1,
+    null_threshold=0.0,
 ):
     grouped = {}
     for row in rows:
@@ -1896,8 +2471,18 @@ def _city_budget_arm_interval(
                 "familywise_confidence_level": adjusted_interval["confidence_level"],
             }
         )
-    test = paired_sign_flip_test(clusters, full, other, seed + 1)
-    return {**interval, "p_value_two_sided": test["p_value_two_sided"]}
+    test = paired_sign_flip_test(
+        clusters,
+        full,
+        other,
+        seed + 1,
+        null_difference=float(null_threshold),
+    )
+    return {
+        **interval,
+        "null_difference": float(null_threshold),
+        "p_value_two_sided": test["p_value_two_sided"],
+    }
 
 
 def _stable_city_seed(city):

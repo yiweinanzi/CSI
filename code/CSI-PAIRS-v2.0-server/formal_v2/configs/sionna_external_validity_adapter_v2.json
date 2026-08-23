@@ -4,7 +4,7 @@
   "source_revision": "sionna@04ddb9312116b408093b9d3ad363a3df355093a6+sionna-rt@1.2.1",
   "license_id": "Apache-2.0",
   "adapter_source_path": "formal_v2/external_adapters/sionna_external_validity.py",
-  "adapter_source_sha256": "1a362add5ee039e15c204ab14671bab4981863491424a9f553a4a8e0497f30d0",
+  "adapter_source_sha256": "2e287fc9034a2df717ee26db4f28fe62490481af74eff78a6d634330f67cde5f",
   "command": [
     "{project_root}/formal_v2/external_adapters/.runtime-sionna/venv/bin/python",
     "{adapter_source}",

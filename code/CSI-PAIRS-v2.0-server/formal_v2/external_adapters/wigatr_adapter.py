@@ -29,6 +29,7 @@ from formal_v2.external_adapters.wigatr_protocol import (
     load_wigatr_config,
     map_bounds,
     relative_total_power_db,
+    require_compact_mesh_matches_map_surface,
     supplied_map_sha256,
     validate_fixed_radio_contract,
 )
@@ -36,7 +37,7 @@ from formal_v2.external_adapters.wigatr_protocol import (
 
 MODEL_NAME = "Wi-GATr"
 ADAPTER_ID = "wigatr-official-csi-pairs-v1"
-EXECUTION_SCHEMA = "csi-pairs-v6-external-execution-v3"
+EXECUTION_SCHEMA = "csi-pairs-v6-external-execution-v4"
 
 
 def main(argv=None) -> int:
@@ -110,6 +111,9 @@ def run_adapter(args) -> dict:
     _seed_runtime(runtime, int(config["training"]["seed"]))
     adapter_config_path = output / "adapter_config.json"
     shutil.copyfile(Path(args.config).resolve(), adapter_config_path)
+    mesh_audit_path = output / "mesh_surface_audit.json"
+    write_json(mesh_audit_path, _audit_mesh_preprocessing(dataset, config))
+    mesh_audit_sha256 = sha256_file(mesh_audit_path)
     target_mean, target_std = _source_power_normalization(dataset, config)
     num_materials = int(dataset.metadata["assets"]["material_category_count"])
     model = _build_official_model(runtime, config, num_materials, target_mean, target_std)
@@ -122,6 +126,13 @@ def run_adapter(args) -> dict:
         num_materials,
         target_mean,
         target_std,
+        mesh_audit_sha256,
+    )
+    training_record.update(
+        {
+            "mesh_surface_audit_path": mesh_audit_path.name,
+            "mesh_surface_audit_sha256": mesh_audit_sha256,
+        }
     )
     write_json(output / "training_record.json", training_record)
 
@@ -165,6 +176,8 @@ def run_adapter(args) -> dict:
         "training_record_sha256": sha256_file(output / "training_record.json"),
         "checkpoint_path": str(checkpoint.relative_to(output)),
         "checkpoint_sha256": sha256_file(checkpoint),
+        "mesh_surface_audit_path": mesh_audit_path.name,
+        "mesh_surface_audit_sha256": mesh_audit_sha256,
         "command_sha256": args.command_sha256,
         "results_sha256": sha256_file(result_path),
         "runtime_provenance_path": runtime_path.name,
@@ -277,6 +290,7 @@ def _fit_source_only_model(
     num_materials,
     target_mean,
     target_std,
+    mesh_audit_sha256,
 ):
     torch = runtime["torch"]
     training = config["training"]
@@ -298,14 +312,14 @@ def _fit_source_only_model(
     generator = torch.Generator().manual_seed(int(training["seed"]))
     loader = runtime["DataLoader"](
         train_dataset,
-        batch_size=int(training["batch_size"]),
+        batch_size=int(training["microbatch_size"]),
         shuffle=True,
         num_workers=0,
         generator=generator,
     )
     selection_loader = runtime["DataLoader"](
         selection_dataset,
-        batch_size=int(training["batch_size"]),
+        batch_size=int(training["microbatch_size"]),
         shuffle=False,
         num_workers=0,
     )
@@ -323,23 +337,36 @@ def _fit_source_only_model(
     best_selection = float("inf")
     best_step = None
     last_loss = None
+    effective_batch_size = int(training["batch_size"])
+    microbatch_size = int(training["microbatch_size"])
+    accumulation_steps = effective_batch_size // microbatch_size
     for step in range(1, int(training["steps"]) + 1):
-        try:
-            batch = next(iterator)
-        except StopIteration:
-            iterator = iter(loader)
-            batch = next(iterator)
-        batch = batch.to(device)
-        prediction = model(batch)
-        loss = torch.mean((prediction - batch.y) ** 2)
         optimizer.zero_grad(set_to_none=True)
-        loss.backward()
+        total_squared_error = 0.0
+        total_targets = 0
+        for _ in range(accumulation_steps):
+            try:
+                batch = next(iterator)
+            except StopIteration:
+                iterator = iter(loader)
+                batch = next(iterator)
+            batch = batch.to(device)
+            prediction = model(batch)
+            squared_error = torch.sum((prediction - batch.y) ** 2)
+            target_count = int(batch.y.numel())
+            if target_count != microbatch_size:
+                raise RuntimeError("Wi-GATr training yielded a partial microbatch")
+            (squared_error / effective_batch_size).backward()
+            total_squared_error += float(squared_error.detach().cpu())
+            total_targets += target_count
+        if total_targets != effective_batch_size:
+            raise RuntimeError("Wi-GATr gradient accumulation changed the effective batch")
         torch.nn.utils.clip_grad_norm_(
             model.parameters(), float(training["clip_grad_norm"]), error_if_nonfinite=True
         )
         optimizer.step()
         scheduler.step()
-        last_loss = float(loss.detach().cpu())
+        last_loss = total_squared_error / total_targets
         if step % int(training["selection_every_steps"]) == 0 or step == int(training["steps"]):
             selection_loss = _power_mse(model, selection_loader, device, torch)
             if selection_loss < best_selection:
@@ -357,7 +384,7 @@ def _fit_source_only_model(
     checkpoint.parent.mkdir(parents=True, exist_ok=True)
     torch.save(
         {
-            "schema_version": "csi-pairs-wigatr-checkpoint-v1",
+            "schema_version": "csi-pairs-wigatr-checkpoint-v2",
             "source_revision": WIGATR_SOURCE_REVISION,
             "adapter_config": config,
             "dataset_sha256": sha256_file(dataset.source_path),
@@ -370,16 +397,24 @@ def _fit_source_only_model(
             "target_mean": float(target_mean),
             "target_std": float(target_std),
             "num_materials": int(num_materials),
+            "effective_batch_size": effective_batch_size,
+            "microbatch_size": microbatch_size,
+            "gradient_accumulation_steps": accumulation_steps,
+            "mesh_preprocessing": config["mesh"]["preprocessing"],
+            "mesh_surface_audit_sha256": mesh_audit_sha256,
             "state_dict": best_state,
         },
         checkpoint,
     )
     return checkpoint, {
-        "schema_version": "csi-pairs-wigatr-training-record-v1",
+        "schema_version": "csi-pairs-wigatr-training-record-v2",
         "source_revision": WIGATR_SOURCE_REVISION,
         "device": str(device),
         "steps": int(training["steps"]),
         "batch_size": int(training["batch_size"]),
+        "microbatch_size": microbatch_size,
+        "gradient_accumulation_steps": accumulation_steps,
+        "mesh_preprocessing": config["mesh"]["preprocessing"],
         "optimizer": "Adam",
         "scheduler": "CosineAnnealingLR",
         "last_training_power_mse": float(last_loss),
@@ -619,6 +654,72 @@ def _mesh_for_map(dataset, maps, config):
         occupancy_threshold=float(config["mesh"]["occupancy_threshold"]),
         minimum_height_m=float(config["mesh"]["minimum_height_m"]),
     )
+
+
+def _audit_mesh_preprocessing(dataset, config):
+    representation = dataset.metadata["representation"]
+    channel_names = tuple(str(value) for value in dataset.map_channel_names.tolist())
+    resolution = float(representation["map_resolution_m"])
+    origin = tuple(float(value) for value in representation["map_origin_xy_m"])
+    arguments = {
+        "resolution_m": resolution,
+        "origin_xy_m": origin,
+        "occupancy_threshold": float(config["mesh"]["occupancy_threshold"]),
+        "minimum_height_m": float(config["mesh"]["minimum_height_m"]),
+    }
+    digest = hashlib.sha256()
+    map_count = 0
+    reference_face_count = 0
+    compact_face_count = 0
+    role_counts: dict[str, int] = {}
+    for scene in range(dataset.scene_count):
+        role = str(dataset.scene_roles[scene])
+        role_counts[role] = role_counts.get(role, 0) + dataset.world_count
+        for world in range(dataset.world_count):
+            maps = dataset.maps[scene, world]
+            compact_mesh, compact_materials = grid_to_triangular_mesh(
+                maps,
+                channel_names,
+                **arguments,
+            )
+            map_ledger_sha256, atomic_quad_count = (
+                require_compact_mesh_matches_map_surface(
+                    maps,
+                    channel_names,
+                    compact_mesh,
+                    compact_materials,
+                    **arguments,
+                )
+            )
+            identity = f"{dataset.bank_ids[scene]}:{world}".encode("utf-8")
+            digest.update(len(identity).to_bytes(8, "big"))
+            digest.update(identity)
+            digest.update(bytes.fromhex(map_ledger_sha256))
+            map_count += 1
+            reference_face_count += 2 * atomic_quad_count
+            compact_face_count += int(compact_mesh.shape[0])
+    expected_map_count = dataset.scene_count * dataset.world_count
+    if map_count != expected_map_count:
+        raise RuntimeError("Wi-GATr mesh audit did not cover the full formal map bank")
+    return {
+        "schema_version": "csi-pairs-v6-wigatr-mesh-surface-audit-v1",
+        "status": "PASS",
+        "passed": True,
+        "dataset_sha256": sha256_file(dataset.source_path),
+        "preprocessing": config["mesh"]["preprocessing"],
+        "scene_count": int(dataset.scene_count),
+        "world_count": int(dataset.world_count),
+        "map_count": int(map_count),
+        "role_map_counts": role_counts,
+        "reference_face_count": reference_face_count,
+        "compact_face_count": compact_face_count,
+        "canonical_surface_ledger_sha256": digest.hexdigest(),
+        "rule": (
+            "Every scene/world map, including held-out roles, is checked without reading CSI "
+            "or labels; each compact mesh must exactly match independent grid-derived "
+            "top and directed-side geometry/material surface arrays."
+        ),
+    }
 
 
 def _verify_vendor_tree(vendor):

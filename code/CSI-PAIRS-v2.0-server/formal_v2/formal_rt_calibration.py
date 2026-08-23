@@ -20,6 +20,8 @@ STATISTICS = ("path_loss", "delay_spread", "angular_spread", "visible_path_count
 STATISTIC_COLUMNS = ("unit_id", *STATISTICS)
 PARTITION_SCHEMA = "csi-pairs-v6-rt-calibration-partition-v3"
 SOURCE_ASSET_SCHEMA = "csi-pairs-v6-rt-source-asset-v1"
+MANIFEST_SCHEMA = "csi-pairs-v6-rt-calibration-adapter-v6"
+GATE_SCHEMA = "csi-pairs-v6-rt-calibration-gate-v6"
 
 
 def run_rt_calibration_gate(config, dataset, manifest_path, output_root):
@@ -50,6 +52,20 @@ def run_rt_calibration_gate(config, dataset, manifest_path, output_root):
         manifest_file.parent,
         "adapter source",
     )
+    design_record_path = _bound_input(
+        manifest["design_record_path"],
+        manifest["design_record_sha256"],
+        manifest_file.parent,
+        "calibration design record",
+    )
+    license_review_path = _bound_input(
+        manifest["license_review_path"],
+        manifest["license_review_sha256"],
+        manifest_file.parent,
+        "license review record",
+    )
+    _validate_review_record(design_record_path, "design")
+    _validate_review_record(license_review_path, "license")
     data_paths = {fit_dataset_path, validation_inputs_path, validation_reference_path}
     if len(data_paths) != 3:
         raise RuntimeError("RT calibration fit, validation inputs, and reference must be distinct files")
@@ -173,6 +189,8 @@ def run_rt_calibration_gate(config, dataset, manifest_path, output_root):
             "validation_inputs_path": str(validation_inputs_path),
             "validation_reference_path": str(validation_reference_path),
             "adapter_source_path": str(adapter_source_path),
+            "design_record_path": str(design_record_path),
+            "license_review_path": str(license_review_path),
         },
     )
     validated_path = output_dir / "validated_statistics.csv"
@@ -182,7 +200,7 @@ def run_rt_calibration_gate(config, dataset, manifest_path, output_root):
         config, dataset, "FORBIDDEN" if dataset.is_fixture else "CANDIDATE_NOT_CLAIM"
     )
     gate = {
-        "schema_version": "csi-pairs-v6-rt-calibration-gate-v5",
+        "schema_version": GATE_SCHEMA,
         "status": "PASS" if passed else "FAIL",
         "passed": passed,
         **evidence,
@@ -190,6 +208,10 @@ def run_rt_calibration_gate(config, dataset, manifest_path, output_root):
         "protocol_sha256": manifest["protocol_sha256"],
         "adapter_source_path": str(adapter_source_path),
         "adapter_source_sha256": manifest["adapter_source_sha256"],
+        "design_record_path": str(design_record_path),
+        "design_record_sha256": manifest["design_record_sha256"],
+        "license_review_path": str(license_review_path),
+        "license_review_sha256": manifest["license_review_sha256"],
         "input_manifest_path": bound_manifest.name,
         "input_manifest_sha256": sha256_file(bound_manifest),
         "fit_dataset_sha256": manifest["fit_dataset_sha256"],
@@ -235,11 +257,15 @@ def _validate_manifest(manifest):
         "validation_reference_sha256",
         "adapter_source_path",
         "adapter_source_sha256",
+        "design_record_path",
+        "design_record_sha256",
+        "license_review_path",
+        "license_review_sha256",
         "command",
     }
     if not isinstance(manifest, dict) or set(manifest) != required:
         raise ValueError("RT calibration manifest fields must be exact")
-    if manifest["schema_version"] != "csi-pairs-v6-rt-calibration-adapter-v5":
+    if manifest["schema_version"] != MANIFEST_SCHEMA:
         raise ValueError("RT calibration manifest schema mismatch")
     digest_keys = (
         "protocol_sha256",
@@ -247,6 +273,8 @@ def _validate_manifest(manifest):
         "validation_inputs_sha256",
         "validation_reference_sha256",
         "adapter_source_sha256",
+        "design_record_sha256",
+        "license_review_sha256",
     )
     for key in digest_keys:
         value = manifest[key]
@@ -285,9 +313,37 @@ def _validate_manifest(manifest):
         "validation_inputs_path",
         "validation_reference_path",
         "adapter_source_path",
+        "design_record_path",
+        "license_review_path",
     ):
         if not isinstance(manifest[key], str) or not manifest[key].strip():
             raise ValueError(f"RT calibration {key} must be nonempty")
+
+
+def _validate_review_record(path, kind):
+    try:
+        content = Path(path).read_text(encoding="utf-8")
+    except UnicodeError as error:
+        raise RuntimeError(f"RT calibration {kind} record is not valid UTF-8") from error
+    required = {
+        "design": (
+            "# C11",
+            "pre-registered",
+            "Fit units",
+            "Validation units",
+            "Frozen tolerances",
+        ),
+        "license": (
+            "# C11",
+            "license",
+            "Sionna",
+            "DiffeRT",
+            "OpenStreetMap",
+            "not measurements",
+        ),
+    }[kind]
+    if len(content.encode("utf-8")) < 512 or any(value not in content for value in required):
+        raise RuntimeError(f"RT calibration {kind} record is incomplete")
 
 
 def _read_statistics_csv(path, label):

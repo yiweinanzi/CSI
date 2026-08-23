@@ -1,5 +1,5 @@
 {
-  "schema_version": "csi-pairs-pmnet-official-adapter-v2",
+  "schema_version": "csi-pairs-pmnet-official-adapter-v3",
   "profile": "formal-paper-dose",
   "source_revision": "a0e0c5926de721074beeb23f630f2d313f6508dd",
   "source_roles": {
@@ -21,7 +21,8 @@
     "seed": 8124,
     "epochs": 30,
     "batch_size": 16,
-    "microbatch_size": 1,
+    "microbatch_size": 2,
+    "precision": "bf16",
     "learning_rate": 0.0001,
     "lr_decay": 0.5,
     "lr_decay_every_epochs": 10

@@ -34,20 +34,25 @@ def paired_sign_flip_test(
     second: np.ndarray,
     seed: int,
     maximum_draws: int = 100000,
+    null_difference: float = 0.0,
 ) -> dict[str, float | int | str]:
     clusters, differences = _cluster_differences(cluster_ids, first, second)
-    observed = abs(float(np.mean(differences)))
+    center = float(null_difference)
+    if not np.isfinite(center):
+        raise ValueError("sign-flip null difference must be finite")
+    centered_differences = differences - center
+    observed = abs(float(np.mean(centered_differences)))
     count = differences.size
     if count <= 16:
         assignments = np.arange(2**count, dtype=np.uint64)[:, None]
         shifts = np.arange(count, dtype=np.uint64)[None, :]
         signs = 2.0 * ((assignments >> shifts) & 1).astype(np.float64) - 1.0
-        null_values = np.abs(np.mean(signs * differences[None, :], axis=1))
+        null_values = np.abs(np.mean(signs * centered_differences[None, :], axis=1))
         method = "exact"
     else:
         rng = np.random.default_rng(seed)
         signs = rng.choice((-1.0, 1.0), size=(int(maximum_draws), count))
-        null_values = np.abs(np.mean(signs * differences[None, :], axis=1))
+        null_values = np.abs(np.mean(signs * centered_differences[None, :], axis=1))
         method = "monte_carlo"
     exceed = int(np.sum(null_values >= observed - 1e-15))
     p_value = (
@@ -62,6 +67,7 @@ def paired_sign_flip_test(
         "finite_sample_correction": "none_exact_enumeration"
         if method == "exact"
         else "plus_one_monte_carlo",
+        "null_difference": center,
         "p_value_two_sided": p_value,
     }
 
@@ -355,6 +361,12 @@ def leave_one_factorial_sensitivity(
 
 def holm_adjust(p_values: list[float]) -> list[float]:
     values = np.asarray(p_values, dtype=np.float64)
+    if values.ndim != 1 or values.size == 0:
+        raise ValueError("Holm adjustment requires a nonempty one-dimensional p-value family")
+    if not np.all(np.isfinite(values)):
+        raise ValueError("Holm adjustment requires finite p-values")
+    if np.any(values < 0.0) or np.any(values > 1.0):
+        raise ValueError("Holm adjustment requires p-values in [0, 1]")
     order = np.argsort(values)
     adjusted = np.empty_like(values)
     running = 0.0

@@ -27,11 +27,12 @@ PYTHONDONTWRITEBYTECODE=1 python3 -m formal_v2.formal_cli --help
 
 Formal orchestration is split between `prepare-full-run` and `all`. Preparation performs the complete
 static manifest/disk/CUDA/license/credential preflight, then runs resources, G0, independent RT,
-independent data verification, and G1/G2 before emitting a random-nonce approval request. `all`
+independent data verification, G1/G2, and independent G8 external validity before emitting a
+random-nonce approval request. `all`
 requires an external, unexpired human approval bound to that exact request and prepared root; the
 deprecated Boolean flag has no authorization power. After authentication, `all` runs the remaining
 factorial, evaluation, risk, path, external-baseline, representation, resource-control, scene-ID,
-external-validity, shuffled-pair, retention, and claim stages without rerunning preapproval stages.
+shuffled-pair, retention, and claim stages without rerunning preapproval stages.
 A formal stage failure stops the chain. Fixtures remain `FORBIDDEN` at every artifact layer. Code and
 tests do not constitute scientific evidence.
 G1 also writes a per-bank `route_noise_floor.csv` and requires all four physical/teacher audit null

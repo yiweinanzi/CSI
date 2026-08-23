@@ -399,9 +399,18 @@ def build_scene0_diagnostic_assets(
     if endpoint != f"frozen-cache-sha256:{candidate.sha256_file(raw_source)}":
         raise RuntimeError("diagnostic builder unexpectedly did not use the frozen raw cache")
     buildings = candidate._parse_osm_buildings(response, city)
-    selected = candidate._select_city_banks(city, config, buildings, raw_path, query)
-    source = selected[int(ledger_row["bank_index_within_city"])]
-    record = {**source, **ledger_row, "schema_version": candidate.BANK_SCHEMA}
+    city_ledger = sorted(
+        (
+            row
+            for row in candidate.expected_scene_ledger(config)
+            if row["city_id"] == city["city_id"]
+        ),
+        key=lambda row: int(row["bank_index_within_city"]),
+    )
+    selected, _selection_audit = candidate._select_city_banks(
+        city, config, buildings, raw_path, query, city_ledger
+    )
+    record = selected[int(ledger_row["bank_index_within_city"])]
     bank_dir = bank_root / str(ledger_row["scene_id"])
     bank_dir.mkdir()
     bank_json = candidate._write_json_exclusive(bank_dir / "bank.json", record)

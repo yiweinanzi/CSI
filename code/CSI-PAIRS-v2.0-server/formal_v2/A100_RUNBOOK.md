@@ -65,7 +65,7 @@ sha256sum --check SHA256SUMS
 ```
 
 The formal core requires CPython 3.12, glibc 2.28 or newer, two visible A100s,
-and enough free disk for both isolated environments, 34 render banks, the
+and enough free disk for both isolated environments, 203 render banks, the
 merged dataset, an independent regeneration copy, checkpoints, and results.
 Do not put placeholder zero values into the reviewed compute plan.
 
@@ -92,9 +92,9 @@ formal_v2/external_adapters/setup_sionna.sh
 Do not activate a CUDA 13 compatibility preload or reuse a Conda environment.
 `setup_sionna.sh` accepts libLLVM only when its exact SHA-256 is already listed
 for Linux x86_64 in `formal_v2/configs/sionna_llvm_approved_v1.json`. The
-repository currently contains only the reviewed Darwin arm64 entry, so A100
-setup must remain blocked until the destination library bytes and provenance
-are reviewed and committed. Do not add a hash discovered during the same run.
+registered Linux LLVM 18.1.8 bytes were admitted only after two independent
+scene-0 processes matched all 23 arrays, the complete NPZ payload, and 2,262
+stable path signatures at zero tolerance. A different library remains blocked.
 
 Verify the core GPU runtime:
 
@@ -142,19 +142,25 @@ tolerance. This replay detects transfer or registration mismatch. It cannot
 authenticate where the two NPZ files came from and must never be supplied to
 formal run preparation as data-verification evidence.
 
-## 4. Optional: generate a new V2 candidate from the raw cache
+## 4. Generate a new V4 power-qualified candidate from the raw cache
 
 Choose a new output root. The command refuses to overwrite it:
 
 ```bash
 RAW_OSM=/absolute/path/CSI-PAIRS-A100-input-v2/raw_osm
-CANDIDATE_ROOT="$PWD/formal_inputs/sionna-osm-v2-001"
-formal_v2/scripts/generate_sionna_osm_formal_candidate.sh \
+CONFIG="$PWD/formal_v2/configs/sionna_osm_formal_candidate_v4.json"
+CANDIDATE_ROOT="$PWD/formal_inputs/sionna-osm-v4-001"
+CSI_PAIRS_SIONNA_CONFIG="$CONFIG" CSI_PAIRS_RENDER_WORKERS=32 \
+  formal_v2/scripts/generate_sionna_osm_formal_candidate.sh \
   "$CANDIDATE_ROOT" "$RAW_OSM"
 ```
 
-This prepares new V2 assets, runs eight independent LLVM render shards over
-the 34 frozen banks, and writes `dataset.npz` beside `assets/`. Preserve that
+This prepares new V4 assets, freezes 64 geometry-only visible first-order
+reflection positions for each of two registered primitives per bank before any
+world is rendered, and runs 32 deterministic LLVM render shards over 203 frozen
+banks. The design contains 45 Chicago, 44 Austin, 41 Seattle, 41 Boston,
+16 Denver, and 16 Miami banks; each target city contributes 41 independent
+base-map clusters. The command writes `dataset.npz` beside `assets/`. Preserve that
 adjacency: the independent verifier reconstructs the immutable assets from
 `dirname(dataset.npz)/assets`.
 
@@ -168,6 +174,18 @@ Any missing RT path, all-zero clean CSI unit, receiver-map collision, failed
 shard, or runtime drift aborts generation. Do not delete the check or rename a
 failed candidate into a formal dataset.
 
+A fresh render merges the shards but does not classify the merged archive.
+Validate the complete generation explicitly before inspection:
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 \
+  "$PWD/formal_v2/external_adapters/.runtime-sionna/venv/bin/python" -B \
+  -m formal_v2.sionna_osm_candidate validate-generation \
+  --config "$CONFIG" \
+  --asset-root "$CANDIDATE_ROOT/assets" \
+  --dataset "$CANDIDATE_ROOT/dataset.npz"
+```
+
 ## 5. Inspect and independently regenerate all banks
 
 Use two unused output roots:
@@ -176,18 +194,18 @@ Use two unused output roots:
 PYTHONDONTWRITEBYTECODE=1 "$PWD/.venv/bin/python" -B -m formal_v2.formal_cli inspect-data \
   --config "$PWD/formal_v2/configs/formal_v2.json" \
   --dataset "$CANDIDATE_ROOT/dataset.npz" \
-  --output "$PWD/runs/sionna-osm-v2-inspect-001"
+  --output "$PWD/runs/sionna-osm-v4-inspect-001"
 
 PYTHONDONTWRITEBYTECODE=1 "$PWD/.venv/bin/python" -B -m formal_v2.formal_cli verify-data \
   --config "$PWD/formal_v2/configs/formal_v2.json" \
   --dataset "$CANDIDATE_ROOT/dataset.npz" \
-  --output "$PWD/runs/sionna-osm-v2-verify-001" \
+  --output "$PWD/runs/sionna-osm-v4-verify-001" \
   --verifier-manifest "$PWD/formal_v2/configs/sionna_osm_verifier_v2.json"
 ```
 
 Continue only when the inspection succeeds, every value in
 `data_verification/gate.json` under `role_status` is `PASS`, and no one of the
-34 scene banks failed at `rtol=0` and `atol=0`. A partial
+203 scene banks failed at `rtol=0` and `atol=0`. A partial
 source-role pass is useful for diagnosis but is not a complete formal input.
 Do not edit the archive metadata after verification. The authenticated
 `CANDIDATE` earns `FORMAL_EXPERIMENT_ALLOWED` only if G1 and G2 subsequently
@@ -241,6 +259,56 @@ files and recomputes every direction, effect, cluster interval, and
 null-equivalence decision in first-party code, while recording
 `DIAGNOSTIC_NOT_CLAIM`. Formal preflight rejects this archive schema.
 
+### Independent executable DiffeRT G8
+
+The reviewed independent executable path uses DiffeRT `v0.10.0` at commit
+`673cc58ef61906b8ab0869dd206b3d032dbc01b2` under the MIT license. It is a
+different JAX/Warp RT implementation from the primary Sionna renderer. Build
+its hash-locked Python 3.12.13 environment once:
+
+```bash
+formal_v2/external_adapters/setup_differt.sh
+```
+
+The adapter forces `JAX_PLATFORMS=cpu`, enables JAX x64, and hides all CUDA
+devices, so it does not compete with the two A100 training workers. Its scene
+manifest binds every external sibling world to a distinct source asset and
+binds the exact dataset and engine-config hashes. Generate those assets without
+reading primary CSI:
+
+```bash
+DIFFERT_RUNTIME="$PWD/formal_v2/external_adapters/.runtime-differt/venv/bin/python"
+PYTHONPATH="$PWD" JAX_PLATFORMS=cpu JAX_ENABLE_X64=1 CUDA_VISIBLE_DEVICES='' \
+  "$DIFFERT_RUNTIME" -B \
+  formal_v2/external_adapters/prepare_differt_external_scenes.py \
+  --dataset "$CANDIDATE_ROOT/dataset.npz" \
+  --asset-root "$CANDIDATE_ROOT/assets" \
+  --engine-config "$PWD/formal_v2/configs/differt_external_engine_v1.json" \
+  --minimum-external-clusters 32 \
+  --output /new/unique/path/differt-g8-inputs
+```
+
+After live data verification and G1/G2 qualification have passed in the same
+fresh `RUN_ROOT`, execute G8 from source assets with the independent adapter
+manifest. A prior `external_csi.npz` is not an input:
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 "$PWD/.venv/bin/python" -B \
+  -m formal_v2.formal_cli run-external-validity \
+  --config "$PWD/formal_v2/configs/formal_v2.json" \
+  --dataset "$CANDIDATE_ROOT/dataset.npz" \
+  --output "$RUN_ROOT" \
+  --external-validity-manifest \
+    /absolute/path/differt-g8-inputs/differt_external_validity_adapter.json
+```
+
+Continue only if `external_validity/gate.json` reports
+`execution_mode=authenticated_independent_rt_adapter`, `status=PASS`, the
+active cluster-bootstrap lower bound is at least `0.8`, and null equivalence
+passes at the frozen `0.02` margin. Do not tune these thresholds on the four
+external banks. Any precomputed `raw-run-*` output is diagnostic provenance
+only and cannot replace the executable G8 run.
+
 Set both devices for every formal command:
 
 ```bash
@@ -250,7 +318,8 @@ export CUDA_VISIBLE_DEVICES=0,1
 
 Then follow the two-phase `prepare-full-run` and `all` commands in the root
 `README.md`. Preparation runs G0, independent RT, independent data verification,
-G1, and G2 before it emits a human-approval request. `all` starts the four-arm
+G1/G2, and the independent G8 external-validity gate before it emits a
+human-approval request. `all` starts the four-arm
 training only after that exact request is reviewed and approved.
 
 Stop on any nonzero exit, failed regeneration role, RT partition overlap,

@@ -316,9 +316,10 @@ def run_formal_evaluation(
         )
         response_probe = fit_action_response_probe(
             response_train["features"],
-            response_train["targets"],
+            response_train["targets"] - response_train["source_targets"],
             config,
             seed=seed + 32001,
+            zero_action_x=response_train["no_action_features"],
         )
         response_probe_contract_rows.append(
             {
@@ -330,14 +331,20 @@ def run_formal_evaluation(
             }
         )
         variant_probes = {}
+        contrast_variants = {"without_map", "edit_only", "oracle_x"}
         for offset, name in enumerate(
             ("without_map", "edit_only", "csi_only", "oracle_x"), start=1
         ):
             variant_probes[name] = fit_action_response_probe(
                 response_train[f"{name}_features"],
-                response_train["targets"],
+                response_train["targets"] - response_train["source_targets"],
                 config,
                 seed=seed + 32001 + offset,
+                zero_action_x=(
+                    response_train[f"{name}_zero_action_features"]
+                    if name in contrast_variants
+                    else None
+                ),
             )
             response_probe_contract_rows.append(
                 {
@@ -357,19 +364,34 @@ def run_formal_evaluation(
             evaluation_scenes,
             active_only=False,
         )
-        probe_prediction = predict_response_probe(response_probe, response_eval["features"])
-        action_swap_prediction = predict_response_probe(
-            response_probe, response_eval["action_swap_features"]
+        source_target = response_eval["source_targets"]
+        probe_prediction = source_target + predict_response_probe(
+            response_probe,
+            response_eval["features"],
+            response_eval["no_action_features"],
         )
-        no_action_prediction = predict_response_probe(
-            response_probe, response_eval["no_action_features"]
+        action_swap_prediction = source_target + predict_response_probe(
+            response_probe,
+            response_eval["action_swap_features"],
+            response_eval["no_action_features"],
         )
-        variant_predictions = {
-            name: predict_response_probe(
-                probe, response_eval[f"{name}_features"]
+        no_action_prediction = source_target + predict_response_probe(
+            response_probe,
+            response_eval["no_action_features"],
+            response_eval["no_action_features"],
+        )
+        variant_predictions = {}
+        for name, probe in variant_probes.items():
+            zero_features = (
+                response_eval[f"{name}_zero_action_features"]
+                if name in contrast_variants
+                else None
             )
-            for name, probe in variant_probes.items()
-        }
+            variant_predictions[name] = source_target + predict_response_probe(
+                probe,
+                response_eval[f"{name}_features"],
+                zero_features,
+            )
         response_effect_rows.extend(
             _response_effect_rows(
                 seed,
@@ -1137,6 +1159,9 @@ def _response_probe_dataset(model, dataset, teacher, config, normalization, scen
     edit_only_features = []
     csi_only_features = []
     oracle_x_features = []
+    without_map_zero_action_features = []
+    edit_only_zero_action_features = []
+    oracle_x_zero_action_features = []
     targets = []
     bank_ids = []
     city_ids = []
@@ -1243,11 +1268,17 @@ def _response_probe_dataset(model, dataset, teacher, config, normalization, scen
                     without_map_features.append(
                         np.concatenate((no_map_state, action_features, query_onehot))
                     )
+                    without_map_zero_action_features.append(
+                        np.concatenate((no_map_state, no_action_vector, query_onehot))
+                    )
                     map_swap_features.append(
                         np.concatenate((map_swap_state, action_features, query_onehot))
                     )
                     edit_only_features.append(
                         np.concatenate((map_only_state, action_features, query_onehot))
+                    )
+                    edit_only_zero_action_features.append(
+                        np.concatenate((map_only_state, no_action_vector, query_onehot))
                     )
                     csi_only_features.append(
                         np.concatenate((no_map_state, no_action_vector, query_onehot))
@@ -1258,6 +1289,11 @@ def _response_probe_dataset(model, dataset, teacher, config, normalization, scen
                     oracle_x_features.append(
                         np.concatenate(
                             (state, action_features, query_onehot, normalized_position)
+                        )
+                    )
+                    oracle_x_zero_action_features.append(
+                        np.concatenate(
+                            (state, no_action_vector, query_onehot, normalized_position)
                         )
                     )
                     targets.append(
@@ -1307,6 +1343,15 @@ def _response_probe_dataset(model, dataset, teacher, config, normalization, scen
         "edit_only_features": np.asarray(edit_only_features),
         "csi_only_features": np.asarray(csi_only_features),
         "oracle_x_features": np.asarray(oracle_x_features),
+        "without_map_zero_action_features": np.asarray(
+            without_map_zero_action_features
+        ),
+        "edit_only_zero_action_features": np.asarray(
+            edit_only_zero_action_features
+        ),
+        "oracle_x_zero_action_features": np.asarray(
+            oracle_x_zero_action_features
+        ),
         "targets": np.asarray(targets),
         "bank_ids": np.asarray(bank_ids),
         "city_ids": np.asarray(city_ids),
@@ -1398,6 +1443,39 @@ def _complex_csi_from_patches(patches, normalization, spec):
     )
 
 
+def _periodic_power_spread(
+    power: np.ndarray,
+    axis: np.ndarray,
+    *,
+    period: float,
+) -> float:
+    weights = np.asarray(power, dtype=np.float64)
+    coordinates = np.asarray(axis, dtype=np.float64)
+    if (
+        weights.ndim != 1
+        or coordinates.shape != weights.shape
+        or not np.all(np.isfinite(weights))
+        or not np.all(np.isfinite(coordinates))
+        or np.any(weights < 0.0)
+        or not np.isfinite(period)
+        or float(period) <= 0.0
+    ):
+        raise ValueError("periodic power spread inputs are invalid")
+    total = float(np.sum(weights))
+    if total <= 1e-12:
+        return 0.0
+    raw_distance = np.abs(coordinates[:, None] - coordinates[None, :])
+    wrapped_distance = np.minimum(
+        np.mod(raw_distance, float(period)),
+        float(period) - np.mod(raw_distance, float(period)),
+    )
+    pair_weights = weights[:, None] * weights[None, :]
+    variance = 0.5 * float(
+        np.sum(pair_weights * wrapped_distance**2) / (total * total)
+    )
+    return float(np.sqrt(max(variance, 0.0)))
+
+
 def _channel_summary(channel):
     values = np.asarray(channel, dtype=np.complex128)
     power = np.abs(values) ** 2
@@ -1414,10 +1492,10 @@ def _channel_summary(channel):
         axis=-1,
     )
     angle_axis = np.linspace(-1.0, 1.0, angle_power.shape[-1], endpoint=False)
-    angle_total = max(float(np.sum(angle_power)), 1e-12)
-    angle_mean = float(np.sum(angle_power * angle_axis) / angle_total)
-    angular_spread = float(
-        np.sqrt(np.sum(angle_power * (angle_axis - angle_mean) ** 2) / angle_total)
+    angular_spread = _periodic_power_spread(
+        angle_power,
+        angle_axis,
+        period=2.0,
     )
     return {
         "path_loss": -received_power_db,
@@ -1799,6 +1877,10 @@ def _evaluation_gate(
     factorial_gate_sha256,
 ):
     resamples = int(config["evaluation"]["bootstrap_resamples"])
+    alignment_margin = float(
+        config["evaluation"]["minimum_alignment_superiority"]
+    )
+    response_margin = float(config["evaluation"]["minimum_response_superiority"])
     alignment_superiority = _paired_arm_comparison(
         cgs_rows,
         "cgs_auroc",
@@ -1807,6 +1889,7 @@ def _evaluation_gate(
         higher_is_better=True,
         resamples=resamples,
         seed=81101,
+        null_threshold=alignment_margin,
     )
     response_superiority = _paired_arm_comparison(
         response_rows,
@@ -1816,6 +1899,7 @@ def _evaluation_gate(
         higher_is_better=False,
         resamples=resamples,
         seed=81102,
+        null_threshold=response_margin,
     )
     response_copy = _within_arm_advantage_interval(
         response_rows,
@@ -1824,6 +1908,7 @@ def _evaluation_gate(
         "native_target_free_full_channel_nmse",
         resamples,
         81103,
+        null_threshold=response_margin,
     )
     response_swap = _within_arm_advantage_interval(
         response_rows,
@@ -1832,6 +1917,7 @@ def _evaluation_gate(
         "native_target_free_action_swap_exact_full_channel_nmse",
         resamples,
         81104,
+        null_threshold=response_margin,
     )
     response_no_action = _within_arm_advantage_interval(
         response_rows,
@@ -1840,6 +1926,7 @@ def _evaluation_gate(
         "native_target_free_full_channel_nmse",
         resamples,
         81106,
+        null_threshold=response_margin,
     )
     latent_copy = _within_arm_advantage_interval(
         response_rows,
@@ -1848,6 +1935,7 @@ def _evaluation_gate(
         "native_latent_nmse",
         resamples,
         81107,
+        null_threshold=response_margin,
     )
     latent_no_action = _within_arm_advantage_interval(
         response_rows,
@@ -1856,6 +1944,7 @@ def _evaluation_gate(
         "native_latent_nmse",
         resamples,
         81108,
+        null_threshold=response_margin,
     )
     latent_swap = _within_arm_advantage_interval(
         response_rows,
@@ -1864,6 +1953,7 @@ def _evaluation_gate(
         "native_latent_action_swap_exact_target_nmse",
         resamples,
         81109,
+        null_threshold=response_margin,
     )
     probe_response_swap = _within_arm_advantage_interval(
         response_rows,
@@ -1872,6 +1962,7 @@ def _evaluation_gate(
         "unified_response_probe_action_swap_exact_patch_nmse",
         resamples,
         81110,
+        null_threshold=response_margin,
     )
     shortcut_intervals = {
         name: _within_arm_advantage_interval(
@@ -1881,6 +1972,7 @@ def _evaluation_gate(
             "unified_response_probe_active_patch_nmse",
             resamples,
             81120 + offset,
+            null_threshold=response_margin,
         )
         for offset, name in enumerate(("without_map", "edit_only", "csi_only"))
     }
@@ -1894,7 +1986,12 @@ def _evaluation_gate(
         )
     ]
     scope_intervals = _g3_primary_scope_intervals(
-        cgs_rows, response_rows, expected_scopes, resamples
+        cgs_rows,
+        response_rows,
+        expected_scopes,
+        resamples,
+        alignment_superiority_margin=alignment_margin,
+        response_superiority_margin=response_margin,
     )
     null_safety = _null_safety_by_arm(config, route_rows)
     scope_null_safety = {
@@ -2444,13 +2541,26 @@ def _paired_arm_comparison(
     test = paired_sign_flip_test(
         clusters,
         advantage,
-        np.full_like(advantage, float(null_threshold)),
+        np.zeros_like(advantage),
         seed + 1,
+        null_difference=float(null_threshold),
     )
-    return {**result, "p_value_two_sided": test["p_value_two_sided"]}
+    return {
+        **result,
+        "null_difference": float(null_threshold),
+        "p_value_two_sided": test["p_value_two_sided"],
+    }
 
 
-def _g3_primary_scope_intervals(cgs_rows, response_rows, scopes, resamples):
+def _g3_primary_scope_intervals(
+    cgs_rows,
+    response_rows,
+    scopes,
+    resamples,
+    *,
+    alignment_superiority_margin=0.0,
+    response_superiority_margin=0.0,
+):
     result = {}
     for index, scope in enumerate(scopes):
         scoped_cgs = [
@@ -2470,6 +2580,7 @@ def _g3_primary_scope_intervals(cgs_rows, response_rows, scopes, resamples):
                 higher_is_better=True,
                 resamples=resamples,
                 seed=81300 + 2 * index,
+                null_threshold=alignment_superiority_margin,
             ),
             "response_superiority": _paired_arm_comparison(
                 scoped_response,
@@ -2479,6 +2590,7 @@ def _g3_primary_scope_intervals(cgs_rows, response_rows, scopes, resamples):
                 higher_is_better=False,
                 resamples=resamples,
                 seed=81301 + 2 * index,
+                null_threshold=response_superiority_margin,
             ),
             "response_vs_copy": _within_arm_advantage_interval(
                 scoped_response,
@@ -2487,6 +2599,7 @@ def _g3_primary_scope_intervals(cgs_rows, response_rows, scopes, resamples):
                 "native_target_free_full_channel_nmse",
                 resamples,
                 81400 + 5 * index,
+                null_threshold=response_superiority_margin,
             ),
             "response_vs_no_action": _within_arm_advantage_interval(
                 scoped_response,
@@ -2495,6 +2608,7 @@ def _g3_primary_scope_intervals(cgs_rows, response_rows, scopes, resamples):
                 "native_target_free_full_channel_nmse",
                 resamples,
                 81401 + 5 * index,
+                null_threshold=response_superiority_margin,
             ),
             "response_vs_action_swap": _within_arm_advantage_interval(
                 scoped_response,
@@ -2503,6 +2617,7 @@ def _g3_primary_scope_intervals(cgs_rows, response_rows, scopes, resamples):
                 "native_target_free_action_swap_exact_full_channel_nmse",
                 resamples,
                 81402 + 5 * index,
+                null_threshold=response_superiority_margin,
             ),
             "response_direction": _within_arm_level_interval(
                 scoped_response,
@@ -2516,7 +2631,14 @@ def _g3_primary_scope_intervals(cgs_rows, response_rows, scopes, resamples):
 
 
 def _within_arm_advantage_interval(
-    rows, arm, baseline_metric, method_metric, resamples, seed
+    rows,
+    arm,
+    baseline_metric,
+    method_metric,
+    resamples,
+    seed,
+    *,
+    null_threshold=0.0,
 ):
     selected = [
         row
@@ -2551,8 +2673,18 @@ def _within_arm_advantage_interval(
         [np.mean(grouped[key][1]) for key in keys], dtype=np.float64
     )
     result = paired_cluster_interval(clusters, baseline, method, resamples, seed)
-    test = paired_sign_flip_test(clusters, baseline, method, seed + 1)
-    return {**result, "p_value_two_sided": test["p_value_two_sided"]}
+    test = paired_sign_flip_test(
+        clusters,
+        baseline,
+        method,
+        seed + 1,
+        null_difference=float(null_threshold),
+    )
+    return {
+        **result,
+        "null_difference": float(null_threshold),
+        "p_value_two_sided": test["p_value_two_sided"],
+    }
 
 
 def _within_arm_level_interval(rows, arm, metric, resamples, seed):

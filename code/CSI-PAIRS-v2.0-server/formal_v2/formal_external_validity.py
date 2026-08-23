@@ -15,6 +15,9 @@ from .formal_io import artifact_manifest, read_strict_json, sha256_file, write_c
 
 
 ADAPTER_MANIFEST_SCHEMA = "csi-pairs-v6-external-validity-adapter-v3"
+INDEPENDENT_ADAPTER_MANIFEST_SCHEMA = (
+    "csi-pairs-v6-external-validity-independent-adapter-v1"
+)
 ARCHIVE_MANIFEST_SCHEMA = "csi-pairs-v6-external-validity-archive-v1"
 INDEPENDENT_RT_SCENE_SCHEMA = "csi-pairs-v6-independent-rt-scene-manifest-v1"
 
@@ -84,6 +87,74 @@ def run_external_validity(config, dataset, manifest_path, output_root):
             output_dir,
             independently_probed_runtime,
         )
+        external_engine_config_path = None
+    elif execution_mode == "authenticated_independent_rt_adapter":
+        adapter_source = _verify_adapter_source(manifest)
+        (
+            _source_context,
+            source_config,
+            rt_scene_manifest,
+            source_assets,
+        ) = _verify_independent_adapter_inputs(
+            manifest, manifest_file.parent, dataset
+        )
+        external_engine_config_path = _copy_regular_file(
+            source_config,
+            output_dir / "external_engine_config.bin",
+            "independent RT engine configuration",
+        )
+        rt_scene_manifest = _stage_independent_source_assets(
+            rt_scene_manifest, source_assets, output_dir
+        )
+        rt_scene_manifest_path = output_dir / "rt_scene_manifest.json"
+        write_json(rt_scene_manifest_path, rt_scene_manifest)
+        bound_payload = {
+            **manifest,
+            "adapter_source_path": str(adapter_source),
+            "adapter_source_sha256": sha256_file(adapter_source),
+            "engine_config_path": str(external_engine_config_path.resolve()),
+            "engine_config_sha256": sha256_file(external_engine_config_path),
+            "rt_scene_manifest_path": str(rt_scene_manifest_path.resolve()),
+            "rt_scene_manifest_sha256": sha256_file(rt_scene_manifest_path),
+        }
+        write_json(bound_manifest, bound_payload)
+        command = _render_independent_adapter_command(
+            manifest,
+            dataset=dataset.source_path,
+            output=output_dir,
+            output_root=output_root,
+            adapter_source=adapter_source,
+            engine_config=external_engine_config_path,
+            scene_manifest=rt_scene_manifest_path,
+        )
+        independently_probed_runtime = _probe_independent_runtime(
+            command, external_engine_config_path
+        )
+        completed = subprocess.run(
+            command,
+            check=False,
+            capture_output=True,
+            text=True,
+            cwd=Path(__file__).resolve().parents[1],
+            env=_independent_adapter_environment(
+                Path(__file__).resolve().parents[1]
+            ),
+        )
+        (output_dir / "stdout.txt").write_text(
+            completed.stdout, encoding="utf-8"
+        )
+        (output_dir / "stderr.txt").write_text(
+            completed.stderr, encoding="utf-8"
+        )
+        result_path = output_dir / "external_csi.npz"
+        if completed.returncode != 0 or not result_path.is_file():
+            raise RuntimeError("independent external-validity adapter failed")
+        runtime_path, runtime_record = _authenticate_independent_runtime(
+            command,
+            output_dir,
+            independently_probed_runtime,
+            external_engine_config_path,
+        )
     else:
         (
             source_csi,
@@ -119,8 +190,6 @@ def run_external_validity(config, dataset, manifest_path, output_root):
         )
         runtime_path = None
         runtime_record = None
-    if execution_mode == "authenticated_sionna_adapter":
-        external_engine_config_path = None
     expected_registry = _expected_external_registry(
         config, dataset, Path(output_root), rt_scene_manifest
     )
@@ -148,7 +217,10 @@ def run_external_validity(config, dataset, manifest_path, output_root):
         and equivalence["passed"]
     )
     passed = bool(
-        execution_mode == "authenticated_sionna_adapter"
+        execution_mode in {
+            "authenticated_sionna_adapter",
+            "authenticated_independent_rt_adapter",
+        }
         and diagnostic_statistics_passed
     )
     write_csv(output_dir / "validated_paired_effects.csv", bind_rows(rows, evidence))
@@ -216,6 +288,13 @@ def _validate_manifest(manifest):
             "schema_version", "evidence_type", "source_revision", "license_id", "command",
             "adapter_source_path", "adapter_source_sha256",
         }
+    elif schema == INDEPENDENT_ADAPTER_MANIFEST_SCHEMA:
+        required = {
+            "schema_version", "evidence_type", "engine_family", "source_revision",
+            "license_id", "command", "adapter_source_path", "adapter_source_sha256",
+            "engine_config_path", "engine_config_sha256",
+            "rt_scene_manifest_path", "rt_scene_manifest_sha256",
+        }
     elif schema == ARCHIVE_MANIFEST_SCHEMA:
         required = {
             "schema_version", "evidence_type", "engine_family", "source_revision",
@@ -232,37 +311,64 @@ def _validate_manifest(manifest):
     for key in ("source_revision", "license_id"):
         if not isinstance(manifest[key], str) or not manifest[key].strip():
             raise ValueError(f"external-validity {key} must be nonempty")
-    if schema == ADAPTER_MANIFEST_SCHEMA:
-        if not isinstance(manifest["command"], list) or not manifest["command"]:
+    if schema in {ADAPTER_MANIFEST_SCHEMA, INDEPENDENT_ADAPTER_MANIFEST_SCHEMA}:
+        if (
+            not isinstance(manifest["command"], list)
+            or not manifest["command"]
+            or any(not isinstance(value, str) for value in manifest["command"])
+        ):
             raise ValueError("external-validity command must be nonempty argv")
         if not _command_executes_adapter_source(
-            manifest["command"], manifest["adapter_source_path"]
+            manifest
         ):
             raise ValueError(
                 "external-validity command must execute the authenticated adapter module"
             )
         if not _lower_sha256(manifest["adapter_source_sha256"]):
             raise ValueError("external-validity adapter source hash must be lowercase SHA-256")
-    else:
+        if schema == INDEPENDENT_ADAPTER_MANIFEST_SCHEMA:
+            for flag, placeholder in (
+                ("--dataset", "{dataset}"),
+                ("--output", "{output}"),
+                ("--engine-config", "{engine_config}"),
+                ("--scene-manifest", "{scene_manifest}"),
+            ):
+                command = manifest["command"]
+                if command.count(flag) != 1:
+                    raise ValueError(
+                        f"independent RT command must bind exactly one {flag}"
+                    )
+                index = command.index(flag)
+                if index + 1 >= len(command) or command[index + 1] != placeholder:
+                    raise ValueError(
+                        f"independent RT command must bind {flag} to {placeholder}"
+                    )
+    if schema in {INDEPENDENT_ADAPTER_MANIFEST_SCHEMA, ARCHIVE_MANIFEST_SCHEMA}:
         if not isinstance(manifest["engine_family"], str) or not manifest["engine_family"].strip():
             raise ValueError("external-validity engine family must be nonempty")
         for key in (
-            "external_csi_path", "engine_config_path", "rt_scene_manifest_path"
+            "engine_config_path", "rt_scene_manifest_path"
         ):
             if not isinstance(manifest[key], str) or not manifest[key].strip():
                 raise ValueError(f"external-validity {key} must be nonempty")
         for key in (
-            "external_csi_sha256",
             "engine_config_sha256",
             "rt_scene_manifest_sha256",
         ):
             if not _lower_sha256(manifest[key]):
                 raise ValueError(f"external-validity {key} must be lowercase SHA-256")
+    if schema == ARCHIVE_MANIFEST_SCHEMA:
+        if not isinstance(manifest["external_csi_path"], str) or not manifest["external_csi_path"].strip():
+            raise ValueError("external-validity external_csi_path must be nonempty")
+        if not _lower_sha256(manifest["external_csi_sha256"]):
+            raise ValueError("external-validity external_csi_sha256 must be lowercase SHA-256")
 
 
 def _execution_mode(manifest) -> str:
     if manifest["schema_version"] == ADAPTER_MANIFEST_SCHEMA:
         return "authenticated_sionna_adapter"
+    if manifest["schema_version"] == INDEPENDENT_ADAPTER_MANIFEST_SCHEMA:
+        return "authenticated_independent_rt_adapter"
     if manifest["schema_version"] == ARCHIVE_MANIFEST_SCHEMA:
         return "authenticated_precomputed_rt_archive"
     raise ValueError("external-validity manifest schema mismatch")
@@ -271,7 +377,10 @@ def _execution_mode(manifest) -> str:
 def require_claim_eligible_manifest(manifest) -> None:
     """Reject archive-only diagnostics at every formal authorization boundary."""
     _validate_manifest(manifest)
-    if _execution_mode(manifest) != "authenticated_sionna_adapter":
+    if _execution_mode(manifest) not in {
+        "authenticated_sionna_adapter",
+        "authenticated_independent_rt_adapter",
+    }:
         raise RuntimeError(
             "precomputed RT archives are DIAGNOSTIC_NOT_CLAIM and cannot satisfy formal G8"
         )
@@ -314,15 +423,60 @@ def require_independent_primary_engine(dataset, manifest) -> None:
         )
 
 
-def _command_executes_adapter_source(command, adapter_source_path):
+def _command_executes_adapter_source(manifest):
+    command = manifest["command"]
+    adapter_source_path = manifest["adapter_source_path"]
     if Path(adapter_source_path).suffix != ".py":
         return False
+    executable = (
+        "{project_root}/formal_v2/external_adapters/.runtime-sionna/venv/bin/python"
+        if manifest["schema_version"] == ADAPTER_MANIFEST_SCHEMA
+        else "{project_root}/formal_v2/external_adapters/.runtime-differt/venv/bin/python"
+    )
     return bool(
         len(command) >= 2
-        and command[0]
-        == "{project_root}/formal_v2/external_adapters/.runtime-sionna/venv/bin/python"
+        and command[0] == executable
         and command[1] == "{adapter_source}"
     )
+
+
+def _render_independent_adapter_command(
+    manifest,
+    *,
+    dataset,
+    output,
+    output_root,
+    adapter_source,
+    engine_config,
+    scene_manifest,
+):
+    if _execution_mode(manifest) != "authenticated_independent_rt_adapter":
+        raise ValueError("external-validity manifest is not an independent adapter")
+    replacements = {
+        "dataset": str(Path(dataset).resolve()),
+        "output": str(Path(output).resolve()),
+        "run_root": str(Path(output_root).resolve()),
+        "project_root": str(Path(__file__).resolve().parents[1]),
+        "python": sys.executable,
+        "adapter_source": str(Path(adapter_source).resolve()),
+        "engine_config": str(Path(engine_config).resolve()),
+        "scene_manifest": str(Path(scene_manifest).resolve()),
+    }
+    command = [value.format(**replacements) for value in manifest["command"]]
+    if any("{" in value or "}" in value for value in command):
+        raise RuntimeError("independent RT command contains an unresolved placeholder")
+    for flag, expected in (
+        ("--dataset", replacements["dataset"]),
+        ("--output", replacements["output"]),
+        ("--engine-config", replacements["engine_config"]),
+        ("--scene-manifest", replacements["scene_manifest"]),
+    ):
+        if command.count(flag) != 1:
+            raise RuntimeError(f"independent RT command must bind exactly one {flag}")
+        index = command.index(flag)
+        if index + 1 >= len(command) or command[index + 1] != expected:
+            raise RuntimeError(f"independent RT command does not bind staged {flag}")
+    return command
 
 
 def _adapter_environment(project_root):
@@ -331,6 +485,15 @@ def _adapter_environment(project_root):
     return {
         **os.environ,
         "PYTHONPATH": root if not existing else root + os.pathsep + existing,
+    }
+
+
+def _independent_adapter_environment(project_root):
+    return {
+        **_adapter_environment(project_root),
+        "CUDA_VISIBLE_DEVICES": "",
+        "JAX_ENABLE_X64": "1",
+        "JAX_PLATFORMS": "cpu",
     }
 
 
@@ -366,8 +529,155 @@ def _authenticate_sionna_runtime(command, output_dir, independently_probed):
     return path, record
 
 
+def _probe_independent_runtime(command, engine_config_path):
+    probe = [
+        command[0],
+        command[1],
+        "--probe-runtime",
+        "--engine-config",
+        str(Path(engine_config_path).resolve()),
+    ]
+    project_root = Path(__file__).resolve().parents[1]
+    completed = subprocess.run(
+        probe,
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=120,
+        cwd=project_root,
+        env=_independent_adapter_environment(project_root),
+    )
+    if completed.returncode != 0:
+        raise RuntimeError(
+            "independent RT runtime provenance probe failed: "
+            f"{completed.stderr.strip()}"
+        )
+    try:
+        record = json.loads(completed.stdout)
+    except json.JSONDecodeError as error:
+        raise RuntimeError(
+            "independent RT runtime provenance probe emitted invalid JSON"
+        ) from error
+    return _validate_independent_runtime(
+        record,
+        executable=command[0],
+        engine_config_sha256=sha256_file(engine_config_path),
+    )
+
+
+def _authenticate_independent_runtime(
+    command, output_dir, independently_probed, engine_config_path
+):
+    path = Path(output_dir) / "runtime_provenance.json"
+    if path.is_symlink() or not path.is_file():
+        raise RuntimeError(
+            "independent RT adapter omitted regular runtime_provenance.json"
+        )
+    record = _validate_independent_runtime(
+        read_strict_json(path),
+        executable=command[0],
+        engine_config_sha256=sha256_file(engine_config_path),
+    )
+    if record != independently_probed:
+        raise RuntimeError(
+            "independent RT runtime provenance differs from the probed interpreter"
+        )
+    return path, record
+
+
+def _validate_independent_runtime(record, *, executable, engine_config_sha256):
+    required = {
+        "schema_version", "engine_family", "engine_name", "engine_revision",
+        "license_id", "python_executable", "python_prefix", "python_version",
+        "python_implementation", "platform_system", "platform_release",
+        "platform_machine", "jax_enable_x64", "jax_platforms", "jax_devices",
+        "package_records", "requirements_sha256", "engine_provenance_sha256",
+        "engine_config_sha256", "environment_sha256",
+    }
+    if not isinstance(record, dict) or set(record) != required:
+        raise RuntimeError("independent RT runtime provenance fields must be exact")
+    expected_versions = {
+        "differt": "0.10.0",
+        "differt-core": "0.10.0",
+        "jax": "0.11.0",
+        "jaxlib": "0.11.0",
+        "numpy": "2.5.2",
+        "warp-lang": "1.16.0",
+    }
+    if (
+        record["schema_version"]
+        != "csi-pairs-v6-differt-runtime-provenance-v1"
+        or record["engine_family"] != "differt"
+        or record["engine_name"] != "DiffeRT"
+        or record["engine_revision"]
+        != "differt@673cc58ef61906b8ab0869dd206b3d032dbc01b2"
+        or record["license_id"] != "MIT"
+        or record["python_version"] != "3.12.13"
+        or record["python_implementation"] != "CPython"
+        or record["platform_system"] != "Linux"
+        or record["platform_machine"] != "x86_64"
+        or record["jax_enable_x64"] is not True
+        or record["jax_platforms"] != "cpu"
+        or record["requirements_sha256"]
+        != "97afdca61c657fa23f1eeae3f64bfb37b54a048411c9b25edd230293bdecc573"
+        or record["engine_provenance_sha256"]
+        != "317ab9e495e6dee722a37bc471db77e2eedc9b3c6d699732f0d6c008bba0b2ed"
+        or record["engine_config_sha256"] != engine_config_sha256
+        or os.path.realpath(record["python_executable"])
+        != os.path.realpath(executable)
+    ):
+        raise RuntimeError("independent RT runtime differs from the frozen profile")
+    if (
+        not isinstance(record["jax_devices"], list)
+        or not record["jax_devices"]
+        or any(
+            not isinstance(value, str) or not value.startswith("cpu:")
+            for value in record["jax_devices"]
+        )
+    ):
+        raise RuntimeError("independent RT runtime is not CPU isolated")
+    packages = record["package_records"]
+    if not isinstance(packages, dict) or set(packages) != set(expected_versions):
+        raise RuntimeError("independent RT package inventory is invalid")
+    for name, version in expected_versions.items():
+        value = packages[name]
+        if (
+            not isinstance(value, dict)
+            or set(value) != {"version", "record_sha256"}
+            or value["version"] != version
+            or not _lower_sha256(value["record_sha256"])
+        ):
+            raise RuntimeError(f"independent RT package provenance is invalid: {name}")
+    for key in (
+        "requirements_sha256",
+        "engine_provenance_sha256",
+        "engine_config_sha256",
+        "environment_sha256",
+    ):
+        if not _lower_sha256(record[key]):
+            raise RuntimeError(f"independent RT runtime {key} is invalid")
+    without_hash = {
+        key: value for key, value in record.items() if key != "environment_sha256"
+    }
+    digest = hashlib.sha256(
+        json.dumps(
+            without_hash,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=True,
+            allow_nan=False,
+        ).encode("ascii")
+    ).hexdigest()
+    if record["environment_sha256"] != digest:
+        raise RuntimeError("independent RT runtime environment digest mismatch")
+    return record
+
+
 def _verify_adapter_source(manifest):
-    if _execution_mode(manifest) != "authenticated_sionna_adapter":
+    if _execution_mode(manifest) not in {
+        "authenticated_sionna_adapter",
+        "authenticated_independent_rt_adapter",
+    }:
         raise ValueError("precomputed external-validity archives have no adapter source")
     path = Path(manifest["adapter_source_path"])
     if not path.is_absolute():
@@ -456,6 +766,42 @@ def _verify_archive_inputs(manifest, manifest_dir, dataset):
     return csi_path, context_path, config_path, context, tuple(source_assets)
 
 
+def _verify_independent_adapter_inputs(manifest, manifest_dir, dataset):
+    if _execution_mode(manifest) != "authenticated_independent_rt_adapter":
+        raise ValueError("external-validity manifest is not an independent adapter")
+    context_path = _resolve_manifest_file(
+        manifest["rt_scene_manifest_path"],
+        manifest["rt_scene_manifest_sha256"],
+        manifest_dir,
+        "independent RT scene manifest",
+    )
+    config_path = _resolve_manifest_file(
+        manifest["engine_config_path"],
+        manifest["engine_config_sha256"],
+        manifest_dir,
+        "independent RT engine configuration",
+    )
+    from .external_adapters.differt_external_validity import load_engine_config
+
+    config = load_engine_config(config_path)
+    if (
+        config["engine_family"] != _manifest_engine_family(manifest)
+        or config["engine_revision"] != manifest["source_revision"]
+        or config["license_id"] != manifest["license_id"]
+    ):
+        raise ValueError(
+            "independent RT engine configuration differs from the adapter manifest"
+        )
+    source_assets = []
+    context = _load_rt_scene_manifest(
+        context_path,
+        dataset,
+        manifest,
+        resolved_source_assets=source_assets,
+    )
+    return context_path, config_path, context, tuple(source_assets)
+
+
 def _bind_rt_scene_manifest(command, dataset, output_dir):
     if command.count("--scene-manifest") != 1:
         raise RuntimeError("G8 command must bind exactly one RT scene manifest")
@@ -481,11 +827,16 @@ def _load_rt_scene_manifest(
 ):
     payload = read_strict_json(path)
     if adapter_manifest is not None:
-        if _execution_mode(adapter_manifest) != "authenticated_precomputed_rt_archive":
-            raise ValueError("independent RT scene manifest requires an archive manifest")
+        if _execution_mode(adapter_manifest) not in {
+            "authenticated_independent_rt_adapter",
+            "authenticated_precomputed_rt_archive",
+        }:
+            raise ValueError(
+                "independent RT scene manifest requires an independent-engine manifest"
+            )
         if payload.get("schema_version") != INDEPENDENT_RT_SCENE_SCHEMA:
             raise ValueError(
-                "precomputed RT archive requires the independent RT scene schema"
+                "independent RT evidence requires the independent RT scene schema"
             )
         return _validate_independent_rt_scene_manifest(
             payload,
@@ -495,7 +846,9 @@ def _load_rt_scene_manifest(
             resolved_source_assets,
         )
     if payload.get("schema_version") == INDEPENDENT_RT_SCENE_SCHEMA:
-        raise ValueError("independent RT scene manifest requires an archive manifest")
+        raise ValueError(
+            "independent RT scene manifest requires an independent-engine manifest"
+        )
     from .external_adapters.sionna_external_validity import load_scene_manifest
 
     return load_scene_manifest(path, dataset)
@@ -560,7 +913,15 @@ def _validate_independent_rt_scene_manifest(
         or payload["engine_revision"] != adapter_manifest["source_revision"]
         or payload["license_id"] != adapter_manifest["license_id"]
     ):
-        raise ValueError("independent RT scene provenance differs from the archive manifest")
+        raise ValueError(
+            "independent RT scene provenance differs from the adapter manifest"
+        )
+    if payload["configuration_sha256"] != adapter_manifest.get(
+        "engine_config_sha256"
+    ):
+        raise ValueError(
+            "independent RT scene configuration differs from the adapter manifest"
+        )
     expected_worlds = {
         (str(dataset.scene_ids[int(scene)]), int(world))
         for scene in dataset.indices_for_role("external_validation")

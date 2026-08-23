@@ -7,6 +7,7 @@ import importlib.metadata
 import json
 import os
 import platform
+import threading
 import re
 import sys
 from pathlib import Path
@@ -23,12 +24,15 @@ from .formal_runtime_integrity import (
 )
 
 
-QUALIFICATION_SCHEMA = "csi-pairs-formal-qualification-gate-v3-v6"
+QUALIFICATION_SCHEMA = "csi-pairs-formal-qualification-gate-v4-v6"
 FACTORIAL_SCHEMA = "csi-pairs-formal-factorial-gate-v2.1-v6"
 GATE_IDS = tuple(f"G{index}" for index in range(9))
 CLAIM_IDS = tuple(f"C{index}" for index in range(1, 14))
 ASSESSMENT_STATES = {"PASS", "FAIL", "BLOCKED", "NOT_ASSESSED"}
 RUNTIME_PROVENANCE_SCHEMA = "csi-pairs-runtime-provenance-v3"
+FIXTURE_RUNTIME_CACHE_ENV = "CSI_PAIRS_FIXTURE_RUNTIME_CACHE"
+_FIXTURE_RUNTIME_CACHE: dict[str, object] | None = None
+_FIXTURE_RUNTIME_CACHE_LOCK = threading.Lock()
 RUNTIME_PROVENANCE_FIELDS = {
     "schema_version",
     "source_tree_sha256",
@@ -109,6 +113,7 @@ def configure_reproducible_runtime() -> None:
     os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
     os.environ["PYTHONDONTWRITEBYTECODE"] = "1"
     sys.dont_write_bytecode = True
+    require_source_tree_without_bytecode()
     try:
         import torch
     except ImportError:
@@ -121,6 +126,25 @@ def configure_reproducible_runtime() -> None:
         torch.backends.cudnn.allow_tf32 = False
     if hasattr(torch.backends, "cuda") and hasattr(torch.backends.cuda, "matmul"):
         torch.backends.cuda.matmul.allow_tf32 = False
+
+
+def require_source_tree_without_bytecode(root: str | Path | None = None) -> None:
+    source_root = Path(root).resolve() if root is not None else Path(__file__).resolve().parent
+    forbidden = sorted(
+        path
+        for path in source_root.rglob("*.pyc")
+        if path.is_file()
+        and not any(
+            part.startswith(".venv-") or part.startswith(".runtime-")
+            for part in path.relative_to(source_root).parts
+        )
+    )
+    if forbidden:
+        relative = [path.relative_to(source_root).as_posix() for path in forbidden[:10]]
+        raise RuntimeError(
+            "project source tree contains forbidden bytecode; run only from a clean "
+            f"source checkout with python -B: {relative}"
+        )
 
 
 def _logical_lock_lines(requirements: Path) -> list[str]:
@@ -677,9 +701,35 @@ def _source_tree_sha256() -> str:
 
 
 def evidence_context(config: dict, dataset: FormalDataset, scientific_use: str) -> dict[str, object]:
+    global _FIXTURE_RUNTIME_CACHE
+
     ceiling = "FORBIDDEN" if dataset.is_fixture else scientific_use
     configure_reproducible_runtime()
-    runtime = validate_runtime_provenance(runtime_provenance())
+    cache_fixture_runtime = (
+        dataset.is_fixture and os.environ.get(FIXTURE_RUNTIME_CACHE_ENV) == "1"
+    )
+    if cache_fixture_runtime:
+        # A fixture can never become paper evidence. The first call still performs
+        # the full wheel/RECORD closure; later calls in the same smoke process reuse
+        # only that validated immutable payload.
+        with _FIXTURE_RUNTIME_CACHE_LOCK:
+            if _FIXTURE_RUNTIME_CACHE is None:
+                _FIXTURE_RUNTIME_CACHE = validate_runtime_provenance(
+                    runtime_provenance()
+                )
+            runtime = json.loads(
+                json.dumps(
+                    _FIXTURE_RUNTIME_CACHE,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                    ensure_ascii=True,
+                    allow_nan=False,
+                )
+            )
+    else:
+        with _FIXTURE_RUNTIME_CACHE_LOCK:
+            _FIXTURE_RUNTIME_CACHE = None
+        runtime = validate_runtime_provenance(runtime_provenance())
     runtime_payload = json.dumps(
         runtime,
         sort_keys=True,
@@ -723,6 +773,11 @@ def require_formal_qualification(
 ) -> dict:
     if not isinstance(gate, dict):
         raise RuntimeError("qualification gate must be an object")
+    if (
+        not dataset.is_fixture
+        and gate.get("scientific_use") != "FORMAL_EXPERIMENT_ALLOWED"
+    ):
+        raise RuntimeError("factorial requires scientific_use=FORMAL_EXPERIMENT_ALLOWED")
     required = {
         "schema_version",
         "passed",
@@ -739,6 +794,7 @@ def require_formal_qualification(
         "runtime_provenance_sha256",
         "runtime_provenance",
         "primary_route_contract",
+        "physical_response",
     }
     missing = required.difference(gate)
     if missing:
@@ -781,6 +837,68 @@ def require_formal_qualification(
         raise RuntimeError("qualification teacher checkpoint is missing")
     if sha256_file(teacher_checkpoint) != gate["teacher_checkpoint_sha256"]:
         raise RuntimeError("qualification teacher checkpoint hash mismatch")
+    physical = gate["physical_response"]
+    if not isinstance(physical, dict):
+        raise RuntimeError("qualification physical_response must be an object")
+    if dataset.is_fixture:
+        if (
+            physical.get("status") != "NOT_ASSESSED_FIXTURE_FORBIDDEN"
+            or physical.get("formal_physical_response_required_for_nonfixture") is not True
+        ):
+            raise RuntimeError("fixture qualification weakened physical-response exclusion")
+    else:
+        from .formal_action_inverse_response import (
+            PHYSICAL_RESPONSE_CONTRACT,
+            load_physical_response_checkpoint,
+            load_physical_response_config,
+        )
+
+        checkpoint = Path(str(physical.get("checkpoint", "")))
+        bindings = physical.get("bindings")
+        physical_config = physical.get("physical_config")
+        physical_config_path = (
+            Path(__file__).resolve().parent / "configs" / "physical_response_v1.json"
+        )
+        if (
+            physical.get("status") != "FORMAL_QUALIFICATION_MODEL_FIT"
+            or physical.get("contract") != PHYSICAL_RESPONSE_CONTRACT
+            or physical.get("checkpoint_round_trip_valid") is not True
+            or checkpoint.is_symlink()
+            or not checkpoint.is_file()
+            or not isinstance(bindings, dict)
+            or physical_config != load_physical_response_config()
+            or physical.get("physical_config_sha256")
+            != sha256_file(physical_config_path)
+            or int(physical_config.get("selection_position_stride", -1)) != 1
+            or physical_config.get("world_scope") != "all"
+        ):
+            raise RuntimeError("qualification physical-response contract is invalid")
+        if sha256_file(checkpoint) != physical.get("checkpoint_sha256"):
+            raise RuntimeError("qualification physical-response checkpoint hash mismatch")
+        model_source = Path(str(bindings.get("model_source", "")))
+        candidate_config = Path(str(bindings.get("candidate_config", "")))
+        qualification_root = teacher_checkpoint.resolve().parent.parent
+        physical_checkpoint_root = (
+            qualification_root / "checkpoints" / "qualification_probes"
+        ).resolve()
+        if (
+            bindings.get("dataset_sha256") != sha256_file(dataset.source_path)
+            or bindings.get("formal_config_sha256") != expected["config_sha256"]
+            or bindings.get("physical_config_sha256")
+            != sha256_file(physical_config_path)
+            or candidate_config.is_symlink()
+            or not candidate_config.is_file()
+            or sha256_file(candidate_config)
+            != bindings.get("candidate_config_sha256")
+            or model_source.is_symlink()
+            or not model_source.is_file()
+            or sha256_file(model_source) != bindings.get("model_source_sha256")
+            or not checkpoint.resolve().is_relative_to(physical_checkpoint_root)
+        ):
+            raise RuntimeError("qualification physical-response binding mismatch")
+        _model, checkpoint_bindings = load_physical_response_checkpoint(checkpoint)
+        if checkpoint_bindings != bindings:
+            raise RuntimeError("qualification physical-response payload binding mismatch")
     return gate
 
 

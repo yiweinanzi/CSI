@@ -26,7 +26,16 @@ def multichannel_spatial_features(array: np.ndarray) -> np.ndarray:
     if values.ndim != 3:
         raise ValueError("multichannel map/action must have shape [channel, row, column]")
     return np.concatenate(
-        [np.concatenate((spatial_pyramid(channel), _gradient_summary(channel))) for channel in values]
+        [
+            np.concatenate(
+                (
+                    spatial_pyramid(channel),
+                    _gradient_summary(channel),
+                    _coordinate_summary(channel),
+                )
+            )
+            for channel in values
+        ]
     )
 
 
@@ -80,25 +89,168 @@ def protocol_response_features(
     include_map: bool = True,
 ) -> np.ndarray:
     """Fixed diagnostic features with the same V6 input allowlist as F/P."""
+    map_features = (
+        multichannel_spatial_features(np.asarray(source_map, dtype=np.float64))
+        if include_map
+        else None
+    )
+    action_features = (
+        multichannel_spatial_features(np.asarray(typed_action, dtype=np.float64))
+        if include_action
+        else None
+    )
+    return assemble_protocol_response_features(
+        visible_patches,
+        map_features,
+        action_features,
+        radio_config,
+        mask,
+        query,
+        position=position,
+        include_csi=include_csi,
+    )
+
+
+def assemble_protocol_response_features(
+    visible_patches: np.ndarray,
+    map_features: np.ndarray | None,
+    action_features: np.ndarray | None,
+    radio_config: np.ndarray,
+    mask: np.ndarray,
+    query: int,
+    *,
+    position: np.ndarray | None = None,
+    include_csi: bool = True,
+) -> np.ndarray:
+    """Assemble the diagnostic vector from already computed spatial blocks."""
     patches = np.asarray(visible_patches, dtype=np.float64)
     mask_array = np.asarray(mask, dtype=np.bool_)
     if patches.ndim != 2 or mask_array.shape != (patches.shape[0],):
         raise ValueError("visible patches/mask have incompatible shapes")
     blocks: list[np.ndarray] = []
+    csi_summary = None
     if include_csi:
         blocks.append(patches.ravel())
-    if include_map:
-        blocks.append(multichannel_spatial_features(np.asarray(source_map, dtype=np.float64)))
-    if include_action:
-        blocks.append(multichannel_spatial_features(np.asarray(typed_action, dtype=np.float64)))
+        csi_summary = _chunk_summary(patches.ravel(), 8)
+    if map_features is not None:
+        blocks.append(np.asarray(map_features, dtype=np.float64).ravel())
+    if action_features is not None:
+        action = np.asarray(action_features, dtype=np.float64).ravel()
+        blocks.append(action)
     blocks.append(np.asarray(radio_config, dtype=np.float64).ravel())
     blocks.append(mask_array.astype(np.float64))
     query_one_hot = np.zeros(patches.shape[0], dtype=np.float64)
     query_one_hot[int(query)] = 1.0
     blocks.append(query_one_hot)
+    map_summary = (
+        _chunk_summary(np.asarray(map_features, dtype=np.float64), 8)
+        if map_features is not None
+        else None
+    )
+    action_summary = (
+        _chunk_summary(np.asarray(action_features, dtype=np.float64), 8)
+        if action_features is not None
+        else None
+    )
+    if csi_summary is not None:
+        blocks.append(np.outer(query_one_hot, csi_summary).ravel())
+    if action_summary is not None:
+        blocks.append(np.outer(query_one_hot, action_summary).ravel())
+    if csi_summary is not None and map_summary is not None:
+        blocks.append(np.outer(csi_summary, map_summary).ravel())
+    if csi_summary is not None and action_summary is not None:
+        blocks.append(np.outer(csi_summary, action_summary).ravel())
+    if map_summary is not None and action_summary is not None:
+        blocks.append(np.outer(map_summary, action_summary).ravel())
     if position is not None:
-        blocks.append(np.asarray(position, dtype=np.float64).ravel())
+        coordinate = np.asarray(position, dtype=np.float64).ravel()
+        blocks.append(coordinate)
+        if action_features is not None:
+            blocks.append(np.outer(coordinate, _chunk_summary(action, 8)).ravel())
     return np.concatenate(blocks)
+
+
+def assemble_protocol_response_feature_matrix(
+    visible_patch_rows: np.ndarray,
+    map_features: np.ndarray | None,
+    action_features: np.ndarray | None,
+    radio_config: np.ndarray,
+    masks: np.ndarray,
+    queries: np.ndarray,
+    *,
+    position: np.ndarray | None = None,
+    include_csi: bool = True,
+) -> np.ndarray:
+    """Vectorized equivalent of assemble_protocol_response_features."""
+    patches = np.asarray(visible_patch_rows, dtype=np.float64)
+    mask_rows = np.asarray(masks, dtype=np.bool_)
+    query_rows = np.asarray(queries, dtype=np.int64).reshape(-1)
+    if patches.ndim != 3:
+        raise ValueError("visible patch rows must have shape [batch,patch,value]")
+    if mask_rows.shape != patches.shape[:2] or query_rows.shape != (patches.shape[0],):
+        raise ValueError("batched visible patches, masks, and queries are incompatible")
+    if np.any(query_rows < 0) or np.any(query_rows >= patches.shape[1]):
+        raise ValueError("batched response query is out of range")
+    count = patches.shape[0]
+    one_hot = np.zeros((count, patches.shape[1]), dtype=np.float64)
+    one_hot[np.arange(count), query_rows] = 1.0
+    blocks: list[np.ndarray] = []
+    csi_summary = None
+    if include_csi:
+        flattened = patches.reshape(count, -1)
+        blocks.append(flattened)
+        csi_summary = np.vstack(
+            [_chunk_summary(row, 8) for row in flattened]
+        )
+    map_vector = (
+        np.asarray(map_features, dtype=np.float64).ravel()
+        if map_features is not None
+        else None
+    )
+    action_vector = (
+        np.asarray(action_features, dtype=np.float64).ravel()
+        if action_features is not None
+        else None
+    )
+    if map_vector is not None:
+        blocks.append(np.broadcast_to(map_vector, (count, map_vector.size)))
+    if action_vector is not None:
+        blocks.append(np.broadcast_to(action_vector, (count, action_vector.size)))
+    radio = np.asarray(radio_config, dtype=np.float64).ravel()
+    blocks.append(np.broadcast_to(radio, (count, radio.size)))
+    blocks.append(mask_rows.astype(np.float64))
+    blocks.append(one_hot)
+    map_summary = _chunk_summary(map_vector, 8) if map_vector is not None else None
+    action_summary = (
+        _chunk_summary(action_vector, 8) if action_vector is not None else None
+    )
+    if csi_summary is not None:
+        blocks.append((one_hot[:, :, None] * csi_summary[:, None, :]).reshape(count, -1))
+    if action_summary is not None:
+        blocks.append(
+            (
+                one_hot[:, :, None]
+                * np.broadcast_to(action_summary, (count, 1, action_summary.size))
+            ).reshape(count, -1)
+        )
+    if csi_summary is not None and map_summary is not None:
+        blocks.append((csi_summary[:, :, None] * map_summary[None, None, :]).reshape(count, -1))
+    if csi_summary is not None and action_summary is not None:
+        blocks.append(
+            (csi_summary[:, :, None] * action_summary[None, None, :]).reshape(count, -1)
+        )
+    if map_summary is not None and action_summary is not None:
+        interaction = np.outer(map_summary, action_summary).ravel()
+        blocks.append(np.broadcast_to(interaction, (count, interaction.size)))
+    if position is not None:
+        coordinate = np.asarray(position, dtype=np.float64).ravel()
+        blocks.append(np.broadcast_to(coordinate, (count, coordinate.size)))
+        if action_summary is not None:
+            coordinate_action = np.outer(coordinate, action_summary).ravel()
+            blocks.append(
+                np.broadcast_to(coordinate_action, (count, coordinate_action.size))
+            )
+    return np.column_stack(blocks)
 
 
 def response_features(
@@ -145,6 +297,40 @@ def _gradient_summary(image: np.ndarray) -> np.ndarray:
             np.sqrt(np.mean(row_gradient**2)),
             np.sqrt(np.mean(column_gradient**2)),
         ],
+        dtype=np.float64,
+    )
+
+
+def _coordinate_summary(image: np.ndarray) -> np.ndarray:
+    values = np.asarray(image, dtype=np.float64)
+    rows, columns = values.shape
+    row_axis = np.linspace(-1.0, 1.0, rows, dtype=np.float64)
+    column_axis = np.linspace(-1.0, 1.0, columns, dtype=np.float64)
+    yy, xx = np.meshgrid(row_axis, column_axis, indexing="ij")
+    weight = np.abs(values)
+    support = weight > 1.0e-12
+    mass = float(np.sum(weight))
+    if mass <= 0.0:
+        return np.zeros(13, dtype=np.float64)
+    center_x = float(np.sum(weight * xx) / mass)
+    center_y = float(np.sum(weight * yy) / mass)
+    support_rows, support_columns = np.nonzero(support)
+    return np.asarray(
+        (
+            float(np.mean(support)),
+            float(np.log1p(mass)),
+            float(np.sum(values) / mass),
+            float(np.mean(weight[support])),
+            float(np.max(weight[support])),
+            center_x,
+            center_y,
+            float(np.sqrt(np.sum(weight * (xx - center_x) ** 2) / mass)),
+            float(np.sqrt(np.sum(weight * (yy - center_y) ** 2) / mass)),
+            float(column_axis[int(support_columns.min())]),
+            float(column_axis[int(support_columns.max())]),
+            float(row_axis[int(support_rows.min())]),
+            float(row_axis[int(support_rows.max())]),
+        ),
         dtype=np.float64,
     )
 

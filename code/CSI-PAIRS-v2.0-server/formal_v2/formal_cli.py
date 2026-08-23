@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import argparse
+import fcntl
 import json
+import os
 import secrets
 import sys
 from pathlib import Path
@@ -127,6 +129,11 @@ def build_parser() -> argparse.ArgumentParser:
             child.add_argument("--qualification-gate", help="defaults to OUTPUT/qualification/gate.json")
         if command == "qualify":
             child.add_argument("--data-verification-gate", help="defaults to OUTPUT/data_verification/gate.json")
+            child.add_argument(
+                "--resume",
+                action="store_true",
+                help="resume one incomplete qualification from its authenticated teacher checkpoint",
+            )
         if command == "verify-data":
             child.add_argument("--verifier-manifest", required=True)
         if command == "export-data-verification":
@@ -228,7 +235,7 @@ def main(argv: list[str] | None = None) -> int:
             file=sys.stderr,
         )
         return 2
-    output_lock: Path | None = None
+    output_lock: _OutputLock | None = None
     try:
         if args.command == "make-fixture":
             source_banks_per_role = int(args.source_banks_per_role)
@@ -306,6 +313,12 @@ def main(argv: list[str] | None = None) -> int:
                 ]
             ),
             minimum_banks_per_source_role=int(config["data"]["minimum_banks_per_source_role"]),
+            minimum_independent_source_final_unseen_clusters=int(
+                config["data"]["minimum_independent_source_final_unseen_clusters"]
+            ),
+            minimum_independent_external_validation_clusters=int(
+                config["data"]["minimum_independent_external_validation_clusters"]
+            ),
             minimum_unique_support_positions_per_target_city=max(
                 int(value) for value in config["localization"]["label_budgets"]
             ),
@@ -340,6 +353,14 @@ def main(argv: list[str] | None = None) -> int:
                 raise RuntimeError("all requires an existing prepared run root")
         elif args.command == "export-data-verification":
             pass
+        elif args.command == "qualify" and args.resume:
+            qualification_dir = output / "qualification"
+            if not qualification_dir.is_dir() or qualification_dir.is_symlink():
+                raise RuntimeError("qualify --resume requires an incomplete qualification directory")
+            if (qualification_dir / "gate.json").exists() or (
+                qualification_dir / "manifest.json"
+            ).exists():
+                raise RuntimeError("qualify --resume refuses a completed qualification")
         else:
             _reserve_command_output(args.command, output)
             output.mkdir(parents=True, exist_ok=True)
@@ -366,6 +387,7 @@ def main(argv: list[str] | None = None) -> int:
                 output,
                 read_strict_json(verification_path),
                 data_verification_gate_path=verification_path,
+                resume=bool(args.resume),
             )
         elif args.command == "verify-data":
             from .formal_data_verification import run_data_verification
@@ -511,11 +533,12 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     finally:
         if output_lock is not None:
-            output_lock.unlink(missing_ok=True)
+            output_lock.release()
 
 
 def _prepare_full_run(config, dataset, output, args, preflight):
     from .formal_data_verification import run_data_verification
+    from .formal_external_validity import run_external_validity
     from .formal_literature import run_literature_resource_gate
     from .formal_qualification import run_formal_qualification
     from .formal_resources import verify_waibu_resources
@@ -559,6 +582,18 @@ def _prepare_full_run(config, dataset, output, args, preflight):
     _require_preapproval_pass(
         qualification,
         "G1/G2 Response qualification",
+        dataset,
+        allow_fixture_failure=True,
+    )
+    external_validity = run_external_validity(
+        config,
+        dataset,
+        args.external_validity_manifest,
+        output,
+    )
+    _require_preapproval_pass(
+        external_validity,
+        "G8 independent external validity",
         dataset,
         allow_fixture_failure=True,
     )
@@ -654,18 +689,6 @@ def _run_authorized_full_chain(config, dataset, output, args, preflight):
         "scene-ID audit",
         dataset,
     )
-    from .formal_external_validity import run_external_validity
-
-    _require_full_stage(
-        run_external_validity(
-            config,
-            dataset,
-            args.external_validity_manifest,
-            output,
-        ),
-        "external validity",
-        dataset,
-    )
     from .formal_claim_controls import run_retention_audit, run_shuffled_pair_control
 
     _require_full_stage(
@@ -708,17 +731,73 @@ def _require_full_stage(result, label, dataset):
         raise RuntimeError(f"{label} failed; the authorized chain stopped")
 
 
-def _acquire_output_lock(output_root: Path) -> Path:
+class _OutputLock:
+    def __init__(self, path: Path, guard_path: Path, guard_handle) -> None:
+        self.path = path
+        self.guard_path = guard_path
+        self.guard_handle = guard_handle
+        self.released = False
+
+    def is_file(self) -> bool:
+        return self.path.is_file()
+
+    def unlink(self, missing_ok: bool = False) -> None:
+        self.release(missing_ok=missing_ok)
+
+    def release(self, missing_ok: bool = True) -> None:
+        if self.released:
+            if not missing_ok:
+                raise FileNotFoundError(self.path)
+            return
+        try:
+            self.path.unlink(missing_ok=missing_ok)
+        finally:
+            fcntl.flock(self.guard_handle.fileno(), fcntl.LOCK_UN)
+            self.guard_handle.close()
+            self.released = True
+
+
+def _acquire_output_lock(output_root: Path) -> _OutputLock:
     output_root = output_root.resolve()
     output_root.parent.mkdir(parents=True, exist_ok=True)
     lock_path = output_root.parent / f".{output_root.name}.csi-pairs-operation.lock"
+    guard_path = lock_path.with_name(f"{lock_path.name}.guard")
+    if guard_path.is_symlink():
+        raise RuntimeError(f"operation lock guard cannot be a symlink: {guard_path}")
+    descriptor = os.open(
+        guard_path,
+        os.O_RDWR | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0),
+        0o600,
+    )
+    guard_handle = os.fdopen(descriptor, "r+b", buffering=0)
     try:
-        lock_path.touch(exist_ok=False)
-    except FileExistsError as error:
+        fcntl.flock(guard_handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError as error:
+        guard_handle.close()
         raise FileExistsError(
             f"refusing concurrent V2 output use; operation lock exists: {lock_path}"
         ) from error
-    return lock_path
+    try:
+        if lock_path.is_symlink():
+            raise RuntimeError(f"operation lock cannot be a symlink: {lock_path}")
+        owner = {
+            "schema_version": "csi-pairs-v6-operation-lock-v2",
+            "pid": os.getpid(),
+            "output_root": str(output_root),
+        }
+        temporary = lock_path.with_name(
+            f".{lock_path.name}.{os.getpid()}.tmp"
+        )
+        temporary.write_text(
+            json.dumps(owner, sort_keys=True, ensure_ascii=True) + "\n",
+            encoding="ascii",
+        )
+        os.replace(temporary, lock_path)
+        return _OutputLock(lock_path, guard_path, guard_handle)
+    except Exception:
+        fcntl.flock(guard_handle.fileno(), fcntl.LOCK_UN)
+        guard_handle.close()
+        raise
 
 
 def _sionna_export_lock_root(output: Path) -> Path:

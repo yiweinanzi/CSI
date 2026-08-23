@@ -101,6 +101,12 @@ def run_shuffled_pair_control(
         minimum_banks_per_source_role=int(
             config["data"]["minimum_banks_per_source_role"]
         ),
+        minimum_independent_source_final_unseen_clusters=int(
+            config["data"]["minimum_independent_source_final_unseen_clusters"]
+        ),
+        minimum_independent_external_validation_clusters=int(
+            config["data"]["minimum_independent_external_validation_clusters"]
+        ),
     )
     evidence = evidence_context(
         config, dataset, "FORBIDDEN" if dataset.is_fixture else "CANDIDATE_NOT_CLAIM"

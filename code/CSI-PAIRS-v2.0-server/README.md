@@ -32,7 +32,7 @@ code is not imported, copied, or required by this bundle.
 - `sha256sum` for bundle verification.
 
 For the reviewed two-A100 transfer layout, frozen raw OSM cache, deterministic
-34-bank data generation, and exact server commands, use
+203-bank V4 data generation, and exact server commands, use
 `formal_v2/A100_RUNBOOK.md`.
 
 ## 2. Verify and install
@@ -69,6 +69,7 @@ Use a new output path:
 ```bash
 PYTHONDONTWRITEBYTECODE=1 "$PWD/.venv/bin/python" -m formal_v2.scripts.check_python_syntax formal_v2
 PYTHONDONTWRITEBYTECODE=1 "$PWD/.venv/bin/python" -m unittest discover -s formal_v2/tests -v
+PYTHONDONTWRITEBYTECODE=1 "$PWD/.venv/bin/python" -m pytest -p no:cacheprovider formal_v2/tests -v
 ```
 
 Expected software outcome:
@@ -86,8 +87,9 @@ PASS or experimental evidence.
 
 Stage-0 samples an independent, without-replacement 75% patch mask for every example at every
 optimization step. Formal patch grids must contain a multiple of four patches so the mask
-cardinality is exact. The checkpoint records this sampler contract and old fixed-bank Stage-0
-checkpoints are rejected.
+cardinality is exact. The checkpoint records this sampler contract together with the frozen
+`source_encoder_train` per-channel CSI mean/scale used by the physical target transform
+`Psi(H)`. Old fixed-bank or unnormalized Stage-0 checkpoints are rejected.
 
 ## 3.1 External papers, baselines, and Sionna facilities
 
@@ -239,16 +241,17 @@ Review the generated `data_contract.json`, the engine/config hash, license recor
 Formal execution is a two-phase protocol. `prepare-full-run` validates every late manifest, runtime
 executable, license acknowledgement, credential name, pre-staged input, disk budget, CUDA GPU budget,
 and output path before creating run artifacts. It then runs resources, G0, independent RT calibration,
-independent data regeneration, and G1/G2 in that order. Only a successful preparation writes
+independent data regeneration, G1/G2, and independent G8 external validity in that order. Only a
+successful preparation writes
 `OUTPUT/approval/request.json` and stops. The request binds a random run nonce plus the config,
 dataset, source tree, core and external runtimes, GPU inventory, compute plan, teacher checkpoint, all
 input manifests, pre-staged inputs, and every early gate hash.
 
-The compute-plan JSON has schema `csi-pairs-full-run-compute-plan-v1` and these exact fields:
+The compute-plan JSON has schema `csi-pairs-full-run-compute-plan-v2` and these exact fields:
 
 ```json
 {
-  "schema_version": "csi-pairs-full-run-compute-plan-v1",
+  "schema_version": "csi-pairs-full-run-compute-plan-v2",
   "profile": "formal",
   "estimated_output_bytes": 0,
   "minimum_free_disk_bytes": 0,
@@ -258,6 +261,7 @@ The compute-plan JSON has schema `csi-pairs-full-run-compute-plan-v1` and these 
   "minimum_gpu_memory_bytes": 0,
   "estimated_gpu_hours": 0,
   "authorized_gpu_hours": 0,
+  "component_estimates": [],
   "required_environment_variables": [],
   "license_acknowledgements": []
 }
@@ -265,7 +269,11 @@ The compute-plan JSON has schema `csi-pairs-full-run-compute-plan-v1` and these 
 
 The zeros are placeholders, not an executable budget. Formal values must be positive, authorized
 time and GPU hours must cover the estimates, free disk must cover the dataset plus estimated outputs,
-and at least one CUDA GPU is required. `license_acknowledgements` must include every identifier or URL
+and exactly two CUDA GPUs are required. A formal `component_estimates` list must contain exactly one
+measurement-backed row for each of `data_qualification_and_g8`, `teacher`, `factorial`, `evaluation`,
+`baselines`, `controls`, `io_and_checkpoints`, and `failure_budget`. Each row binds its measurement
+artifact by path and SHA-256 and declares component output bytes, wall time, and GPU hours; the failure
+budget must be positive. `license_acknowledgements` must include every identifier or URL
 from the selected resource and adapter manifests. Secret values are never recorded; only required
 environment-variable names and their presence enter the preflight.
 
@@ -307,14 +315,16 @@ CSI_PAIRS_HUMAN_APPROVAL_MANIFEST=/absolute/path/formal-001-human-approval.json
 
 `all` resumes only that authenticated prepared root. It rejects Boolean-only authorization, stale or
 expired approval, changed inputs/runtime/gates/teacher/compute plan, cross-run replay, and consumed
-approval. It does not rerun G0, RT, data verification, or G1/G2 after approval. Any formal stage
+approval. It does not rerun G0, RT, data verification, G1/G2, or G8 after approval. Any formal stage
 failure stops the chain. The deprecated `--approve-full-experiment` flag and
 `CSI_PAIRS_APPROVE_FULL_EXPERIMENT` variable have no authorization power.
 
 The script defaults to the shipped resource V3, shuffled-pair V3, retention V3, and built-in scene-ID
-manifests. Formal scenes, independent RT inputs, external-validity input, non-fixture Wi-GATr and
-PMNet checkpoints/results, installed Wi-GATr/Sionna runtimes, licenses, CUDA capacity, and reviewed
-budget remain external and mandatory. Missing any one blocks preparation before training.
+manifests. Formal scenes, independent RT inputs, external-validity input, installed Wi-GATr/Sionna
+runtimes, licenses, CUDA capacity, and reviewed budget remain mandatory. Wi-GATr and PMNet use the
+authenticated shipped adapter manifest and generate their source-only checkpoints/results inside the
+authorized run; pre-generated result-only checkpoints are neither required nor accepted as a
+substitute. Missing any required preflight input blocks preparation before training.
 
 Never reuse an output directory except for the authenticated `prepare-full-run` to `all` transition.
 Every individual evidence-producing stage holds an exclusive run-root operation lock. Fixture paths

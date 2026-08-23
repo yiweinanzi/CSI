@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import tempfile
 import unittest
 from pathlib import Path
@@ -13,22 +14,29 @@ from formal_v2.formal_dataset import FormalDataset
 from formal_v2.formal_factorial import (
     ARM_FACTORS,
     _build_corpus,
+    _deterministic_adaptive_avg_pool2d,
+    _identity_batch,
     _loss_components,
     _loss_weights,
     _make_plan,
     _measure_execution,
     _new_model,
     _response_batch,
+    _normalized_action,
+    _normalized_map,
     _training_normalization,
+    _train_arm,
 )
 from formal_v2.formal_fixture import write_nonscientific_fixture
 from formal_v2.formal_protocol import PatchSpec
+from formal_v2.formal_protocol import typed_signed_edit
 from formal_v2.formal_routing import fit_route_normalization
 from formal_v2.formal_statistics import (
     exact_factorial_utilities,
     hierarchical_factorial_interval,
 )
 from formal_v2.formal_teacher import train_teacher_bundle
+from formal_v2.formal_io import read_strict_json
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -144,6 +152,55 @@ class ArmExecutionMutationTests(unittest.TestCase):
         )
         cls.plan = _make_plan(cls.corpus, 4, 37, 0)
 
+    def test_compact_corpus_sequences_enumerate_the_original_cartesian_contract(self):
+        for scene in self.corpus.scenes:
+            edges = tuple(self.dataset.directed_edges(scene))
+            expected_endpoint = tuple(
+                (world, position)
+                for world in range(self.dataset.world_count)
+                for position in range(self.dataset.position_count)
+            )
+            expected_response = tuple(
+                (
+                    edge.source_world,
+                    edge.target_world,
+                    position,
+                    query,
+                )
+                for edge in edges
+                for position in range(self.dataset.position_count)
+                for query in range(self.corpus.teacher.patch_spec.patch_count)
+            )
+            self.assertEqual(tuple(self.corpus.endpoint[scene]), expected_endpoint)
+            self.assertEqual(tuple(self.corpus.response_all[scene]), expected_response)
+            expected_active = tuple(
+                unit
+                for unit in expected_response
+                if self.corpus.routed.response_route[(scene, *unit)] == 2
+            )
+            expected_null = tuple(
+                unit
+                for unit in expected_response
+                if self.corpus.routed.response_route[(scene, *unit)] == 0
+            )
+            self.assertEqual(tuple(self.corpus.response_active[scene]), expected_active)
+            self.assertEqual(tuple(self.corpus.response_null[scene]), expected_null)
+            for source in range(self.dataset.world_count):
+                expected_targets = tuple(
+                    sorted(
+                        edge.target_world
+                        for edge in edges
+                        if edge.source_world == source
+                    )
+                )
+                self.assertEqual(
+                    self.corpus.response_targets_by_source_query[(scene, source, 0, 0)],
+                    expected_targets,
+                )
+        self.assertFalse(
+            any(isinstance(values, list) for values in self.corpus.response_all.values())
+        )
+
     @classmethod
     def tearDownClass(cls):
         cls.temporary.cleanup()
@@ -159,12 +216,112 @@ class ArmExecutionMutationTests(unittest.TestCase):
                     )
                 )
 
+    def test_spatial_caches_match_independent_adaptive_pool_and_role_scope(self):
+        expected_map_keys = {
+            (int(scene), world)
+            for scene in self.corpus.scenes
+            for world in range(self.dataset.world_count)
+        }
+        expected_action_keys = {
+            (int(scene), int(edge.source_world), int(edge.target_world))
+            for scene in self.corpus.scenes
+            for edge in self.dataset.directed_edges(int(scene))
+        }
+        self.assertEqual(set(self.corpus.normalized_maps), expected_map_keys)
+        self.assertEqual(set(self.corpus.normalized_actions), expected_action_keys)
+
+        def expected(values):
+            tensor = torch.as_tensor(values, dtype=torch.float32)
+            if tensor.shape[-2] >= 16 and tensor.shape[-1] >= 16:
+                tensor = torch.nn.functional.adaptive_avg_pool2d(tensor, (16, 16))
+            return tensor.numpy()
+
+        map_key = next(iter(sorted(expected_map_keys)))
+        direct_map = _normalized_map(
+            self.corpus.normalization, self.dataset.maps[map_key]
+        )
+        np.testing.assert_allclose(
+            self.corpus.normalized_maps[map_key],
+            expected(direct_map),
+            rtol=0.0,
+            atol=1e-6,
+        )
+        action_key = next(iter(sorted(expected_action_keys)))
+        scene, source, target = action_key
+        direct_action = _normalized_action(
+            self.corpus.normalization,
+            typed_signed_edit(
+                self.dataset.maps[scene, source],
+                self.dataset.maps[scene, target],
+                self.dataset.map_channel_names,
+                self.corpus.material_categories,
+            ),
+        )
+        np.testing.assert_allclose(
+            self.corpus.normalized_actions[action_key],
+            expected(direct_action),
+            rtol=0.0,
+            atol=1e-6,
+        )
+        self.assertFalse(self.corpus.normalized_maps[map_key].flags.writeable)
+        self.assertFalse(self.corpus.normalized_actions[action_key].flags.writeable)
+
+    def test_cached_map_and_action_batches_match_direct_model_preprocessing(self):
+        unit = self.plan.response_all[0]
+        entry = self.corpus.teacher.mask_bank[self.plan.response_all_masks[0]]
+        scene, source, target, position, query = unit
+        cached = _response_batch(self.corpus, [unit], [entry])
+        model = _new_model(self.config, self.corpus, 20270815).eval()
+        direct_map = torch.as_tensor(
+            _normalized_map(
+                self.corpus.normalization, self.dataset.maps[scene, source]
+            )[None],
+            dtype=torch.float32,
+        )
+        direct_action = torch.as_tensor(
+            _normalized_action(
+                self.corpus.normalization,
+                typed_signed_edit(
+                    self.dataset.maps[scene, source],
+                    self.dataset.maps[scene, target],
+                    self.dataset.map_channel_names,
+                    self.corpus.material_categories,
+                ),
+            )[None],
+            dtype=torch.float32,
+        )
+        with torch.no_grad():
+            direct_state = model.state(
+                cached["visible"], direct_map, cached["radio"], cached["masks"]
+            )
+            cached_state = model.state(
+                cached["visible"], cached["maps"], cached["radio"], cached["masks"]
+            )
+            direct_outputs = model.predict(
+                direct_state, direct_action, cached["query"]
+            )
+            cached_outputs = model.predict(
+                cached_state, cached["action"], cached["query"]
+            )
+        torch.testing.assert_close(direct_state, cached_state, rtol=0.0, atol=1e-6)
+        for direct, cached_output in zip(direct_outputs, cached_outputs, strict=True):
+            torch.testing.assert_close(direct, cached_output, rtol=0.0, atol=1e-6)
+
+    def test_numpy_pool_matches_torch_reference_for_nondivisible_grids(self):
+        for shape in ((2, 3, 32, 32), (1, 2, 19, 23), (3, 17, 29)):
+            values = np.arange(np.prod(shape), dtype=np.float32).reshape(shape)
+            actual = _deterministic_adaptive_avg_pool2d(values, (16, 16))
+            expected = torch.nn.functional.adaptive_avg_pool2d(
+                torch.from_numpy(values), (16, 16)
+            ).numpy()
+            np.testing.assert_allclose(actual, expected, rtol=0.0, atol=1e-5)
+
     def test_disabled_branches_are_not_forwarded_or_profiled_by_proxy(self):
         expected = {
             "endpoint": (2, 2),
             "alignment": (10, 10),
-            "response": (5, 7),
-            "full": (13, 15),
+            "response": (5, 10),
+            "full": (13, 18),
         }
         measured_flops = {}
         for arm, (alignment, response) in ARM_FACTORS.items():
@@ -213,6 +370,132 @@ class ArmExecutionMutationTests(unittest.TestCase):
         self.assertTrue(torch.equal(matched["action"], shuffled["action"]))
         self.assertTrue(torch.equal(matched["source_z"], shuffled["source_z"]))
         self.assertFalse(torch.equal(matched["target_z"], shuffled["target_z"]))
+
+    def test_factorial_resume_matches_uninterrupted_parameters_and_trace(self):
+        config = copy.deepcopy(self.config)
+        config["factorial"]["steps"] = 4
+        seed = 20270823
+        pilot = {
+            "alignment_scale": 1.0,
+            "response_scale": 1.0,
+            "alignment_null_tolerance": 1.0,
+        }
+        uninterrupted_trace = []
+        uninterrupted, uninterrupted_row = _train_arm(
+            config,
+            self.corpus,
+            seed,
+            "endpoint",
+            pilot,
+            loss_trace=uninterrupted_trace,
+            device="cpu",
+        )
+        context = {
+            "schema_version": "test-factorial-resume-context-v1",
+            "dataset_sha256": "a" * 64,
+            "config_sha256": "b" * 64,
+            "source_tree_sha256": "c" * 64,
+            "teacher_checkpoint_sha256": "d" * 64,
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary) / "seed" / "endpoint"
+            interrupted_trace = []
+            with self.assertRaisesRegex(RuntimeError, "durable checkpoint"):
+                _train_arm(
+                    config,
+                    self.corpus,
+                    seed,
+                    "endpoint",
+                    pilot,
+                    loss_trace=interrupted_trace,
+                    device="cpu",
+                    checkpoint_path=base,
+                    checkpoint_context=context,
+                    checkpoint_interval_steps=1,
+                    stop_after_step=2,
+                )
+            pointer = read_strict_json(
+                base.with_name("endpoint.latest.json")
+            )
+            self.assertEqual(pointer["status"], "IN_PROGRESS")
+            self.assertEqual(pointer["completed_steps"], 2)
+
+            resumed_trace = []
+            resumed, resumed_row = _train_arm(
+                config,
+                self.corpus,
+                seed,
+                "endpoint",
+                pilot,
+                loss_trace=resumed_trace,
+                device="cpu",
+                checkpoint_path=base,
+                checkpoint_context=context,
+                checkpoint_interval_steps=1,
+            )
+            pointer = read_strict_json(
+                base.with_name("endpoint.latest.json")
+            )
+            self.assertEqual(pointer["status"], "COMPLETE")
+            self.assertEqual(pointer["completed_steps"], 4)
+
+        for name, expected in uninterrupted.state_dict().items():
+            torch.testing.assert_close(
+                resumed.state_dict()[name], expected, rtol=0.0, atol=0.0
+            )
+        self.assertEqual(resumed_trace, uninterrupted_trace)
+        self.assertEqual(
+            {key: value for key, value in resumed_row.items() if key != "elapsed_seconds"},
+            {
+                key: value
+                for key, value in uninterrupted_row.items()
+                if key != "elapsed_seconds"
+            },
+        )
+
+    def test_factorial_resume_rejects_tampered_checkpoint_before_loading(self):
+        config = copy.deepcopy(self.config)
+        config["factorial"]["steps"] = 3
+        pilot = {
+            "alignment_scale": 1.0,
+            "response_scale": 1.0,
+            "alignment_null_tolerance": 1.0,
+        }
+        context = {
+            "schema_version": "test-factorial-resume-context-v1",
+            "dataset_sha256": "a" * 64,
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary) / "seed" / "endpoint"
+            with self.assertRaisesRegex(RuntimeError, "durable checkpoint"):
+                _train_arm(
+                    config,
+                    self.corpus,
+                    20270824,
+                    "endpoint",
+                    pilot,
+                    device="cpu",
+                    checkpoint_path=base,
+                    checkpoint_context=context,
+                    checkpoint_interval_steps=1,
+                    stop_after_step=1,
+                )
+            pointer = read_strict_json(base.with_name("endpoint.latest.json"))
+            checkpoint = base.parent / pointer["checkpoint_path"]
+            with checkpoint.open("ab") as handle:
+                handle.write(b"tamper")
+            with self.assertRaisesRegex(RuntimeError, "hash or size mismatch"):
+                _train_arm(
+                    config,
+                    self.corpus,
+                    20270824,
+                    "endpoint",
+                    pilot,
+                    device="cpu",
+                    checkpoint_path=base,
+                    checkpoint_context=context,
+                    checkpoint_interval_steps=1,
+                )
 
 
 def _statistics_rows():

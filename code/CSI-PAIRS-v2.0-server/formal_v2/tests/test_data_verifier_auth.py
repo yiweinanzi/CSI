@@ -8,9 +8,13 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+import numpy as np
+
 from formal_v2.formal_cli import main as formal_cli_main
 from formal_v2.formal_config import load_formal_config
 from formal_v2.formal_data_verification import (
+    REGENERATED_FIELDS,
+    _compare_regenerated_archive,
     _validate_manifest,
     require_data_verification,
     require_verified_roles_from_root,
@@ -202,6 +206,22 @@ class DataVerifierAuthenticationTests(unittest.TestCase):
         )
         require_verified_roles_from_root(output, self.config, self.dataset, ("target",))
 
+    def test_live_gate_cannot_be_relocated_with_stale_absolute_bindings(self):
+        output, _gate = self._verified_run("live-origin")
+        relocated = self.root / "live-relocated"
+        shutil.copytree(output, relocated)
+        gate_path = relocated / "data_verification/gate.json"
+        with self.assertRaisesRegex(
+            RuntimeError,
+            "does not bind its colocated verifier manifest",
+        ):
+            require_data_verification(
+                read_strict_json(gate_path),
+                self.config,
+                self.dataset,
+                gate_path=gate_path,
+            )
+
     def test_verifier_detects_regenerated_phase_reference_tampering_per_scene(self):
         mutations = {
             "phase_reference_values": (
@@ -235,6 +255,32 @@ class DataVerifierAuthenticationTests(unittest.TestCase):
                 ) as handle:
                     rows = list(csv.DictReader(handle))
                 self.assertEqual(rows[0][f"{field}_match"], "False")
+
+    def test_regenerated_archive_members_are_decompressed_once(self):
+        output, _gate = self._verified_run("single-decompression")
+        with np.load(
+            output / "data_verification/regenerated.npz", allow_pickle=False
+        ) as archive:
+            arrays = {name: np.asarray(archive[name]) for name in archive.files}
+
+        class TrackingArchive:
+            files = list(arrays)
+
+            def __init__(self):
+                self.reads = {name: 0 for name in arrays}
+
+            def __getitem__(self, name):
+                self.reads[name] += 1
+                return arrays[name]
+
+        tracked = TrackingArchive()
+        engine_match, rows = _compare_regenerated_archive(
+            self.dataset, tracked, 0.0, 0.0
+        )
+        self.assertTrue(engine_match)
+        self.assertTrue(all(row["passed"] for row in rows))
+        self.assertEqual(set(tracked.reads), REGENERATED_FIELDS)
+        self.assertTrue(all(count == 1 for count in tracked.reads.values()))
 
     def test_source_tampering_blocks_qualify_cli_and_downstream(self):
         output, _ = self._verified_run()
@@ -339,7 +385,7 @@ class DataVerifierAuthenticationTests(unittest.TestCase):
             {
                 "fixture": False,
                 "scientific_use": "CANDIDATE_NOT_CLAIM",
-                "scene_count": 34,
+                "scene_count": self.dataset.scene_count,
                 "source_tree_sha256": "a" * 64,
             }
         )
@@ -387,7 +433,7 @@ class DataVerifierAuthenticationTests(unittest.TestCase):
                     "dataset_sha256": receipt["dataset_sha256"],
                     "dataset_bytes": receipt["dataset_bytes"],
                     "fixture": False,
-                    "scene_banks": 34,
+                    "scene_banks": receipt["scene_count"],
                 },
                 "live_independent_regeneration": {
                     "status": "REPORTED_PASS_EXTERNAL_ARTIFACTS_NOT_VERIFIED",

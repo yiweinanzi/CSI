@@ -44,6 +44,7 @@ REGENERATED_FIELDS = {
     "noop_path_power",
     "noop_path_surface_ids",
 }
+REGENERATED_SCENE_FIELDS = REGENERATED_FIELDS - {"engine_config_json"}
 
 
 def run_data_verification(config, dataset, manifest_path, output_root):
@@ -114,20 +115,12 @@ def run_data_verification(config, dataset, manifest_path, output_root):
             if receipt[key] != evidence[key]:
                 raise RuntimeError(f"precomputed regeneration receipt {key} mismatch")
     with np.load(regenerated_path, allow_pickle=False) as archive:
-        if set(archive.files) != REGENERATED_FIELDS:
-            raise RuntimeError("regenerated data fields must be exact")
-        engine = parse_strict_json(str(np.asarray(archive["engine_config_json"]).item()))
-        global_engine_match = engine == dataset.engine_config
-        rows = [
-            _scene_comparison(
-                dataset,
-                archive,
-                scene,
-                float(manifest["rtol"]),
-                float(manifest["atol"]),
-            )
-            for scene in range(dataset.scene_count)
-        ]
+        global_engine_match, rows = _compare_regenerated_archive(
+            dataset,
+            archive,
+            float(manifest["rtol"]),
+            float(manifest["atol"]),
+        )
     blocking = [row for row in rows if row["role"] in BLOCKING_ROLES]
     comparison_passed = bool(
         global_engine_match and blocking and all(row["passed"] for row in blocking)
@@ -306,6 +299,27 @@ def require_verified_roles_from_root(
 def export_precomputed_verification(config, dataset, verification_root, output_root):
     if dataset.is_fixture:
         raise RuntimeError("formal data-verification export rejects fixtures")
+    data = config["data"]
+    dataset.validate(
+        require_clean_csi=bool(data["require_clean_csi"]),
+        minimum_repeats=int(data["minimum_repeats"]),
+        minimum_target_cities=int(data["minimum_target_cities"]),
+        minimum_source_cities=int(data["minimum_source_cities"]),
+        minimum_banks_per_target_city=int(data["minimum_banks_per_target_city"]),
+        minimum_independent_base_map_clusters_per_target_city=int(
+            data["minimum_independent_base_map_clusters_per_target_city"]
+        ),
+        minimum_banks_per_source_role=int(data["minimum_banks_per_source_role"]),
+        minimum_independent_source_final_unseen_clusters=int(
+            data["minimum_independent_source_final_unseen_clusters"]
+        ),
+        minimum_independent_external_validation_clusters=int(
+            data["minimum_independent_external_validation_clusters"]
+        ),
+        minimum_unique_support_positions_per_target_city=max(
+            int(value) for value in config["localization"]["label_budgets"]
+        ),
+    )
     stage = Path(verification_root).resolve() / "data_verification"
     gate_path = _require_regular_file(stage / "gate.json", "live data-verification gate")
     gate = read_strict_json(gate_path)
@@ -319,12 +333,14 @@ def export_precomputed_verification(config, dataset, verification_root, output_r
         or gate.get("nonblocking_scene_failures") != []
         or not isinstance(gate.get("role_status"), dict)
         or not gate["role_status"]
+        or set(gate["role_status"]) != set(str(value) for value in dataset.scene_roles)
         or any(value != "PASS" for value in gate["role_status"].values())
         or float(gate.get("rtol", -1.0)) != 0.0
         or float(gate.get("atol", -1.0)) != 0.0
-        or dataset.scene_count != 34
     ):
-        raise RuntimeError("only a complete 34-bank live zero-tolerance PASS can be exported")
+        raise RuntimeError(
+            "only a complete config-qualified live zero-tolerance PASS can be exported"
+        )
     regenerated = _require_regular_file(
         stage / "regenerated.npz", "live independently regenerated archive"
     )
@@ -747,60 +763,120 @@ def _verifier_environment(project_root: Path) -> dict[str, str]:
     return {
         **os.environ,
         "PYTHONPATH": root if not existing else root + os.pathsep + existing,
+        "PYTHONDONTWRITEBYTECODE": "1",
     }
 
 
-def _scene_comparison(dataset, archive, scene, rtol, atol):
+def _compare_regenerated_archive(dataset, archive, rtol, atol):
+    if set(archive.files) != REGENERATED_FIELDS:
+        raise RuntimeError("regenerated data fields must be exact")
+    engine = parse_strict_json(
+        str(np.asarray(archive["engine_config_json"]).item())
+    )
+    return engine == dataset.engine_config, _scene_comparisons(
+        dataset, archive, rtol, atol
+    )
+
+
+def _scene_comparisons(dataset, archive, rtol, atol):
     zero_world = int(np.flatnonzero(np.all(dataset.world_bits == 0, axis=1))[0])
     representation = dataset.metadata["representation"]
-    regenerated_foundation_digest = _canonical_foundation_sha256(
-        archive["maps"][scene, zero_world],
-        dataset.map_channel_names,
-        float(representation["map_resolution_m"]),
-        representation["map_origin_xy_m"],
+    checks = [dict() for _ in range(dataset.scene_count)]
+    details = [dict() for _ in range(dataset.scene_count)]
+
+    regenerated_maps = np.asarray(archive["maps"])
+    for scene in range(dataset.scene_count):
+        regenerated_digest = _canonical_foundation_sha256(
+            regenerated_maps[scene, zero_world],
+            dataset.map_channel_names,
+            float(representation["map_resolution_m"]),
+            representation["map_origin_xy_m"],
+        )
+        expected_digest = dataset.canonical_base_map_digest(scene)
+        checks[scene]["maps"] = _equal(
+            dataset.maps[scene], regenerated_maps[scene], rtol, atol
+        )
+        checks[scene]["canonical_foundation_identity"] = (
+            regenerated_digest == expected_digest
+        )
+        details[scene]["canonical_base_map_digest"] = expected_digest
+        details[scene]["regenerated_canonical_base_map_digest"] = regenerated_digest
+    del regenerated_maps
+
+    regenerated_repeats = np.asarray(archive["csi_repeat"])
+    for scene in range(dataset.scene_count):
+        regenerated_digest = dataset.observation_noise_binding_digest(
+            scene, regenerated_repeats[scene]
+        )
+        expected_digest = dataset.observation_noise_binding_digest(scene)
+        checks[scene]["csi_repeat"] = _equal(
+            dataset.csi_repeat[scene], regenerated_repeats[scene], rtol, atol
+        )
+        checks[scene]["observation_noise_seed_binding"] = (
+            regenerated_digest == expected_digest
+        )
+        details[scene]["observation_noise_binding_sha256"] = expected_digest
+        details[scene]["regenerated_observation_noise_binding_sha256"] = (
+            regenerated_digest
+        )
+    del regenerated_repeats
+
+    approximate_fields = (
+        "csi_clean",
+        "noop_maps",
+        "path_power",
+        "noop_path_power",
     )
-    expected_foundation_digest = dataset.canonical_base_map_digest(scene)
-    regenerated_noise_digest = dataset.observation_noise_binding_digest(
-        scene, archive["csi_repeat"][scene]
+    exact_fields = (
+        "free_space",
+        "phase_reference_ids",
+        "phase_reference_values",
+        "phase_reference_source_sha256",
+        "path_ids",
+        "path_surface_ids",
+        "noop_path_ids",
+        "noop_path_surface_ids",
     )
-    expected_noise_digest = dataset.observation_noise_binding_digest(scene)
-    checks = {
-        "maps": _equal(dataset.maps[scene], archive["maps"][scene], rtol, atol),
-        "canonical_foundation_identity": regenerated_foundation_digest
-        == expected_foundation_digest,
-        "csi_clean": _equal(dataset.csi_clean[scene], archive["csi_clean"][scene], rtol, atol),
-        "csi_repeat": _equal(dataset.csi_repeat[scene], archive["csi_repeat"][scene], rtol, atol),
-        "observation_noise_seed_binding": regenerated_noise_digest == expected_noise_digest,
-        "free_space": np.array_equal(dataset.free_space[scene], archive["free_space"][scene]),
-        "phase_reference_ids": np.array_equal(dataset.phase_reference_ids[scene], archive["phase_reference_ids"][scene]),
-        "phase_reference_values": np.array_equal(
-            dataset.phase_reference_values[scene],
-            archive["phase_reference_values"][scene],
-        ),
-        "phase_reference_source_sha256": np.array_equal(
-            dataset.phase_reference_source_sha256[scene],
-            archive["phase_reference_source_sha256"][scene],
-        ),
-        "noop_maps": _equal(dataset.noop_maps[scene], archive["noop_maps"][scene], rtol, atol),
-        "path_ids": np.array_equal(dataset.path_ids[scene], archive["path_ids"][scene]),
-        "path_power": _equal(dataset.path_power[scene], archive["path_power"][scene], rtol, atol),
-        "path_surface_ids": np.array_equal(dataset.path_surface_ids[scene], archive["path_surface_ids"][scene]),
-        "noop_path_ids": np.array_equal(dataset.noop_path_ids[scene], archive["noop_path_ids"][scene]),
-        "noop_path_power": _equal(dataset.noop_path_power[scene], archive["noop_path_power"][scene], rtol, atol),
-        "noop_path_surface_ids": np.array_equal(dataset.noop_path_surface_ids[scene], archive["noop_path_surface_ids"][scene]),
-    }
-    return {
-        "scene_id": str(dataset.scene_ids[scene]),
-        "bank_id": str(dataset.bank_ids[scene]),
-        "base_map_cluster_id": str(dataset.base_map_cluster_ids[scene]),
-        "canonical_base_map_digest": expected_foundation_digest,
-        "regenerated_canonical_base_map_digest": regenerated_foundation_digest,
-        "observation_noise_binding_sha256": expected_noise_digest,
-        "regenerated_observation_noise_binding_sha256": regenerated_noise_digest,
-        "role": str(dataset.scene_roles[scene]),
-        **{f"{name}_match": bool(value) for name, value in checks.items()},
-        "passed": bool(all(checks.values())),
-    }
+    for name in approximate_fields:
+        regenerated = np.asarray(archive[name])
+        expected = np.asarray(getattr(dataset, name))
+        for scene in range(dataset.scene_count):
+            checks[scene][name] = _equal(
+                expected[scene], regenerated[scene], rtol, atol
+            )
+        del regenerated
+    for name in exact_fields:
+        regenerated = np.asarray(archive[name])
+        expected = np.asarray(getattr(dataset, name))
+        for scene in range(dataset.scene_count):
+            checks[scene][name] = np.array_equal(
+                expected[scene], regenerated[scene]
+            )
+        del regenerated
+
+    rows = []
+    for scene in range(dataset.scene_count):
+        scene_checks = checks[scene]
+        if set(scene_checks) != REGENERATED_SCENE_FIELDS | {
+            "canonical_foundation_identity",
+            "observation_noise_seed_binding",
+        }:
+            raise AssertionError("regenerated scene checks are incomplete")
+        rows.append(
+            {
+                "scene_id": str(dataset.scene_ids[scene]),
+                "bank_id": str(dataset.bank_ids[scene]),
+                "base_map_cluster_id": str(dataset.base_map_cluster_ids[scene]),
+                **details[scene],
+                "role": str(dataset.scene_roles[scene]),
+                **{
+                    f"{name}_match": bool(value)
+                    for name, value in scene_checks.items()
+                },
+                "passed": bool(all(scene_checks.values())),
+            }
+        )
+    return rows
 
 
 def _equal(first, second, rtol, atol):

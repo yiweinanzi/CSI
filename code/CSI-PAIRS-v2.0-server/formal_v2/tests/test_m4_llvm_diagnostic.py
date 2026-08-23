@@ -45,6 +45,13 @@ class M4LLVMBackendDiagnosticTests(unittest.TestCase):
             ),
             registered,
         )
+        self.assertIn(
+            (
+                "6e9dad310fa8fa8116b221e4e1212dbad2936a3d12f158c9c30887d80a631977",
+                "Linux LLVM 18.1.8 two-process scene-0 exact replay: 23/23 arrays, NPZ payload, 2262 stable path signatures, and CSI all exact at zero tolerance; audited on 2026-08-10",
+            ),
+            registered,
+        )
         args = argparse.Namespace(backend="llvm", drjit_threads=1)
         with tempfile.TemporaryDirectory() as temporary:
             llvm_path = Path(temporary) / "libLLVM.dylib"

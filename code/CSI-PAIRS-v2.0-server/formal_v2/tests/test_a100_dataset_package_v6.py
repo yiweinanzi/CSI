@@ -303,6 +303,14 @@ class A100DatasetPackageV6Tests(unittest.TestCase):
         )
         self.assertIn("! -path ./SHA256SUMS", server_builder)
         self.assertIn(
+            "--exclude='formal_v2/external_adapters/.runtime-differt'",
+            server_builder,
+        )
+        self.assertIn(
+            "--exclude='formal_v2/external_adapters/.runtime-differt'",
+            anonymous_builder,
+        )
+        self.assertIn(
             "--exclude='formal_v2/tests/test_a100_dataset_package_v6.py'",
             anonymous_builder,
         )

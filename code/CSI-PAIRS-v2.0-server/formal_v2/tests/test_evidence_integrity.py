@@ -308,6 +308,35 @@ class EvidenceIntegrityTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "exactly one --config"):
             validate_external_manifest(changed)
 
+    def test_shipped_g8_manifest_binds_current_adapter_source(self):
+        manifest_path = (
+            ROOT / "formal_v2/configs/sionna_external_validity_adapter_v2.json"
+        )
+        manifest = json.loads(manifest_path.read_text())
+        source = ROOT / manifest["adapter_source_path"]
+
+        self.assertTrue(source.is_file())
+        self.assertEqual(manifest["adapter_source_sha256"], sha256_file(source))
+
+    def test_shipped_claim_control_manifests_bind_current_adapter_sources(self):
+        adapter_root = ROOT / "formal_v2/external_adapters"
+        for manifest_name in (
+            "retention_control_v3.json",
+            "shuffled_pair_control_v3.json",
+        ):
+            with self.subTest(manifest=manifest_name):
+                manifest_path = adapter_root / manifest_name
+                manifest = json.loads(manifest_path.read_text())
+                source = manifest_path.parent / manifest["adapter_source_path"]
+                source_hash = sha256_file(source)
+
+                self.assertTrue(source.is_file())
+                self.assertEqual(manifest["adapter_source_sha256"], source_hash)
+                self.assertEqual(
+                    manifest["implementation_revision"],
+                    manifest["adapter_source_sha256"],
+                )
+
     def test_g8_command_and_raw_csi_are_outer_authenticated(self):
         manifest = json.loads(
             (ROOT / "formal_v2/configs/sionna_external_validity_adapter_v2.json").read_text()

@@ -70,6 +70,9 @@ class PMNetAdapterTests(unittest.TestCase):
         self.assertEqual(self.config["model"]["atrous_rates"], [6, 12, 18])
         self.assertEqual(self.config["model"]["multi_grids"], [1, 2, 4])
         self.assertEqual(self.config["model"]["output_stride"], 8)
+        self.assertEqual(self.config["training"]["batch_size"], 16)
+        self.assertEqual(self.config["training"]["microbatch_size"], 2)
+        self.assertEqual(self.config["training"]["precision"], "bf16")
 
         model = _build_official_model(self.config, material_category_count=3)
         model.eval()
@@ -222,6 +225,27 @@ class PMNetAdapterTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "requires an NVIDIA CUDA"):
                 _require_formal_resources(self.config)
 
+    def test_formal_resource_preflight_uses_runtime_memory_when_property_is_zero(self):
+        properties = SimpleNamespace(total_memory=0)
+        with (
+            mock.patch("torch.cuda.is_available", return_value=True),
+            mock.patch("torch.cuda.current_device", return_value=0),
+            mock.patch("torch.cuda.get_device_properties", return_value=properties),
+            mock.patch(
+                "torch.cuda.mem_get_info",
+                return_value=(39 * 1024**3, 40 * 1024**3),
+            ),
+        ):
+            _require_formal_resources(self.config)
+
+    def test_formal_config_rejects_batchnorm_unsafe_microbatch(self):
+        config = copy.deepcopy(self.config)
+        config["training"]["microbatch_size"] = 1
+        path = Path(self.temporary.name) / "unsafe-pmnet.json"
+        path.write_text(json.dumps(config), encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "microbatch size of two"):
+            load_pmnet_config(path)
+
     def test_microbatched_training_checkpoint_six_conditions_and_manifest(self):
         class TinyRadiomap(torch.nn.Module):
             def __init__(self, channels):
@@ -236,7 +260,7 @@ class PMNetAdapterTests(unittest.TestCase):
             {
                 "epochs": 1,
                 "batch_size": 2,
-                "microbatch_size": 1,
+                "microbatch_size": 2,
                 "lr_decay_every_epochs": 1,
             }
         )
@@ -251,7 +275,12 @@ class PMNetAdapterTests(unittest.TestCase):
             model, self.dataset, config, output, mean, scale
         )
         self.assertTrue(checkpoint.is_file())
-        self.assertEqual(training["microbatch_size"], 1)
+        self.assertEqual(training["microbatch_size"], 2)
+        self.assertEqual(training["gradient_accumulation_steps"], 1)
+        self.assertEqual(training["configured_precision"], "bf16")
+        expected_precision = "bf16" if torch.cuda.is_available() else "float32"
+        self.assertEqual(training["executed_precision"], expected_precision)
+        self.assertEqual(training["autocast_enabled"], torch.cuda.is_available())
 
         routes = {}
         for scene in range(self.dataset.scene_count):

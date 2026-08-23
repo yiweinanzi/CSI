@@ -12,13 +12,13 @@ if [[ -e "${ENVIRONMENT_PATH}" ]]; then
   exit 2
 fi
 
-PYTHON_VERSION="$("${PYTHON_BIN}" -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')"
+PYTHON_VERSION="$("${PYTHON_BIN}" -B -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')"
 if [[ "${PYTHON_VERSION}" != "3.12" ]]; then
   echo "Python 3.12 is required; ${PYTHON_BIN} reports ${PYTHON_VERSION}" >&2
   exit 3
 fi
 
-TARGET="$("${PYTHON_BIN}" - <<'PY'
+TARGET="$("${PYTHON_BIN}" -B - <<'PY'
 import platform
 import sys
 
@@ -61,7 +61,7 @@ case "${TARGET}" in
     ;;
 esac
 
-"${PYTHON_BIN}" -m venv "${ENVIRONMENT_PATH}"
+"${PYTHON_BIN}" -B -m venv "${ENVIRONMENT_PATH}"
 WHEELHOUSE_PATH="${ENVIRONMENT_PATH}/csi-pairs-reviewed-wheels"
 WHEEL_MANIFEST_PATH="${ENVIRONMENT_PATH}/csi-pairs-reviewed-wheel-manifest.json"
 mkdir -p "${WHEELHOUSE_PATH}"
@@ -74,11 +74,11 @@ if [[ -n "${CSI_PAIRS_PIP_CERT:-}" ]]; then
 elif [[ "$(uname -s)" == "Darwin" && -f /etc/ssl/cert.pem ]]; then
   PIP_DOWNLOAD_ARGS+=(--cert /etc/ssl/cert.pem)
 fi
-"${ENVIRONMENT_PATH}/bin/python" -m pip download \
+"${ENVIRONMENT_PATH}/bin/python" -B -m pip download \
   "${PIP_DOWNLOAD_ARGS[@]}" \
   --dest "${WHEELHOUSE_PATH}" \
   --requirement "${REQUIREMENTS_LOCK}"
-"${ENVIRONMENT_PATH}/bin/python" -m pip install \
+"${ENVIRONMENT_PATH}/bin/python" -B -m pip install \
   --no-index \
   --find-links "${WHEELHOUSE_PATH}" \
   --no-compile \
@@ -86,9 +86,9 @@ fi
   --only-binary=:all: \
   --report "${ENVIRONMENT_PATH}/csi-pairs-install-report.json" \
   --requirement "${REQUIREMENTS_LOCK}"
-"${ENVIRONMENT_PATH}/bin/python" -m pip check
-"${ENVIRONMENT_PATH}/bin/python" -c 'import numpy, torch; print("numpy", numpy.__version__, "torch", torch.__version__)'
-PYTHONPATH="${PROJECT_ROOT}" "${ENVIRONMENT_PATH}/bin/python" - \
+"${ENVIRONMENT_PATH}/bin/python" -B -m pip check
+"${ENVIRONMENT_PATH}/bin/python" -B -c 'import numpy, torch; print("numpy", numpy.__version__, "torch", torch.__version__)'
+PYTHONPATH="${PROJECT_ROOT}" "${ENVIRONMENT_PATH}/bin/python" -B - \
   "${WHEELHOUSE_PATH}" "${WHEEL_MANIFEST_PATH}" \
   "${REQUIREMENTS_LOCK}" <<'PY'
 import sys
@@ -108,7 +108,7 @@ write_reviewed_wheel_manifest(
     sha256_file(requirements),
 )
 PY
-"${ENVIRONMENT_PATH}/bin/python" -m pip uninstall --yes pip
+"${ENVIRONMENT_PATH}/bin/python" -B -m pip uninstall --yes pip
 find "${ENVIRONMENT_PATH}/lib/python3.12/site-packages" -type f \
   \( -name '*.pyc' -o -name '*.pyo' \) -delete
 find "${ENVIRONMENT_PATH}/lib/python3.12/site-packages" -type d \

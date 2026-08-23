@@ -35,7 +35,7 @@ if [[ "${PHASE}" == "run" ]]; then
 fi
 
 cd "${PROJECT_ROOT}"
-"${PYTHON_BIN}" -m formal_v2.formal_cli "${COMMAND}" \
+"${PYTHON_BIN}" -B -m formal_v2.formal_cli "${COMMAND}" \
   --config "${CONFIG}" \
   --output "${OUTPUT}" \
   --compute-plan "${COMPUTE_PLAN}" \

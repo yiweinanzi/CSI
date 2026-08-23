@@ -3,8 +3,10 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import sys
 import tempfile
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
@@ -18,20 +20,28 @@ from formal_v2.formal_cli import (
 )
 from formal_v2.formal_run_approval import (
     APPROVAL_ATTESTATION,
+    APPROVAL_ACCEPTED_SCHEMA,
     APPROVAL_REQUEST_SCHEMA,
     APPROVAL_REVIEW_SCOPE,
     COMPUTE_PLAN_SCHEMA,
+    EARLY_STAGE_GATES,
+    FORMAL_COMPUTE_COMPONENTS,
     HUMAN_APPROVAL_SCHEMA,
+    PREFLIGHT_SCHEMA,
+    PREPARED_RUN_SCHEMA,
+    authenticate_prepared_run,
     create_human_approval_manifest,
     _bind_pre_staged_inputs,
+    _gpu_inventory,
     _merge_external_runtimes,
+    _require_exclusive_gpus,
     _validate_prepared_record,
     _validate_request_against_current_run,
     _validate_compute_plan,
     _validate_human_approval,
     mark_approval_accepted,
 )
-from formal_v2.formal_io import sha256_file, write_json
+from formal_v2.formal_io import read_strict_json, sha256_file, write_json
 
 
 class FullRunApprovalTests(unittest.TestCase):
@@ -54,6 +64,23 @@ class FullRunApprovalTests(unittest.TestCase):
                 runtimes, {"sionna": {"environment_sha256": "b" * 64}}
             )
 
+    def test_gpu_inventory_falls_back_when_virtualized_memory_property_is_zero(self):
+        properties = SimpleNamespace(
+            uuid="gpu-0",
+            name="NVIDIA A100-SXM4-40GB",
+            total_memory=0,
+        )
+        cuda = SimpleNamespace(
+            is_available=lambda: True,
+            device_count=lambda: 1,
+            get_device_properties=lambda _index: properties,
+            mem_get_info=lambda _index: (39 * 1024**3, 40 * 1024**3),
+        )
+        fake_torch = SimpleNamespace(cuda=cuda, version=SimpleNamespace(cuda="12.1"))
+        with patch.dict(sys.modules, {"torch": fake_torch}):
+            inventory = _gpu_inventory()
+        self.assertEqual(inventory[0]["total_memory_bytes"], 40 * 1024**3)
+
     def _request(self):
         return {
             "schema_version": APPROVAL_REQUEST_SCHEMA,
@@ -64,6 +91,7 @@ class FullRunApprovalTests(unittest.TestCase):
             "gate_bindings": {
                 "G0": {"gate_sha256": "b" * 64},
                 "G1_G2": {"gate_sha256": "c" * 64},
+                "G8": {"gate_sha256": "e" * 64},
             },
         }
 
@@ -76,7 +104,11 @@ class FullRunApprovalTests(unittest.TestCase):
             "run_nonce": request["run_nonce"],
             "request_sha256": "d" * 64,
             "compute_plan_sha256": "a" * 64,
-            "approved_gate_sha256s": {"G0": "b" * 64, "G1_G2": "c" * 64},
+            "approved_gate_sha256s": {
+                "G0": "b" * 64,
+                "G1_G2": "c" * 64,
+                "G8": "e" * 64,
+            },
             "approver": "authorized-human",
             "approved_utc": "2026-08-08T00:01:00Z",
             "expires_utc": "2026-08-09T00:00:00Z",
@@ -102,7 +134,7 @@ class FullRunApprovalTests(unittest.TestCase):
 
     def test_human_approval_rejects_expiry_and_partial_gate_binding(self):
         approval = self._approval()
-        approval["approved_gate_sha256s"].pop("G0")
+        approval["approved_gate_sha256s"].pop("G8")
         with self.assertRaisesRegex(RuntimeError, "every prepared gate"):
             _validate_human_approval(approval, self._request(), "d" * 64)
         approval = self._approval()
@@ -150,6 +182,7 @@ class FullRunApprovalTests(unittest.TestCase):
                 "minimum_gpu_memory_bytes": 1024,
                 "estimated_gpu_hours": 2.0,
                 "authorized_gpu_hours": 2.0,
+                "component_estimates": self._formal_components(),
                 "required_environment_variables": [
                     "CSI_PAIRS_DEVICES",
                     "CUDA_VISIBLE_DEVICES",
@@ -179,6 +212,7 @@ class FullRunApprovalTests(unittest.TestCase):
                 "minimum_gpu_memory_bytes": 1024,
                 "estimated_gpu_hours": 2.0,
                 "authorized_gpu_hours": 2.0,
+                "component_estimates": self._formal_components(),
                 "required_environment_variables": [
                     "CSI_PAIRS_DEVICES",
                     "CUDA_VISIBLE_DEVICES",
@@ -191,6 +225,8 @@ class FullRunApprovalTests(unittest.TestCase):
                 "uuid": f"GPU-uuid-{index}",
                 "name": "A100",
                 "total_memory_bytes": 4096,
+                "free_memory_bytes": 4096,
+                "used_memory_bytes": 0,
                 "cuda_runtime": "12.1",
             }
             for index in range(2)
@@ -207,6 +243,10 @@ class FullRunApprovalTests(unittest.TestCase):
                 "formal_v2.formal_run_approval._gpu_inventory",
                 return_value=inventory,
             ),
+            patch(
+                "formal_v2.formal_run_approval._nvidia_compute_processes",
+                return_value={},
+            ),
         ):
             result = _validate_compute_plan(
                 plan, dataset, self.root / "run", {"fixture-license"}
@@ -221,14 +261,147 @@ class FullRunApprovalTests(unittest.TestCase):
             "cuda:0,cuda:1",
         )
 
-    def test_consumed_approval_marker_is_exclusive(self):
+    def test_formal_gpu_exclusivity_rejects_memory_or_compute_processes(self):
+        idle = {
+            "index": 0,
+            "uuid": "GPU-idle",
+            "total_memory_bytes": 40 * 1024**3,
+            "free_memory_bytes": 40 * 1024**3,
+            "used_memory_bytes": 0,
+        }
+        with patch(
+            "formal_v2.formal_run_approval._nvidia_compute_processes",
+            return_value={},
+        ):
+            _require_exclusive_gpus([idle])
+
+        occupied = dict(idle)
+        occupied["free_memory_bytes"] -= 2 * 1024**3
+        occupied["used_memory_bytes"] += 2 * 1024**3
+        with (
+            patch(
+                "formal_v2.formal_run_approval._nvidia_compute_processes",
+                return_value={},
+            ),
+            self.assertRaisesRegex(RuntimeError, "not exclusive"),
+        ):
+            _require_exclusive_gpus([occupied])
+
+        with (
+            patch(
+                "formal_v2.formal_run_approval._nvidia_compute_processes",
+                return_value={"GPU-idle": [{"pid": 123, "used_memory_mib": 1}]},
+            ),
+            self.assertRaisesRegex(RuntimeError, "not exclusive"),
+        ):
+            _require_exclusive_gpus([idle])
+
+    def test_consumed_approval_marker_is_idempotent_only_for_exact_resume(self):
         approval_dir = self.root / "run" / "approval"
         approval_dir.mkdir(parents=True)
         record = {"schema_version": "accepted", "status": "ACCEPTED"}
         path = mark_approval_accepted(self.root / "run", record)
         self.assertTrue(path.is_file())
-        with self.assertRaisesRegex(RuntimeError, "already been consumed"):
-            mark_approval_accepted(self.root / "run", record)
+        self.assertEqual(mark_approval_accepted(self.root / "run", record), path)
+        with self.assertRaisesRegex(RuntimeError, "differs"):
+            mark_approval_accepted(
+                self.root / "run",
+                {"schema_version": "accepted", "status": "CHANGED"},
+            )
+
+    def test_consumed_approval_marker_is_atomic_under_identical_race(self):
+        approval_dir = self.root / "run" / "approval"
+        approval_dir.mkdir(parents=True)
+        record = {"schema_version": "accepted", "status": "ACCEPTED"}
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            paths = list(
+                executor.map(
+                    lambda _index: mark_approval_accepted(self.root / "run", record),
+                    range(2),
+                )
+            )
+        self.assertEqual(paths, [approval_dir / "accepted.json"] * 2)
+        self.assertEqual(read_strict_json(paths[0]), record)
+        self.assertFalse(any(approval_dir.glob("*.tmp")))
+
+    def test_accepted_approval_authenticates_resume_after_external_expiry(self):
+        run = self.root / "run"
+        approval_dir = run / "approval"
+        approval_dir.mkdir(parents=True)
+        teacher = run / "qualification" / "teacher.pt"
+        teacher.parent.mkdir(parents=True)
+        teacher.write_bytes(b"teacher")
+        request = self._request()
+        request["prepared_utc"] = "2026-08-08T00:00:00Z"
+        request["teacher_checkpoint"] = "qualification/teacher.pt"
+        request["teacher_checkpoint_sha256"] = sha256_file(teacher)
+        request_path = approval_dir / "request.json"
+        write_json(request_path, request)
+        prepared = {
+            "schema_version": PREPARED_RUN_SCHEMA,
+            "run_id": request["run_id"],
+            "run_nonce": request["run_nonce"],
+            "prepared_root": str(run.resolve()),
+            "request_path": "approval/request.json",
+            "request_sha256": sha256_file(request_path),
+            "status": "AWAITING_HUMAN_APPROVAL",
+        }
+        write_json(approval_dir / "prepared.json", prepared)
+        approval = self._approval()
+        approval["request_sha256"] = sha256_file(request_path)
+        approval_path = self.root / "external-approval.json"
+        write_json(approval_path, approval)
+        accepted = {
+            "schema_version": APPROVAL_ACCEPTED_SCHEMA,
+            "status": "ACCEPTED",
+            "run_id": request["run_id"],
+            "run_nonce": request["run_nonce"],
+            "request_sha256": sha256_file(request_path),
+            "approval_manifest_path": str(approval_path.resolve()),
+            "approval_manifest_sha256": sha256_file(approval_path),
+            "compute_plan_sha256": request["compute_plan"]["sha256"],
+            "accepted_utc": "2026-08-08T00:02:00Z",
+        }
+        write_json(approval_dir / "accepted.json", accepted)
+        with (
+            patch(
+                "formal_v2.formal_run_approval._validate_prepared_record"
+            ),
+            patch(
+                "formal_v2.formal_run_approval._validate_request_against_current_run"
+            ),
+            patch(
+                "formal_v2.formal_run_approval.authenticate_early_stages",
+                return_value=request["gate_bindings"],
+            ),
+            patch(
+                "formal_v2.formal_run_approval._bound_run_file",
+                return_value=teacher,
+            ),
+        ):
+            observed = authenticate_prepared_run(
+                {}, object(), run, {}, approval_path
+            )
+        self.assertEqual(observed, accepted)
+        self.assertEqual(mark_approval_accepted(run, observed), approval_dir / "accepted.json")
+
+        changed = dict(accepted)
+        changed["approval_manifest_sha256"] = "0" * 64
+        write_json(approval_dir / "accepted.json", changed)
+        with (
+            patch("formal_v2.formal_run_approval._validate_prepared_record"),
+            patch("formal_v2.formal_run_approval._validate_request_against_current_run"),
+            patch(
+                "formal_v2.formal_run_approval.authenticate_early_stages",
+                return_value=request["gate_bindings"],
+            ),
+            patch(
+                "formal_v2.formal_run_approval._bound_run_file",
+                return_value=teacher,
+            ),
+            self.assertRaisesRegex(RuntimeError, "binding changed"),
+        ):
+            authenticate_prepared_run({}, object(), run, {}, approval_path)
 
     def test_human_approval_creation_requires_explicit_attestation_and_external_path(self):
         run = self.root / "run"
@@ -301,7 +474,7 @@ class FullRunApprovalTests(unittest.TestCase):
         request_path = run / "approval" / "request.json"
         write_json(request_path, request)
         prepared = {
-            "schema_version": "csi-pairs-full-run-prepared-v1",
+            "schema_version": PREPARED_RUN_SCHEMA,
             "run_id": request["run_id"],
             "run_nonce": request["run_nonce"],
             "prepared_root": str(run.resolve()),
@@ -341,7 +514,7 @@ class FullRunApprovalTests(unittest.TestCase):
         )
         self.assertEqual(status, 2)
 
-    def test_prepare_runs_g0_and_rt_before_data_and_qualification(self):
+    def test_prepare_runs_g8_after_qualification_and_before_approval(self):
         calls = []
 
         def stage(name):
@@ -355,6 +528,7 @@ class FullRunApprovalTests(unittest.TestCase):
             literature_resource_manifest="literature.json",
             rt_calibration_manifest="rt.json",
             verifier_manifest="verifier.json",
+            external_validity_manifest="external-validity.json",
         )
         dataset = SimpleNamespace(is_fixture=False)
         with (
@@ -364,12 +538,60 @@ class FullRunApprovalTests(unittest.TestCase):
             patch("formal_v2.formal_data_verification.run_data_verification", stage("data")),
             patch("formal_v2.formal_qualification.run_formal_qualification", stage("G1_G2")),
             patch(
+                "formal_v2.formal_external_validity.run_external_validity",
+                stage("G8"),
+            ),
+            patch(
                 "formal_v2.formal_run_approval.write_approval_request",
                 side_effect=lambda *_args, **_kwargs: calls.append("request") or {"status": "AWAITING_HUMAN_APPROVAL"},
             ),
         ):
             _prepare_full_run({}, dataset, self.root / "run", args, {})
-        self.assertEqual(calls, ["resources", "G0", "RT", "data", "G1_G2", "request"])
+        self.assertEqual(
+            calls,
+            ["resources", "G0", "RT", "data", "G1_G2", "G8", "request"],
+        )
+        self.assertIn("G8", EARLY_STAGE_GATES)
+        self.assertIn("G8 independent external-validity gate", APPROVAL_REVIEW_SCOPE)
+
+    def test_prepare_g8_failure_stops_before_approval_request(self):
+        calls = []
+
+        def passed(name):
+            return lambda *_args, **_kwargs: calls.append(name) or {
+                "status": "PASS",
+                "passed": True,
+            }
+
+        args = SimpleNamespace(
+            literature_resource_manifest="literature.json",
+            rt_calibration_manifest="rt.json",
+            verifier_manifest="verifier.json",
+            external_validity_manifest="external-validity.json",
+        )
+        dataset = SimpleNamespace(is_fixture=False)
+        with (
+            patch("formal_v2.formal_resources.verify_waibu_resources", passed("resources")),
+            patch("formal_v2.formal_literature.run_literature_resource_gate", passed("G0")),
+            patch("formal_v2.formal_rt_calibration.run_rt_calibration_gate", passed("RT")),
+            patch("formal_v2.formal_data_verification.run_data_verification", passed("data")),
+            patch("formal_v2.formal_qualification.run_formal_qualification", passed("G1_G2")),
+            patch(
+                "formal_v2.formal_external_validity.run_external_validity",
+                side_effect=lambda *_args, **_kwargs: calls.append("G8")
+                or {"status": "FAIL", "passed": False},
+            ),
+            patch(
+                "formal_v2.formal_run_approval.write_approval_request",
+                side_effect=lambda *_args, **_kwargs: calls.append("request"),
+            ),
+            self.assertRaisesRegex(RuntimeError, "G8 independent external validity"),
+        ):
+            _prepare_full_run({}, dataset, self.root / "run", args, {})
+        self.assertEqual(
+            calls,
+            ["resources", "G0", "RT", "data", "G1_G2", "G8"],
+        )
 
     def test_authorized_chain_order_and_failure_short_circuit(self):
         run = self.root / "authorized-run"
@@ -401,7 +623,6 @@ class FullRunApprovalTests(unittest.TestCase):
             "representations",
             "resources",
             "scene_id",
-            "external_validity",
             "shuffled",
             "retention",
             "claims",
@@ -440,10 +661,6 @@ class FullRunApprovalTests(unittest.TestCase):
                 ),
                 patch("formal_v2.formal_controls.run_resource_controls", side_effect=stage("resources")),
                 patch("formal_v2.formal_scene_id.run_scene_id_audit", side_effect=stage("scene_id")),
-                patch(
-                    "formal_v2.formal_external_validity.run_external_validity",
-                    side_effect=stage("external_validity"),
-                ),
                 patch(
                     "formal_v2.formal_claim_controls.run_shuffled_pair_control",
                     side_effect=stage("shuffled"),
@@ -489,9 +706,29 @@ class FullRunApprovalTests(unittest.TestCase):
             "minimum_gpu_memory_bytes": 0,
             "estimated_gpu_hours": 0.0,
             "authorized_gpu_hours": 0.0,
+            "component_estimates": [],
             "required_environment_variables": [],
             "license_acknowledgements": ["fixture-license"],
         }
+
+    def _formal_components(self):
+        basis = self.root / "measured-compute-basis.json"
+        if not basis.exists():
+            write_json(basis, {"status": "MEASURED_TEST_BASIS"})
+        return [
+            {
+                "component": name,
+                "basis": "measured_projection",
+                "basis_artifact_path": str(basis),
+                "basis_artifact_sha256": sha256_file(basis),
+                "estimated_output_bytes": 1,
+                "estimated_wall_time_seconds": 1,
+                "estimated_gpu_hours": (
+                    0.25 if name in {"factorial", "failure_budget"} else 0.0
+                ),
+            }
+            for name in FORMAL_COMPUTE_COMPONENTS
+        ]
 
     def _bound_request(self):
         run = (self.root / "bound-run").resolve()
@@ -534,7 +771,7 @@ class FullRunApprovalTests(unittest.TestCase):
             "input_bindings": input_bindings,
         }
         preflight = {
-            "schema_version": "csi-pairs-full-run-static-preflight-v1",
+            "schema_version": PREFLIGHT_SCHEMA,
             "status": "PASS",
             "dataset_path": str(self.dataset_path),
             "prepared_root": str(run),
@@ -565,6 +802,47 @@ class FullRunApprovalTests(unittest.TestCase):
 
 
 class ExternalRuntimeProvenanceTests(unittest.TestCase):
+    def test_distribution_inventory_is_scoped_to_interpreter_site_packages(self):
+        from formal_v2.formal_external_runtime import (
+            _interpreter_site_package_roots,
+        )
+
+        with tempfile.TemporaryDirectory() as temporary:
+            prefix = Path(temporary) / "runtime"
+            site_packages = prefix / "lib/python3.10/site-packages"
+            site_packages.mkdir(parents=True)
+            with (
+                patch("formal_v2.formal_external_runtime.sys.prefix", str(prefix)),
+                patch(
+                    "formal_v2.formal_external_runtime.sysconfig.get_path",
+                    return_value=str(site_packages),
+                ),
+            ):
+                self.assertEqual(
+                    _interpreter_site_package_roots(), [str(site_packages.resolve())]
+                )
+
+    def test_distribution_inventory_rejects_site_packages_outside_prefix(self):
+        from formal_v2.formal_external_runtime import (
+            _interpreter_site_package_roots,
+        )
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            prefix = root / "runtime"
+            prefix.mkdir()
+            outside = root / "outside-site-packages"
+            outside.mkdir()
+            with (
+                patch("formal_v2.formal_external_runtime.sys.prefix", str(prefix)),
+                patch(
+                    "formal_v2.formal_external_runtime.sysconfig.get_path",
+                    return_value=str(outside),
+                ),
+                self.assertRaisesRegex(RuntimeError, "escapes interpreter prefix"),
+            ):
+                _interpreter_site_package_roots()
+
     def _record(self, profile):
         from formal_v2.formal_external_runtime import (
             PROFILE_DISTRIBUTIONS,

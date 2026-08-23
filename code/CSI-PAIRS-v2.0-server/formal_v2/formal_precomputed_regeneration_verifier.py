@@ -5,6 +5,8 @@ import json
 import shutil
 from pathlib import Path
 
+import numpy as np
+
 from formal_v2 import formal_evidence
 from formal_v2.formal_io import read_strict_json, sha256_file
 
@@ -83,21 +85,24 @@ def validate_receipt(
             raise RuntimeError(
                 "precomputed regeneration receipt source tree differs from this checkout"
             )
-    elif require_registration:
-        _require_registered_nonfixture_receipt(receipt_file, receipt)
     dataset = _regular_file(dataset_path, "candidate dataset")
     if dataset.stat().st_size != receipt["dataset_bytes"] or sha256_file(dataset) != receipt["dataset_sha256"]:
         raise RuntimeError("precomputed regeneration receipt dataset mismatch")
     if type(receipt["scene_count"]) is not int or receipt["scene_count"] <= 0:
         raise RuntimeError("precomputed regeneration receipt scene count is invalid")
-    if not receipt["fixture"] and receipt["scene_count"] != 34:
-        raise RuntimeError("formal precomputed regeneration must cover exactly 34 scene banks")
+    dataset_scene_count, dataset_roles = _dataset_scene_inventory(dataset)
+    if receipt["scene_count"] != dataset_scene_count:
+        raise RuntimeError("precomputed regeneration receipt scene count differs from dataset")
     roles = receipt["role_status"]
     if not isinstance(roles, dict) or not roles or any(
         not isinstance(role, str) or not role or status != "PASS"
         for role, status in roles.items()
     ):
         raise RuntimeError("precomputed regeneration receipt does not pass every recorded role")
+    if set(roles) != dataset_roles:
+        raise RuntimeError("precomputed regeneration receipt role inventory differs from dataset")
+    if not receipt["fixture"] and require_registration:
+        _require_registered_nonfixture_receipt(receipt_file, receipt)
     if float(receipt["rtol"]) != 0.0 or float(receipt["atol"]) != 0.0:
         raise RuntimeError("precomputed regeneration receipt must use zero tolerance")
     if (
@@ -131,6 +136,26 @@ def validate_receipt(
         raise RuntimeError("precomputed regenerated hash mismatch")
     _validate_renderer_runtime(receipt["renderer_runtime"])
     return receipt, regenerated
+
+
+def _dataset_scene_inventory(dataset: Path) -> tuple[int, set[str]]:
+    try:
+        with np.load(dataset, allow_pickle=False) as archive:
+            if "scene_ids" not in archive.files or "scene_roles" not in archive.files:
+                raise RuntimeError("candidate dataset lacks scene identity arrays")
+            scene_ids = np.asarray(archive["scene_ids"])
+            scene_roles = np.asarray(archive["scene_roles"])
+    except (OSError, ValueError) as error:
+        raise RuntimeError("candidate dataset is not a readable non-pickle NPZ") from error
+    if (
+        scene_ids.ndim != 1
+        or scene_roles.shape != scene_ids.shape
+        or scene_ids.size < 1
+        or len(set(str(value) for value in scene_ids)) != scene_ids.size
+        or any(not str(value).strip() for value in scene_roles)
+    ):
+        raise RuntimeError("candidate dataset scene inventory is invalid")
+    return int(scene_ids.size), set(str(value) for value in scene_roles)
 
 
 def _require_registered_nonfixture_receipt(receipt_file: Path, receipt: dict) -> None:

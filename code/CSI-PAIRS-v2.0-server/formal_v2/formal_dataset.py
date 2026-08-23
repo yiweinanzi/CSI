@@ -347,6 +347,8 @@ class FormalDataset:
         minimum_banks_per_target_city: int = 2,
         minimum_independent_base_map_clusters_per_target_city: int = 2,
         minimum_banks_per_source_role: int = 1,
+        minimum_independent_source_final_unseen_clusters: int = 1,
+        minimum_independent_external_validation_clusters: int = 0,
         minimum_unique_support_positions_per_target_city: int = 1,
     ) -> None:
         if require_clean_csi is not True:
@@ -577,6 +579,21 @@ class FormalDataset:
         for role in SOURCE_ROLES:
             if len(self.independent_units_for_role(role)) < minimum_banks_per_source_role:
                 raise FormalDatasetError(f"role {role!r} has too few independent base-map clusters")
+        if (
+            len(self.independent_units_for_role("source_final_unseen_bank"))
+            < minimum_independent_source_final_unseen_clusters
+        ):
+            raise FormalDatasetError(
+                "source_final_unseen_bank has too few independent clusters for the "
+                "registered G3 family"
+            )
+        if (
+            len(self.independent_units_for_role("external_validation"))
+            < minimum_independent_external_validation_clusters
+        ):
+            raise FormalDatasetError(
+                "external_validation has too few independent clusters for G8"
+            )
         target_cities = set(self.city_ids[self.scene_roles == "target"].tolist())
         if len(target_cities) < minimum_target_cities:
             raise FormalDatasetError("too few independent target cities")

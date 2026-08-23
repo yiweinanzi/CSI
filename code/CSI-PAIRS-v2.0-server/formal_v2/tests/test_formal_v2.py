@@ -50,6 +50,7 @@ from formal_v2.formal_evidence import (
     GATE_IDS,
     QUALIFICATION_SCHEMA,
     complete_gate_vector,
+    configure_reproducible_runtime,
     evidence_context,
     require_formal_qualification,
     require_stage_manifested_gate,
@@ -77,11 +78,16 @@ from formal_v2.external_adapters.controlled_map_adapter import (
     _build_model as build_controlled_model,
     _fit_data_normalizer,
     _loss as controlled_loss,
+    _train as train_controlled_model,
     _training_task,
     load_controlled_map_config,
 )
 from formal_v2.external_adapters.representation_models import CSIMAE, build_representation_model
+from formal_v2.external_adapters.controlled_map_models import (
+    deterministic_prefix_product,
+)
 from formal_v2.external_adapters.wigatr_adapter import (
+    _audit_mesh_preprocessing,
     _require_official_cuda,
     _verify_vendor_tree,
     inverse_localize_power,
@@ -97,20 +103,28 @@ from formal_v2.external_adapters.wigatr_protocol import (
     build_six_condition_units,
     condition_map,
     geometry_destroyed_map,
+    grid_to_cellwise_triangular_mesh,
     grid_to_triangular_mesh,
     load_wigatr_config,
     relative_total_power_db,
+    require_compact_mesh_matches_map_surface,
+    require_surface_ledger_equivalence,
 )
 from formal_v2.formal_fixture import write_nonscientific_fixture
 from formal_v2.formal_io import (
     StrictJsonError,
     artifact_manifest,
     parse_strict_json,
+    read_strict_json,
     sha256_file,
     write_csv,
     write_json,
 )
-from formal_v2.formal_model import CSIPairsFormalModel, required_mean
+from formal_v2.formal_model import (
+    CSIPairsFormalModel,
+    _CoordinateActionMoments,
+    required_mean,
+)
 from formal_v2.formal_path import _noop_path_threshold, localization_path_incidence, path_incidence
 from formal_v2.formal_protocol import (
     PatchSpec,
@@ -198,7 +212,7 @@ class ConfigTests(unittest.TestCase):
             2,
         )
 
-    def test_formal_g5_cluster_minimum_is_frozen_in_config(self):
+    def test_formal_power_minima_are_frozen_in_config(self):
         config = load_formal_config(
             ROOT / "formal_v2" / "configs" / "formal_v2.json"
         )
@@ -206,7 +220,17 @@ class ConfigTests(unittest.TestCase):
             config["data"][
                 "minimum_independent_base_map_clusters_per_target_city"
             ],
-            8,
+            41,
+        )
+        self.assertEqual(config["data"]["minimum_banks_per_target_city"], 41)
+        self.assertEqual(config["data"]["minimum_banks_per_source_role"], 8)
+        self.assertEqual(
+            config["data"]["minimum_independent_source_final_unseen_clusters"],
+            41,
+        )
+        self.assertEqual(
+            config["data"]["minimum_independent_external_validation_clusters"],
+            32,
         )
         rows = [
             {
@@ -366,6 +390,17 @@ class ConfigTests(unittest.TestCase):
             second = _acquire_output_lock(output)
             self.assertTrue(second.is_file())
             second.unlink()
+
+    def test_output_root_operation_lock_recovers_after_owner_crash(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary) / "run"
+            crashed = _acquire_output_lock(output)
+            crashed.guard_handle.close()
+            crashed.released = True
+            self.assertTrue(crashed.path.is_file())
+            recovered = _acquire_output_lock(output)
+            self.assertTrue(recovered.is_file())
+            recovered.unlink()
 
     def test_resource_verification_respects_run_root_lock_and_releases_after_failure(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -1024,6 +1059,296 @@ class ProtocolTests(unittest.TestCase):
         self.assertEqual(tuple(latent.shape), (2, 12))
         self.assertEqual(tuple(physical.shape), (2, 2))
 
+    def test_cached_context_and_action_paths_are_bit_exact(self):
+        model = CSIPairsFormalModel(
+            patch_count=8,
+            patch_dim=2,
+            map_channels=3,
+            action_channels=12,
+            radio_dim=4,
+            latent_dim=12,
+            state_dim=12,
+            map_dim=8,
+            hidden_dim=24,
+            attention_heads=3,
+        ).eval()
+        patches = torch.randn(2, 8, 2)
+        maps = torch.randn(2, 3, 8, 8)
+        radio = torch.randn(2, 4)
+        masks = torch.zeros(2, 8, dtype=torch.bool)
+        actions = torch.randn(2, 12, 8, 8)
+        query = torch.tensor([1, 6])
+        with torch.no_grad():
+            direct_state = model.state(patches, maps, radio, masks)
+            cached_state = model.state_from_context(
+                patches, masks, model.encode_context(maps, radio)
+            )
+            direct_outputs = model.predict(direct_state, actions, query)
+            cached_outputs = model.predict_from_action(
+                cached_state, model.encode_action(actions), query
+            )
+        torch.testing.assert_close(direct_state, cached_state, rtol=0.0, atol=0.0)
+        for direct, cached in zip(direct_outputs, cached_outputs, strict=True):
+            torch.testing.assert_close(direct, cached, rtol=0.0, atol=0.0)
+
+    def test_full_and_prepooled_spatial_inputs_are_model_equivalent(self):
+        torch.manual_seed(20270817)
+        model = CSIPairsFormalModel(
+            patch_count=8,
+            patch_dim=2,
+            map_channels=3,
+            action_channels=12,
+            radio_dim=4,
+            latent_dim=12,
+            state_dim=12,
+            map_dim=8,
+            hidden_dim=24,
+            attention_heads=3,
+        ).eval()
+        patches = torch.randn(2, 8, 2)
+        maps = torch.randn(2, 3, 32, 48)
+        radio = torch.randn(2, 4)
+        masks = torch.zeros(2, 8, dtype=torch.bool)
+        actions = torch.randn(2, 12, 32, 48)
+        query = torch.tensor([1, 6])
+        pooled_maps = model.map_encoder.input_pool(maps)
+        pooled_actions = model.action_input_pool(actions)
+        with torch.no_grad():
+            direct_state = model.state(patches, maps, radio, masks)
+            pooled_state = model.state(patches, pooled_maps, radio, masks)
+            direct_outputs = model.predict(direct_state, actions, query)
+            pooled_outputs = model.predict(pooled_state, pooled_actions, query)
+        torch.testing.assert_close(direct_state, pooled_state, rtol=0.0, atol=0.0)
+        for direct, pooled in zip(direct_outputs, pooled_outputs, strict=True):
+            torch.testing.assert_close(direct, pooled, rtol=0.0, atol=0.0)
+
+    def test_zero_action_encoding_and_response_residual_are_bit_exact_zero(self):
+        model = CSIPairsFormalModel(
+            patch_count=8,
+            patch_dim=2,
+            map_channels=3,
+            action_channels=12,
+            radio_dim=4,
+            latent_dim=12,
+            state_dim=12,
+            map_dim=8,
+            hidden_dim=24,
+            attention_heads=3,
+        ).eval()
+        state = torch.randn(3, 8, 12)
+        query = torch.tensor([0, 3, 7])
+        encoded = model.encode_action(torch.zeros(3, 12, 8, 8))
+        self.assertEqual(tuple(encoded.shape), (3, 17, 8))
+        residual = model.predict_action_residual(state, encoded, query)
+        self.assertEqual(int(torch.count_nonzero(encoded)), 0)
+        self.assertTrue(all(int(torch.count_nonzero(value)) == 0 for value in residual))
+        identity = model.predict_identity(state, query)
+        prediction = model.predict_from_action(state, encoded, query)
+        for direct, zero_action in zip(identity, prediction, strict=True):
+            torch.testing.assert_close(direct, zero_action, rtol=0.0, atol=0.0)
+
+    def test_endpoint_gradient_is_isolated_from_response_residual(self):
+        model = CSIPairsFormalModel(
+            patch_count=4,
+            patch_dim=4,
+            map_channels=3,
+            action_channels=12,
+            radio_dim=4,
+            latent_dim=8,
+            state_dim=8,
+            map_dim=8,
+            hidden_dim=16,
+            attention_heads=2,
+        )
+        state = torch.randn(2, 4, 8, requires_grad=True)
+        latent, physical = model.predict_identity(state, torch.tensor([1, 3]))
+        (latent.square().mean() + physical.square().mean()).backward()
+        response_prefixes = (
+            "action_encoder",
+            "action_pool",
+            "response_",
+        )
+        response_parameters = [
+            parameter
+            for name, parameter in model.named_parameters()
+            if name.startswith(response_prefixes)
+        ]
+        self.assertTrue(response_parameters)
+        self.assertTrue(
+            all(
+                parameter.grad is None or int(torch.count_nonzero(parameter.grad)) == 0
+                for parameter in response_parameters
+            )
+        )
+        self.assertGreater(
+            sum(
+                int(torch.count_nonzero(parameter.grad))
+                for name, parameter in model.named_parameters()
+                if parameter.grad is not None
+                and name.startswith(("predictor", "latent_head", "physical_head"))
+            ),
+            0,
+        )
+
+    def test_response_residual_is_sensitive_to_wrong_action_coordinates(self):
+        torch.manual_seed(20270815)
+        model = CSIPairsFormalModel(
+            patch_count=4,
+            patch_dim=4,
+            map_channels=3,
+            action_channels=12,
+            radio_dim=4,
+            latent_dim=8,
+            state_dim=8,
+            map_dim=8,
+            hidden_dim=16,
+            attention_heads=2,
+        ).eval()
+        state = torch.randn(2, 4, 8)
+        actions = torch.zeros(2, 12, 16, 16)
+        actions[0, 1, 2:5, 3:6] = 1.0
+        actions[1, 1, 10:13, 11:14] = 1.0
+        encoded = model.encode_action(actions)
+        latent, physical = model.predict_action_residual(
+            state[0:1].expand(2, -1, -1), encoded, torch.tensor([2, 2])
+        )
+        self.assertFalse(torch.equal(encoded[0], encoded[1]))
+        self.assertFalse(torch.equal(latent[0], latent[1]))
+        self.assertFalse(torch.equal(physical[0], physical[1]))
+
+    def test_action_pool_preserves_the_frozen_spatial_token_order(self):
+        model = CSIPairsFormalModel(
+            patch_count=4,
+            patch_dim=4,
+            map_channels=3,
+            action_channels=12,
+            radio_dim=4,
+            latent_dim=8,
+            state_dim=8,
+            map_dim=8,
+            hidden_dim=16,
+            attention_heads=2,
+        )
+        self.assertEqual(model.action_token_count, 16)
+        self.assertEqual(
+            model.action_pool[0].in_features,
+            16 * model.map_dim + 12 * model.action_moments.feature_count,
+        )
+        encoded = model.encode_action(torch.zeros(2, 12, 16, 16))
+        self.assertEqual(tuple(encoded.shape), (2, 17, model.map_dim))
+
+    def test_response_conditioning_depends_on_state_for_the_same_action(self):
+        torch.manual_seed(20270818)
+        model = CSIPairsFormalModel(
+            patch_count=4,
+            patch_dim=4,
+            map_channels=3,
+            action_channels=12,
+            radio_dim=4,
+            latent_dim=8,
+            state_dim=8,
+            map_dim=8,
+            hidden_dim=16,
+            attention_heads=2,
+        ).eval()
+        action = torch.zeros(2, 12, 16, 16)
+        action[:, 1, 3:7, 5:9] = 1.0
+        encoded = model.encode_action(action)
+        state = torch.stack((torch.zeros(4, 8), torch.ones(4, 8)))
+        latent, physical = model.predict_action_residual(
+            state, encoded, torch.tensor([2, 2])
+        )
+        self.assertFalse(torch.equal(latent[0], latent[1]))
+        self.assertFalse(torch.equal(physical[0], physical[1]))
+
+    def test_response_conditioning_reads_nonquery_source_state(self):
+        torch.manual_seed(20270820)
+        model = CSIPairsFormalModel(
+            patch_count=4,
+            patch_dim=4,
+            map_channels=3,
+            action_channels=12,
+            radio_dim=4,
+            latent_dim=8,
+            state_dim=8,
+            map_dim=8,
+            hidden_dim=16,
+            attention_heads=2,
+        ).eval()
+        action = torch.zeros(2, 12, 16, 16)
+        action[:, 1, 3:7, 5:9] = 1.0
+        encoded = model.encode_action(action)
+        state = torch.zeros(2, 4, 8)
+        state[1, 0] = 3.0
+        latent, physical = model.predict_action_residual(
+            state, encoded, torch.tensor([2, 2])
+        )
+        self.assertFalse(torch.equal(latent[0], latent[1]))
+        self.assertFalse(torch.equal(physical[0], physical[1]))
+
+    def test_action_response_batch_samples_are_isolated(self):
+        torch.manual_seed(20270819)
+        model = CSIPairsFormalModel(
+            patch_count=4,
+            patch_dim=4,
+            map_channels=3,
+            action_channels=12,
+            radio_dim=4,
+            latent_dim=8,
+            state_dim=8,
+            map_dim=8,
+            hidden_dim=16,
+            attention_heads=2,
+        ).eval()
+        state = torch.randn(2, 4, 8)
+        action = torch.randn(2, 12, 16, 16)
+        query = torch.tensor([1, 3])
+        with torch.no_grad():
+            original = model.predict(state, action, query)
+            action[1] = torch.randn_like(action[1]) * 100.0
+            state[1] = torch.randn_like(state[1]) * 100.0
+            repeated = model.predict(state, action, query)
+        for before, after in zip(original, repeated, strict=True):
+            torch.testing.assert_close(before[0], after[0], rtol=0.0, atol=0.0)
+
+    def test_response_action_has_a_zero_preserving_direct_gradient_path(self):
+        torch.manual_seed(20270816)
+        model = CSIPairsFormalModel(
+            patch_count=4,
+            patch_dim=4,
+            map_channels=3,
+            action_channels=12,
+            radio_dim=4,
+            latent_dim=8,
+            state_dim=8,
+            map_dim=8,
+            hidden_dim=16,
+            attention_heads=2,
+        )
+        for parameter in model.response_state.parameters():
+            parameter.data.zero_()
+        for parameter in model.response_predictor.parameters():
+            parameter.data.zero_()
+        state = torch.zeros(1, 4, 8)
+        query = torch.tensor([2])
+        action = torch.zeros(1, 12, 16, 16)
+        action[:, 1, 3:7, 5:9] = 1.0
+        encoded = model.encode_action(action)
+        latent, physical = model.predict_action_residual(state, encoded, query)
+        loss = latent.square().mean() + physical.square().mean()
+        loss.backward()
+
+        self.assertGreater(int(torch.count_nonzero(latent)), 0)
+        self.assertGreater(int(torch.count_nonzero(physical)), 0)
+        self.assertGreater(
+            sum(
+                int(torch.count_nonzero(parameter.grad))
+                for parameter in model.response_action.parameters()
+                if parameter.grad is not None
+            ),
+            0,
+        )
+
     def test_model_has_no_batchnorm_and_batch_samples_are_isolated(self):
         model = CSIPairsFormalModel(
             patch_count=4,
@@ -1052,6 +1377,16 @@ class ProtocolTests(unittest.TestCase):
             repeated = model.state(patches, maps, radio, masks)[0]
         torch.testing.assert_close(first, repeated, rtol=0.0, atol=0.0)
 
+    def test_action_moments_preserve_absolute_edit_coordinates(self):
+        actions = torch.zeros(2, 3, 16, 16)
+        actions[0, 1, 3:5, 4:6] = 1.0
+        actions[1, 1, 10:12, 11:13] = 1.0
+        moments = _CoordinateActionMoments()(actions)
+        self.assertFalse(torch.equal(moments[0], moments[1]))
+        channel = moments.reshape(2, 3, -1)[:, 1]
+        self.assertLess(float(channel[0, 4]), float(channel[1, 4]))
+        self.assertLess(float(channel[0, 5]), float(channel[1, 5]))
+
     def test_f_inherits_complete_teacher_encoder_and_uses_context_pose(self):
         teacher = CSIMaskedTeacher(2, 2, 2, 8, 2, 2, 1)
         model = CSIPairsFormalModel(
@@ -1070,6 +1405,16 @@ class ProtocolTests(unittest.TestCase):
             csi_encoder_layers=2,
         ).eval()
         model.initialize_csi_from_teacher(teacher)
+        self.assertNotIn("csi_fixed_position", dict(model.named_parameters()))
+        self.assertIn("csi_fixed_position", dict(model.named_buffers()))
+        self.assertIn("csi_fixed_position", model.state_dict())
+        self.assertFalse(model.csi_fixed_position.requires_grad)
+        torch.testing.assert_close(
+            teacher.fixed_position,
+            model.csi_fixed_position,
+            rtol=0.0,
+            atol=0.0,
+        )
         for name, value in teacher.encoder.state_dict().items():
             torch.testing.assert_close(value, model.csi_encoder.state_dict()[name])
         patches = torch.zeros(1, 4, 2)
@@ -1136,6 +1481,12 @@ class StatisticsTests(unittest.TestCase):
         self.assertTrue(all(0 <= value <= 1 for value in adjusted))
         self.assertGreaterEqual(adjusted[0], 0.01)
 
+    def test_holm_adjustment_rejects_invalid_families(self):
+        for values in ([], [float("nan")], [float("inf")], [-0.01], [1.01]):
+            with self.subTest(values=values):
+                with self.assertRaises(ValueError):
+                    holm_adjust(values)
+
     def test_exact_sign_flip_does_not_use_monte_carlo_plus_one_correction(self):
         result = paired_sign_flip_test(
             np.asarray(["cluster-a", "cluster-b"]),
@@ -1159,6 +1510,21 @@ class StatisticsTests(unittest.TestCase):
         self.assertEqual(result["draws"], 3)
         self.assertEqual(result["finite_sample_correction"], "plus_one_monte_carlo")
         self.assertEqual(result["p_value_two_sided"], 0.25)
+
+    def test_sign_flip_null_is_centered_on_registered_effect_margin(self):
+        clusters = np.asarray([f"cluster-{index}" for index in range(12)])
+        effects = np.asarray((0.08, 0.12) * 6)
+        zero_null = paired_sign_flip_test(clusters, effects, np.zeros(12), seed=7)
+        margin_null = paired_sign_flip_test(
+            clusters,
+            effects,
+            np.zeros(12),
+            seed=7,
+            null_difference=0.1,
+        )
+        self.assertLess(zero_null["p_value_two_sided"], 0.05)
+        self.assertGreater(margin_null["p_value_two_sided"], 0.05)
+        self.assertEqual(margin_null["null_difference"], 0.1)
 
     def test_scientific_gate_exit_code_is_fail_closed(self):
         self.assertEqual(_result_exit_code({"status": "PASS", "passed": True}), 0)
@@ -1489,6 +1855,10 @@ class EvidenceAndPathTests(unittest.TestCase):
                 "teacher_checkpoint": str(checkpoint),
                 "teacher_checkpoint_sha256": hashlib.sha256(checkpoint.read_bytes()).hexdigest(),
                 "primary_route_contract": PRIMARY_ROUTE_CONTRACT,
+                "physical_response": {
+                    "status": "NOT_ASSESSED_FIXTURE_FORBIDDEN",
+                    "formal_physical_response_required_for_nonfixture": True,
+                },
             },
         )
         write_json(
@@ -1525,6 +1895,36 @@ class EvidenceAndPathTests(unittest.TestCase):
         self.assertEqual(len(evidence["dataset_sha256"]), 64)
         self.assertEqual(len(evidence["config_sha256"]), 64)
 
+    def test_fixture_runtime_cache_never_applies_to_nonfixture_data(self):
+        authenticated = {
+            "requirements_lock_sha256": "a" * 64,
+            "source_tree_sha256": "b" * 64,
+        }
+        nonfixture = SimpleNamespace(is_fixture=False, source_path=self.path)
+        with (
+            patch.dict(os.environ, {"CSI_PAIRS_FIXTURE_RUNTIME_CACHE": "1"}),
+            patch("formal_v2.formal_evidence._FIXTURE_RUNTIME_CACHE", None),
+            patch(
+                "formal_v2.formal_evidence.runtime_provenance",
+                return_value={"unvalidated": True},
+            ) as provenance,
+            patch(
+                "formal_v2.formal_evidence.validate_runtime_provenance",
+                return_value=authenticated,
+            ) as validate,
+        ):
+            first = evidence_context(self.config, self.dataset, "FORBIDDEN")
+            second = evidence_context(self.config, self.dataset, "FORBIDDEN")
+            self.assertEqual(first["runtime_provenance"], authenticated)
+            self.assertEqual(second["runtime_provenance"], authenticated)
+            self.assertEqual(provenance.call_count, 1)
+            self.assertEqual(validate.call_count, 1)
+
+            evidence_context(self.config, nonfixture, "CANDIDATE")
+            evidence_context(self.config, nonfixture, "CANDIDATE")
+            self.assertEqual(provenance.call_count, 3)
+            self.assertEqual(validate.call_count, 3)
+
     def test_direct_evidence_entrypoint_configures_deterministic_torch(self):
         torch.use_deterministic_algorithms(False)
         torch.backends.cudnn.deterministic = False
@@ -1535,6 +1935,7 @@ class EvidenceAndPathTests(unittest.TestCase):
         self.assertTrue(evidence["runtime_provenance"]["python_dont_write_bytecode"])
 
     def test_evidence_context_rejects_unlocked_main_runtime(self):
+        configure_reproducible_runtime()
         original = runtime_provenance()
         mutations = []
 
@@ -1583,9 +1984,12 @@ class EvidenceAndPathTests(unittest.TestCase):
 
         for runtime, message in mutations:
             with self.subTest(message=message):
-                with patch(
-                    "formal_v2.formal_evidence.runtime_provenance",
-                    return_value=runtime,
+                with (
+                    patch("formal_v2.formal_evidence._FIXTURE_RUNTIME_CACHE", None),
+                    patch(
+                        "formal_v2.formal_evidence.runtime_provenance",
+                        return_value=runtime,
+                    ),
                 ):
                     with self.assertRaisesRegex(RuntimeError, message):
                         evidence_context(self.config, self.dataset, "FORBIDDEN")
@@ -1732,6 +2136,10 @@ class EvidenceAndPathTests(unittest.TestCase):
             "teacher_checkpoint": str(checkpoint),
             "teacher_checkpoint_sha256": hashlib.sha256(checkpoint.read_bytes()).hexdigest(),
             "primary_route_contract": PRIMARY_ROUTE_CONTRACT,
+            "physical_response": {
+                "status": "NOT_ASSESSED_FIXTURE_FORBIDDEN",
+                "formal_physical_response_required_for_nonfixture": True,
+            },
         }
         require_formal_qualification(
             gate, self.config, self.dataset, allow_nonscientific_fixture=True
@@ -1754,6 +2162,10 @@ class EvidenceAndPathTests(unittest.TestCase):
             "teacher_checkpoint": str(checkpoint),
             "teacher_checkpoint_sha256": sha256_file(checkpoint),
             "primary_route_contract": PRIMARY_ROUTE_CONTRACT,
+            "physical_response": {
+                "status": "NOT_ASSESSED_FIXTURE_FORBIDDEN",
+                "formal_physical_response_required_for_nonfixture": True,
+            },
         }
         require_formal_qualification(
             gate, self.config, self.dataset, allow_nonscientific_fixture=True
@@ -2042,7 +2454,7 @@ class EvidenceAndPathTests(unittest.TestCase):
 
     def test_rt_calibration_manifest_requires_bound_input_and_source_paths(self):
         manifest = {
-            "schema_version": "csi-pairs-v6-rt-calibration-adapter-v5",
+            "schema_version": "csi-pairs-v6-rt-calibration-adapter-v6",
             "protocol_path": "protocol.json",
             "protocol_sha256": "a" * 64,
             "fit_dataset_path": "fit.bin",
@@ -2053,6 +2465,10 @@ class EvidenceAndPathTests(unittest.TestCase):
             "validation_reference_sha256": "e" * 64,
             "adapter_source_path": "adapter.py",
             "adapter_source_sha256": "d" * 64,
+            "design_record_path": "CALIBRATION_DESIGN.md",
+            "design_record_sha256": "f" * 64,
+            "license_review_path": "LICENSE_REVIEW.md",
+            "license_review_sha256": "0" * 64,
             "command": [
                 "{python}",
                 "{adapter_source}",
@@ -2158,11 +2574,29 @@ class EvidenceAndPathTests(unittest.TestCase):
             "(out/'adapter_result.json').write_text(json.dumps(payload,sort_keys=True),encoding='utf-8')\n",
             encoding="utf-8",
         )
+        design_record = self.root / "CALIBRATION_DESIGN.md"
+        design_record.write_text(
+            "# C11 calibration design\n\n"
+            "This design was pre-registered.\n\n"
+            "Fit units are disjoint Denver scenes. Validation units are disjoint Miami scenes.\n\n"
+            "## Frozen tolerances\n\n"
+            "All four statistic tolerances are frozen before validation.\n"
+            + "Design evidence.\n" * 40,
+            encoding="utf-8",
+        )
+        license_review = self.root / "LICENSE_REVIEW.md"
+        license_review.write_text(
+            "# C11 license review\n\n"
+            "Sionna, DiffeRT, and OpenStreetMap license records were reviewed.\n"
+            "Both engine outputs are simulations and not measurements.\n"
+            + "License evidence.\n" * 40,
+            encoding="utf-8",
+        )
         manifest = self.root / "rt-manifest.json"
         write_json(
             manifest,
             {
-                "schema_version": "csi-pairs-v6-rt-calibration-adapter-v5",
+                "schema_version": "csi-pairs-v6-rt-calibration-adapter-v6",
                 "protocol_path": str(protocol),
                 "protocol_sha256": sha256_file(protocol),
                 "fit_dataset_path": str(fit),
@@ -2173,6 +2607,10 @@ class EvidenceAndPathTests(unittest.TestCase):
                 "validation_reference_sha256": sha256_file(validation_reference),
                 "adapter_source_path": str(adapter),
                 "adapter_source_sha256": sha256_file(adapter),
+                "design_record_path": str(design_record),
+                "design_record_sha256": sha256_file(design_record),
+                "license_review_path": str(license_review),
+                "license_review_sha256": sha256_file(license_review),
                 "command": [
                     "{python}",
                     "{adapter_source}",
@@ -2447,6 +2885,7 @@ class EvidenceAndPathTests(unittest.TestCase):
         content = self.root / "paper.pdf"
         content.write_bytes(b"%PDF-1.4\n% test paper\n")
         from datetime import datetime, timezone
+        from formal_v2.formal_evidence import _source_tree_sha256
 
         now = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
         query = "map-conditioned CSI"
@@ -2479,8 +2918,33 @@ class EvidenceAndPathTests(unittest.TestCase):
                     "receipt_sha256": sha256_file(receipt_path),
                 }
             )
+        review = self.root / "HUMAN_REVIEW.md"
+        novelty_scope = "paired local geometry supervision"
+        review.write_text(
+            "# C13 human review\n\n"
+            "- Reviewer name or authorized identity: authorized-test-reviewer\n"
+            "- Affiliation or authorization basis: test authorization\n"
+            f"- Review completed UTC: {now}\n"
+            f"- Project dataset SHA-256: {sha256_file(self.dataset.source_path)}\n"
+            f"- Project source-tree SHA-256: {_source_tree_sha256()}\n\n"
+            "paper.pdf was reviewed record by record for relevance, license, and redistribution.\n\n"
+            "- Licenses reviewed for every local PDF/source resource: true\n"
+            "- No direct overlap with the frozen C13 claim: true\n"
+            "- RT path ready: true\n"
+            "- Map path ready: true\n"
+            "- External-validity path ready: true\n"
+            f"- Allowed novelty scope: {novelty_scope}\n"
+            "- Conflicts or unresolved restrictions: none\n\n"
+            "I attest that I personally reviewed the listed resources and the frozen C13\n"
+            "claim, verified the recorded license/redistribution decisions from the cited\n"
+            "sources, and made the novelty and readiness decisions above.\n\n"
+            "- Reviewer signature or authenticated identity: authorized-test-reviewer\n"
+            f"- Signed UTC: {now}\n"
+            + "Review detail.\n" * 20,
+            encoding="utf-8",
+        )
         manifest = {
-            "schema_version": "csi-pairs-v6-literature-resource-manifest-v3",
+            "schema_version": "csi-pairs-v6-literature-resource-manifest-v4",
             "search_completed_utc": now,
             "databases": list(self.config["literature"]["required_databases"]),
             "queries": [query],
@@ -2505,25 +2969,32 @@ class EvidenceAndPathTests(unittest.TestCase):
                 "adapter_owners": ["research-team"],
             },
             "licenses_reviewed": True,
+            "human_review_path": str(review),
+            "human_review_sha256": sha256_file(review),
             "decision": {
                 "no_direct_overlap": True,
                 "rt_path_ready": True,
                 "map_path_ready": True,
                 "external_validity_path_ready": True,
-                "novelty_scope": "paired local geometry supervision",
+                "novelty_scope": novelty_scope,
             },
         }
-        validate_literature_manifest(self.config, manifest, self.root)
+        validate_literature_manifest(self.config, manifest, self.root, self.dataset)
+        review_bytes = review.read_bytes()
+        review.write_bytes(review_bytes + b"tampered")
+        with self.assertRaisesRegex(ValueError, "human review is missing or hash-mismatched"):
+            validate_literature_manifest(self.config, manifest, self.root, self.dataset)
+        review.write_bytes(review_bytes)
         original_url = manifest["search_receipts"][0]["retrieval_url"]
         manifest["search_receipts"][0]["retrieval_url"] = (
             "https://api.crossref.org/works?query=unrelated"
         )
         with self.assertRaisesRegex(ValueError, "bind the frozen query"):
-            validate_literature_manifest(self.config, manifest, self.root)
+            validate_literature_manifest(self.config, manifest, self.root, self.dataset)
         manifest["search_receipts"][0]["retrieval_url"] = original_url
         manifest["decision"]["no_direct_overlap"] = False
         with self.assertRaisesRegex(ValueError, "contradicts"):
-            validate_literature_manifest(self.config, manifest, self.root)
+            validate_literature_manifest(self.config, manifest, self.root, self.dataset)
         manifest["decision"]["no_direct_overlap"] = True
         stage = self.root / "literature-stage"
         stage.mkdir()
@@ -2532,6 +3003,12 @@ class EvidenceAndPathTests(unittest.TestCase):
         payload = {
             "input_manifest_path": bound.name,
             "input_manifest_sha256": sha256_file(bound),
+            "human_review_path": str(review.resolve()),
+            "human_review_sha256": sha256_file(review),
+            "human_reviewer": "authorized-test-reviewer",
+            "human_review_completed_utc": now,
+            "human_review_signature": "authorized-test-reviewer",
+            "human_review_signed_utc": now,
         }
         write_json(
             stage / "manifest.json",
@@ -2586,6 +3063,40 @@ class EvidenceAndPathTests(unittest.TestCase):
             [*full_argv, "--approve-full-experiment"]
         )
         self.assertTrue(full_args.approve_full_experiment)
+        qualification = parser.parse_args(
+            [
+                "qualify",
+                "--config",
+                "config.json",
+                "--output",
+                "output",
+                "--resume",
+            ]
+        )
+        self.assertTrue(qualification.resume)
+
+    def test_cli_qualify_resume_refuses_a_completed_gate_without_overwrite(self):
+        output = self.root / "completed-qualification"
+        fixture = write_nonscientific_fixture(self.root / "resume-cli-fixture.npz")
+        gate = output / "qualification" / "gate.json"
+        gate.parent.mkdir(parents=True)
+        gate.write_bytes(b"completed gate bytes")
+        with patch("builtins.print") as error_message:
+            status = formal_cli_main(
+                [
+                    "qualify",
+                    "--config",
+                    str(SMOKE_CONFIG),
+                    "--dataset",
+                    str(fixture),
+                    "--output",
+                    str(output),
+                    "--resume",
+                ]
+            )
+        self.assertEqual(status, 2)
+        self.assertIn("refuses a completed qualification", error_message.call_args.args[0])
+        self.assertEqual(gate.read_bytes(), b"completed gate bytes")
 
     def test_cli_ships_first_party_claim_and_scene_id_defaults(self):
         parser = build_parser()
@@ -2620,6 +3131,12 @@ class WiGATrAdapterTests(unittest.TestCase):
         self.assertEqual(config["model"]["hidden_s_channels"], 32)
         self.assertEqual(config["model"]["num_heads"], 8)
         self.assertEqual(config["training"]["steps"], 200000)
+        self.assertEqual(config["training"]["batch_size"], 64)
+        self.assertEqual(config["training"]["microbatch_size"], 16)
+        self.assertEqual(
+            config["mesh"]["preprocessing"],
+            "surface-ledger-equivalent-rectangle-compaction-v1",
+        )
         vendor = ROOT / "formal_v2/external_adapters/vendor/Wi-GATr"
         _verify_vendor_tree(vendor)
         self.assertTrue((vendor / "LICENSE").is_file())
@@ -2672,6 +3189,85 @@ class WiGATrAdapterTests(unittest.TestCase):
         )
         self.assertEqual(empty_mesh.shape, (0, 3, 3))
         self.assertEqual(empty_materials.shape, (0,))
+
+    def test_compact_mesh_preserves_surface_area_and_material(self):
+        maps = np.zeros((3, 4, 4), dtype=np.float64)
+        maps[0, 1:3, 1:3] = 1.0
+        maps[1, 1:3, 1:3] = 2.0
+        maps[2, 1:3, 1:3] = 3.0
+        arguments = {
+            "resolution_m": 0.5,
+            "origin_xy_m": (-1.0, -1.0),
+            "occupancy_threshold": 0.5,
+            "minimum_height_m": 0.001,
+        }
+        reference, reference_materials = grid_to_cellwise_triangular_mesh(
+            maps, ("occupancy", "height", "material"), **arguments
+        )
+        compact, compact_materials = grid_to_triangular_mesh(
+            maps, ("occupancy", "height", "material"), **arguments
+        )
+
+        def area(mesh):
+            return 0.5 * np.linalg.norm(
+                np.cross(mesh[:, 1] - mesh[:, 0], mesh[:, 2] - mesh[:, 0]),
+                axis=1,
+            ).sum()
+
+        self.assertLess(len(compact), len(reference))
+        self.assertAlmostEqual(float(area(compact)), float(area(reference)), places=6)
+        self.assertTrue(np.all(reference_materials == 3))
+        self.assertTrue(np.all(compact_materials == 3))
+        require_surface_ledger_equivalence(
+            reference,
+            reference_materials,
+            compact,
+            compact_materials,
+            resolution_m=arguments["resolution_m"],
+            origin_xy_m=arguments["origin_xy_m"],
+        )
+        digest, atomic_quads = require_compact_mesh_matches_map_surface(
+            maps,
+            ("occupancy", "height", "material"),
+            compact,
+            compact_materials,
+            **arguments,
+        )
+        self.assertEqual(len(digest), 64)
+        self.assertEqual(atomic_quads * 2, len(reference))
+        altered_materials = compact_materials.copy()
+        altered_materials[:2] += 1
+        with self.assertRaisesRegex(RuntimeError, "canonical surface ledger"):
+            require_surface_ledger_equivalence(
+                reference,
+                reference_materials,
+                compact,
+                altered_materials,
+                resolution_m=arguments["resolution_m"],
+                origin_xy_m=arguments["origin_xy_m"],
+            )
+        with self.assertRaisesRegex(RuntimeError, "map surface"):
+            require_compact_mesh_matches_map_surface(
+                maps,
+                ("occupancy", "height", "material"),
+                compact,
+                altered_materials,
+                **arguments,
+            )
+
+    def test_wigatr_mesh_audit_covers_the_complete_fixture_map_bank(self):
+        config = load_wigatr_config(ROOT / "formal_v2/configs/wigatr_official_v1.json")
+        audit = _audit_mesh_preprocessing(self.dataset, config)
+        self.assertEqual(audit["status"], "PASS")
+        self.assertEqual(
+            audit["map_count"], self.dataset.scene_count * self.dataset.world_count
+        )
+        self.assertEqual(
+            sum(audit["role_map_counts"].values()), audit["map_count"]
+        )
+        self.assertLessEqual(
+            audit["compact_face_count"], audit["reference_face_count"]
+        )
 
     def test_geometry_destroyed_preserves_joint_cell_statistics(self):
         maps = np.arange(3 * 4 * 4, dtype=np.float64).reshape(3, 4, 4)
@@ -2871,19 +3467,43 @@ class WiGATrAdapterTests(unittest.TestCase):
         checkpoint_path = output / "checkpoint.pt"
         result_path = output / "six_condition_results.csv"
         runtime_path = output / "runtime_provenance.json"
+        mesh_audit_path = output / "mesh_surface_audit.json"
         write_json(config_path, {"schema_version": "adapter-config"})
+        checkpoint_path.write_bytes(b"checkpoint")
+        write_csv(result_path, [{"result": 1}])
+        runtime = {"environment_sha256": "a" * 64}
+        write_json(runtime_path, runtime)
+        role_map_counts = {
+            str(role): int(np.sum(self.dataset.scene_roles == role))
+            * self.dataset.world_count
+            for role in sorted(set(str(value) for value in self.dataset.scene_roles))
+        }
+        mesh_audit = {
+            "schema_version": "csi-pairs-v6-wigatr-mesh-surface-audit-v1",
+            "status": "PASS",
+            "passed": True,
+            "dataset_sha256": sha256_file(self.path),
+            "preprocessing": "surface-ledger-equivalent-rectangle-compaction-v1",
+            "scene_count": self.dataset.scene_count,
+            "world_count": self.dataset.world_count,
+            "map_count": self.dataset.scene_count * self.dataset.world_count,
+            "role_map_counts": role_map_counts,
+            "reference_face_count": 4,
+            "compact_face_count": 2,
+            "canonical_surface_ledger_sha256": "c" * 64,
+            "rule": "complete fixture map bank exact canonical ledger comparison",
+        }
+        write_json(mesh_audit_path, mesh_audit)
         write_json(
             training_path,
             {
                 "train_role": "source_encoder_train",
                 "selection_role": "source_method_selection",
                 "target_roles_read": [],
+                "mesh_surface_audit_path": mesh_audit_path.name,
+                "mesh_surface_audit_sha256": sha256_file(mesh_audit_path),
             },
         )
-        checkpoint_path.write_bytes(b"checkpoint")
-        write_csv(result_path, [{"result": 1}])
-        runtime = {"environment_sha256": "a" * 64}
-        write_json(runtime_path, runtime)
         command = [
             "{project_root}/formal_v2/external_adapters/.venv-wigatr/bin/python",
             "adapter.py",
@@ -2897,7 +3517,7 @@ class WiGATrAdapterTests(unittest.TestCase):
             "adapter_config_sha256": sha256_file(config_path),
         }
         execution = {
-            "schema_version": "csi-pairs-v6-external-execution-v3",
+            "schema_version": "csi-pairs-v6-external-execution-v4",
             "adapter_id": "wigatr",
             "model_name": "Wi-GATr",
             "implementation_status": "official-code-adaptation",
@@ -2916,6 +3536,8 @@ class WiGATrAdapterTests(unittest.TestCase):
             "runtime_provenance_path": runtime_path.name,
             "runtime_provenance_sha256": sha256_file(runtime_path),
             "runtime_environment_sha256": runtime["environment_sha256"],
+            "mesh_surface_audit_path": mesh_audit_path.name,
+            "mesh_surface_audit_sha256": sha256_file(mesh_audit_path),
         }
         write_json(output / "execution_manifest.json", execution)
         with (
@@ -2931,6 +3553,25 @@ class WiGATrAdapterTests(unittest.TestCase):
             validate_external_execution_manifest(
                 adapter, output, result_path, self.dataset
             )
+            tampered_audit = dict(mesh_audit)
+            tampered_audit["map_count"] -= 1
+            write_json(mesh_audit_path, tampered_audit)
+            training = read_strict_json(training_path)
+            training["mesh_surface_audit_sha256"] = sha256_file(mesh_audit_path)
+            write_json(training_path, training)
+            execution["mesh_surface_audit_sha256"] = sha256_file(mesh_audit_path)
+            execution["training_record_sha256"] = sha256_file(training_path)
+            write_json(output / "execution_manifest.json", execution)
+            with self.assertRaisesRegex(RuntimeError, "audit contract"):
+                validate_external_execution_manifest(
+                    adapter, output, result_path, self.dataset
+                )
+            write_json(mesh_audit_path, mesh_audit)
+            training["mesh_surface_audit_sha256"] = sha256_file(mesh_audit_path)
+            write_json(training_path, training)
+            execution["mesh_surface_audit_sha256"] = sha256_file(mesh_audit_path)
+            execution["training_record_sha256"] = sha256_file(training_path)
+            write_json(output / "execution_manifest.json", execution)
             substituted = {"environment_sha256": "b" * 64}
             write_json(runtime_path, substituted)
             execution["runtime_provenance_sha256"] = sha256_file(runtime_path)
@@ -3222,7 +3863,13 @@ class WaibuIntegrationTests(unittest.TestCase):
             loss.backward()
             gradients = [parameter.grad for parameter in model.parameters() if parameter.requires_grad]
             self.assertTrue(torch.isfinite(loss), config["method"])
-            self.assertTrue(any(value is not None and torch.any(value != 0) for value in gradients), config["method"])
+            self.assertTrue(
+                any(
+                    value is not None and torch.any(value != 0)
+                    for value in gradients
+                ),
+                config["method"],
+            )
             if config["method"] in {"wiser", "rfir"}:
                 with torch.no_grad():
                     first = model(
@@ -3240,6 +3887,89 @@ class WaibuIntegrationTests(unittest.TestCase):
         self.assertEqual(_training_task("wiser", 11, 100, 5), "cir")
         self.assertIn(_training_task("wiser", 25, 100, 5), {"radiomap", "cir"})
 
+    def test_controlled_map_memory_and_precision_contract_is_frozen(self):
+        expectations = {
+            "sigmap_controlled_v1.json": (128, 16, "bf16"),
+            "wiser_controlled_v1.json": (64, 16, "float32"),
+            "rfir_controlled_v1.json": (32, 16, "float32"),
+        }
+        for name, expected in expectations.items():
+            with self.subTest(config=name):
+                config = load_controlled_map_config(ROOT / "formal_v2/configs" / name)
+                observed = (
+                    config["training"]["batch_size"],
+                    config["training"]["microbatch_size"],
+                    config["training"]["precision"],
+                )
+                self.assertEqual(observed, expected)
+
+    def test_controlled_map_train_records_effective_batch_accumulation(self):
+        config = load_controlled_map_config(
+            ROOT / "formal_v2/configs/controlled_map_smoke_v1.json"
+        )
+        config["training"].update(steps=1, selection_every_steps=1)
+        model, metadata = build_controlled_model(config, self.dataset)
+        normalizer = _fit_data_normalizer(self.dataset)
+        train_scene = int(self.dataset.indices_for_role("source_encoder_train")[0])
+        selection_scene = int(
+            self.dataset.indices_for_role("source_method_selection")[0]
+        )
+        units = {
+            "source_encoder_train": [
+                (train_scene, 0, position)
+                for position in range(config["training"]["batch_size"])
+            ],
+            "source_method_selection": [
+                (selection_scene, 0, position)
+                for position in range(config["training"]["microbatch_size"])
+            ],
+        }
+        output = self.path.parent / "controlled-train"
+        output.mkdir()
+        with patch(
+            "formal_v2.external_adapters.controlled_map_adapter._units",
+            side_effect=lambda _dataset, role: units[role],
+        ):
+            checkpoint, record = train_controlled_model(
+                model,
+                config,
+                self.dataset,
+                normalizer,
+                output,
+                metadata,
+            )
+        self.assertTrue(checkpoint.is_file())
+        self.assertEqual(record["batch_size"], 4)
+        self.assertEqual(record["microbatch_size"], 2)
+        self.assertEqual(record["gradient_accumulation_steps"], 2)
+        self.assertEqual(record["configured_precision"], "float32")
+        self.assertEqual(record["executed_precision"], "float32")
+        self.assertFalse(record["autocast_enabled"])
+        self.assertEqual(record["target_roles_read"], [])
+
+    def test_deterministic_prefix_product_matches_forward_and_gradient(self):
+        values = torch.tensor(
+            [[0.91, 0.83, 0.77, 0.69, 0.61]],
+            dtype=torch.float64,
+            requires_grad=True,
+        )
+        reference_values = values.detach().clone().requires_grad_(True)
+        weights = torch.arange(1, 6, dtype=torch.float64).reshape(1, -1)
+        candidate = deterministic_prefix_product(values, dim=1)
+        reference = torch.cumprod(reference_values, dim=1)
+        candidate_gradient = torch.autograd.grad((candidate * weights).sum(), values)[0]
+        reference_gradient = torch.autograd.grad(
+            (reference * weights).sum(), reference_values
+        )[0]
+        self.assertTrue(torch.allclose(candidate, reference, rtol=1e-12, atol=1e-12))
+        self.assertTrue(
+            torch.allclose(
+                candidate_gradient,
+                reference_gradient,
+                rtol=1e-12,
+                atol=1e-12,
+            )
+        )
     def test_complete_map_manifest_has_five_distinct_map_models(self):
         manifest = parse_strict_json(
             (ROOT / "formal_v2/external_adapters/all_map_adapters_v1.json").read_text()

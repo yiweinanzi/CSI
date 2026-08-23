@@ -22,6 +22,12 @@ All five train on `source_encoder_train`, select on `source_method_selection`, a
 record, selected checkpoint, exact config, result rows, and hashes. Missing environments resolve to
 `not_executed`; they do not abort into a false PASS.
 
+The formal controlled-model configs preserve their effective batches while using microbatch 16:
+SigMap uses BF16 autocast, while WiSER and RFIR remain float32 because their complex CSI paths are
+not eligible for implicit reduced precision. RFIR uses an elementwise deterministic prefix-product
+implementation for alpha transmittance because CUDA `cumprod` is unavailable under the frozen
+deterministic-algorithm policy. These choices and their accumulation counts are checkpoint-bound.
+
 WiSER and RFIR have no source archive in `waibu/`. The local WiSER code uses a dense 2D pooled
 Transformer, scalar power prediction, IFFT-derived pseudo taps, and random initialization. Those
 choices do not reproduce the paper's sparse 3D TRELLIS scene representation, dense receiver-plane
@@ -39,7 +45,7 @@ grid-to-mesh conversion and a different source-domain dataset.
 
 The retained paper semantics are:
 
-- one token per triangular mesh face, with material one-hot scalars;
+- one token per compact triangular surface face, with material one-hot scalars;
 - Tx, Rx, and Tx-Rx link tokens;
 - the official `kitchen_sink_z` geometric-algebra embedding;
 - 32 GATr blocks, 16 hidden multivector channels, 32 hidden scalar channels, 8 heads, and
@@ -50,8 +56,9 @@ The retained paper semantics are:
 
 CSI-PAIRS-specific deterministic adaptations are:
 
-- occupied 2.5D cells are extruded to their height and triangulated; exposed sides and top faces
-  retain the categorical material ID;
+- occupied 2.5D cells are extruded to their height; exactly coplanar, same-material top and side
+  cells are merged into rectangles and triangulated. The full formal map bank must pass the
+  independent directed-plane/material surface-ledger equivalence check before execution;
 - real-then-imag CSI is reduced to
   `10 log10(mean(real^2 + imag^2))`; the affine scale is fitted on
   `source_encoder_train` only;
@@ -104,9 +111,11 @@ The adapter retains the official `[3,3,27,3]` encoder blocks, ASPP rates `[6,12,
 `[1,2,4]`, output stride 8, decoder, Adam optimizer, and 30-epoch StepLR schedule. The input boundary
 is expanded from building/Tx images to occupancy, height, material one-hot planes, and the fixed BS
 transmitter raster. It predicts a total received-power radiomap and computes MSE only at registered
-receiver cells. Power normalization is fitted on `source_encoder_train`; checkpoint selection uses
-only `source_method_selection`. The effective batch remains 16 while gradients are accumulated from
-single-sample microbatches to bound peak memory. Non-fixture execution fails before writing evidence
+  receiver cells. Power normalization is fitted on `source_encoder_train`; checkpoint selection uses
+  only `source_method_selection`. The effective batch remains 16 while gradients are accumulated from
+  deterministic BF16 microbatches of two to satisfy the official BatchNorm shape and bound peak
+  memory. The checkpoint and training record bind configured and executed precision, microbatch size,
+  and accumulation count. Non-fixture execution fails before writing evidence
 unless CUDA exposes at least 8 GiB; the PMNet subprocess enables deterministic Torch/cuDNN settings,
 disables TF32, and binds its independently rechecked main-runtime provenance into the manifest.
 
@@ -149,6 +158,27 @@ is diagnostic-only: it authenticates raw CSI, the independent-engine scene
 manifest, and the engine configuration for first-party statistical checks, but
 formal preflight and claim reauthentication reject it. A genuinely independent
 executable adapter or controlled real intervention is still required for G8.
+
+## DiffeRT independent G8
+
+`differt_external_validity.py` is the reviewed independent executable G8
+adapter for a Sionna primary dataset. It pins DiffeRT `0.10.0` at commit
+`673cc58ef61906b8ab0869dd206b3d032dbc01b2`, runs exhaustive LOS and
+first-order reflection paths with the frozen ITU/Fresnel material model, and
+exports the formal two-antenna, four-subcarrier real/imag CSI layout. It is
+CPU-isolated with JAX x64 enabled and CUDA hidden.
+
+Create the runtime with `setup_differt.sh`. Prepare blind external scene assets
+with `prepare_differt_external_scenes.py`; that preparer reads geometry, radio,
+positions, pose, primitive identity, and metadata fields but never reads primary
+CSI arrays. Every sibling world receives a distinct authenticated NPZ source
+asset. Formal execution accepts only schema
+`csi-pairs-v6-external-validity-independent-adapter-v1`, stages all inputs into
+the G8 output directory, probes the interpreter before execution, and compares
+the emitted runtime record with that probe. Claims reauthentication reloads the
+staged raw CSI, assets, config, adapter, and runtime and recomputes all G8
+statistics. The archive schema remains diagnostic-only even when its numbers
+pass.
 
 `PYTHONDONTWRITEBYTECODE=1 python -m formal_v2.formal_cli export-sionna-scenes` deterministically converts every formal
 `external_validation` sibling world into material-separated PLY meshes and Sionna scene XML, writes

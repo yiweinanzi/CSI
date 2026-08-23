@@ -1,5 +1,5 @@
 {
-  "schema_version": "csi-pairs-wigatr-official-adapter-v1",
+  "schema_version": "csi-pairs-wigatr-official-adapter-v2",
   "profile": "formal-paper-dose",
   "source_revision": "6daa5bd49d9499817d903ab335830221d01e9daa",
   "source_roles": {
@@ -22,6 +22,7 @@
     "seed": 8123,
     "steps": 200000,
     "batch_size": 64,
+    "microbatch_size": 16,
     "learning_rate": 0.001,
     "weight_decay": 0.0,
     "clip_grad_norm": 10.0,
@@ -37,7 +38,8 @@
   },
   "mesh": {
     "occupancy_threshold": 0.5,
-    "minimum_height_m": 0.001
+    "minimum_height_m": 0.001,
+    "preprocessing": "surface-ledger-equivalent-rectangle-compaction-v1"
   },
   "power": {
     "floor": 1e-12,
