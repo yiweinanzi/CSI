@@ -52,6 +52,7 @@ from formal_v2.formal_evidence import (
     complete_gate_vector,
     configure_reproducible_runtime,
     evidence_context,
+    require_manifested_formal_qualification,
     require_formal_qualification,
     require_stage_manifested_gate,
     runtime_provenance,
@@ -2150,6 +2151,48 @@ class EvidenceAndPathTests(unittest.TestCase):
             require_formal_qualification(
                 gate, self.config, self.dataset, allow_nonscientific_fixture=True
             )
+
+    def test_manifested_qualification_can_authenticate_recorded_main_runtime(self):
+        stage = self.root / "cross-interpreter-qualification"
+        checkpoint = stage / "checkpoints" / "teacher.pt"
+        checkpoint.parent.mkdir(parents=True)
+        checkpoint.write_bytes(b"recorded-main-runtime-teacher")
+        context = evidence_context(self.config, self.dataset, "FORBIDDEN")
+        gate = {
+            "schema_version": QUALIFICATION_SCHEMA,
+            "passed": True,
+            **context,
+            "upstream_gates": complete_gate_vector({"G1": "PASS", "G2": "PASS"}),
+            "teacher_checkpoint": str(checkpoint),
+            "teacher_checkpoint_sha256": sha256_file(checkpoint),
+            "primary_route_contract": PRIMARY_ROUTE_CONTRACT,
+            "physical_response": {
+                "status": "NOT_ASSESSED_FIXTURE_FORBIDDEN",
+                "formal_physical_response_required_for_nonfixture": True,
+            },
+        }
+        write_json(stage / "gate.json", gate)
+        write_json(
+            stage / "manifest.json",
+            {
+                "schema_version": "csi-pairs-formal-stage-manifest-v2.1-v6",
+                **context,
+                "files": artifact_manifest(stage, evidence=context),
+            },
+        )
+
+        with patch(
+            "formal_v2.formal_evidence.evidence_context",
+            side_effect=AssertionError("must not inspect the adapter interpreter as main"),
+        ):
+            authenticated = require_manifested_formal_qualification(
+                gate,
+                self.config,
+                self.dataset,
+                allow_nonscientific_fixture=True,
+                evidence_runtime=context["runtime_provenance"],
+            )
+        self.assertIs(authenticated, gate)
 
     def test_failed_fixture_qualification_only_allows_explicit_software_execution(self):
         checkpoint = self.root / "software-teacher.pt"

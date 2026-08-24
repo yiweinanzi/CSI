@@ -93,6 +93,7 @@ def run_adapter(args) -> dict:
         formal_config,
         dataset,
         allow_nonscientific_fixture=True,
+        evidence_runtime=qualification.get("runtime_provenance"),
     )
 
     runtime = _load_official_runtime()

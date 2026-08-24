@@ -750,6 +750,35 @@ def evidence_context(config: dict, dataset: FormalDataset, scientific_use: str) 
     }
 
 
+def evidence_context_from_recorded_runtime(
+    config: dict,
+    dataset: FormalDataset,
+    scientific_use: str,
+    recorded_runtime: object,
+) -> dict[str, object]:
+    """Authenticate main-runtime evidence from an isolated adapter interpreter."""
+    configure_reproducible_runtime()
+    runtime = validate_runtime_provenance(recorded_runtime)
+    runtime_payload = json.dumps(
+        runtime,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=True,
+        allow_nan=False,
+    ).encode("utf-8")
+    return {
+        "artifact_label": config["artifact_label"],
+        "dataset_sha256": sha256_file(dataset.source_path),
+        "config_sha256": config_sha256(config),
+        "fixture": dataset.is_fixture,
+        "scientific_use": "FORBIDDEN" if dataset.is_fixture else scientific_use,
+        "source_tree_sha256": runtime["source_tree_sha256"],
+        "requirements_lock_sha256": runtime["requirements_lock_sha256"],
+        "runtime_provenance_sha256": hashlib.sha256(runtime_payload).hexdigest(),
+        "runtime_provenance": runtime,
+    }
+
+
 def bind_rows(rows: Iterable[dict], evidence: dict[str, object]) -> list[dict]:
     output = []
     for source in rows:
@@ -770,6 +799,7 @@ def require_formal_qualification(
     dataset: FormalDataset,
     *,
     allow_nonscientific_fixture: bool,
+    evidence_runtime: object | None = None,
 ) -> dict:
     if not isinstance(gate, dict):
         raise RuntimeError("qualification gate must be an object")
@@ -805,7 +835,16 @@ def require_formal_qualification(
 
     if gate["primary_route_contract"] != PRIMARY_ROUTE_CONTRACT:
         raise RuntimeError("qualification gate primary route contract is not V6-compatible")
-    expected = evidence_context(config, dataset, str(gate["scientific_use"]))
+    expected = (
+        evidence_context(config, dataset, str(gate["scientific_use"]))
+        if evidence_runtime is None
+        else evidence_context_from_recorded_runtime(
+            config,
+            dataset,
+            str(gate["scientific_use"]),
+            evidence_runtime,
+        )
+    )
     for key in EVIDENCE_AUTH_KEYS:
         if gate[key] != expected[key]:
             raise RuntimeError(f"qualification gate {key} does not match the current run")
@@ -925,6 +964,7 @@ def require_stage_manifested_gate(
     dataset: FormalDataset,
     *,
     schema_version: str,
+    evidence_runtime: object | None = None,
 ) -> dict:
     """Authenticate a gate against its stage manifest and current evidence context."""
     from .formal_io import read_strict_json
@@ -937,7 +977,16 @@ def require_stage_manifested_gate(
     on_disk = read_strict_json(gate_path)
     if on_disk != payload:
         raise RuntimeError(f"supplied gate payload differs from its manifested file: {gate_path}")
-    expected = evidence_context(config, dataset, str(payload.get("scientific_use", "")))
+    expected = (
+        evidence_context(config, dataset, str(payload.get("scientific_use", "")))
+        if evidence_runtime is None
+        else evidence_context_from_recorded_runtime(
+            config,
+            dataset,
+            str(payload.get("scientific_use", "")),
+            evidence_runtime,
+        )
+    )
     for key in EVIDENCE_AUTH_KEYS:
         if payload.get(key) != expected[key]:
             raise RuntimeError(f"gate {key} mismatch for {gate_path}")
@@ -1036,6 +1085,7 @@ def require_manifested_formal_qualification(
     dataset: FormalDataset,
     *,
     allow_nonscientific_fixture: bool,
+    evidence_runtime: object | None = None,
 ) -> dict:
     """Validate qualification semantics and authenticate its complete stage output."""
     validated = require_formal_qualification(
@@ -1043,6 +1093,7 @@ def require_manifested_formal_qualification(
         config,
         dataset,
         allow_nonscientific_fixture=allow_nonscientific_fixture,
+        evidence_runtime=evidence_runtime,
     )
     teacher_parent = Path(str(validated["teacher_checkpoint"])).parent
     stage_dir = teacher_parent.parent if teacher_parent.name == "checkpoints" else teacher_parent
@@ -1053,4 +1104,5 @@ def require_manifested_formal_qualification(
         config,
         dataset,
         schema_version=QUALIFICATION_SCHEMA,
+        evidence_runtime=evidence_runtime,
     )

@@ -30,7 +30,7 @@
       "citation_key": "hehn2024wigatr",
       "source_revision": "6daa5bd49d9499817d903ab335830221d01e9daa",
       "adapter_source_path": "formal_v2/external_adapters/wigatr_adapter.py",
-      "adapter_source_sha256": "5ece3f290b4f0a9e0be82259fc7672557aea3dc01eaefcba3016c50dea72e91f",
+      "adapter_source_sha256": "32ae0541d1816784aebe21f9499d51235fd3283a2eb143a692e4d2b0d026ebb4",
       "adapter_config_path": "formal_v2/configs/wigatr_official_v1.json",
       "adapter_config_sha256": "2cbca68c4e2ee132277211a3f97106320fddf5d5eb18d8d1bc73eba597628beb",
       "map_conditioned": true,
