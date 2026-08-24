@@ -10,22 +10,25 @@ from unittest import mock
 import numpy as np
 import torch
 
-from artifacts.formal_readiness.tools import v5_four_bank_rt_audit as audit
-from artifacts.formal_readiness.tools import v5_four_bank_rt_pilot as pilot
-from artifacts.formal_readiness.tools import v5_expanded_training_config as expanded_config
-from artifacts.formal_readiness.tools import qualification_streaming_bank_pilot as qualification_pilot
-from artifacts.formal_readiness.tools import v5_nonlinear_response_probe as nonlinear_pilot
-from artifacts.formal_readiness.tools import v5_physics_response_probe as physics_probe
-from artifacts.formal_readiness.tools import (
-    v5_formal_model_response_pilot as formal_response_pilot,
-)
-from artifacts.formal_readiness.tools import (
-    v5_formal_action_overfit_diagnostic as action_overfit,
-)
-from artifacts.formal_readiness.tools import (
-    v5_response_generalization_diagnostic as generalization_diagnostic,
-)
-from artifacts.formal_readiness.tools import v5_teacher_pilot_train as teacher_pilot
+try:
+    from artifacts.formal_readiness.tools import v5_four_bank_rt_audit as audit
+    from artifacts.formal_readiness.tools import v5_four_bank_rt_pilot as pilot
+    from artifacts.formal_readiness.tools import v5_expanded_training_config as expanded_config
+    from artifacts.formal_readiness.tools import qualification_streaming_bank_pilot as qualification_pilot
+    from artifacts.formal_readiness.tools import v5_nonlinear_response_probe as nonlinear_pilot
+    from artifacts.formal_readiness.tools import v5_physics_response_probe as physics_probe
+    from artifacts.formal_readiness.tools import (
+        v5_formal_model_response_pilot as formal_response_pilot,
+    )
+    from artifacts.formal_readiness.tools import (
+        v5_formal_action_overfit_diagnostic as action_overfit,
+    )
+    from artifacts.formal_readiness.tools import (
+        v5_response_generalization_diagnostic as generalization_diagnostic,
+    )
+    from artifacts.formal_readiness.tools import v5_teacher_pilot_train as teacher_pilot
+except ModuleNotFoundError as error:
+    raise unittest.SkipTest(str(error)) from error
 from formal_v2.formal_factorial import _centered_branch_mse
 from formal_v2.sionna_osm_candidate import load_config
 

@@ -16,7 +16,7 @@ from formal_v2.scripts.v6_trace_registry import (
 
 SOURCE_SPECS = {
     "reader": {
-        "sha256": "5866888fac736bcb812ebe3630b38095ad4989979a9fdf68cabcdbfe286f737e",
+        "sha256": "5c31212d75fdde35074fe327cc4c6ea22abe5c7e3e8633e4f00ee267a9ef338f",
         "prefix": "ZR",
     },
 }

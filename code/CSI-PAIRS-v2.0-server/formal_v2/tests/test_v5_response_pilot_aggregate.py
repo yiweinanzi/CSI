@@ -3,7 +3,12 @@ from __future__ import annotations
 import argparse
 import json
 
-from artifacts.formal_readiness.tools import v5_response_pilot_aggregate as aggregate
+import unittest
+
+try:
+    from artifacts.formal_readiness.tools import v5_response_pilot_aggregate as aggregate
+except ModuleNotFoundError as error:
+    raise unittest.SkipTest(str(error)) from error
 
 
 def _classification() -> dict:

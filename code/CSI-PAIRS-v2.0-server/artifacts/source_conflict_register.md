@@ -4,7 +4,7 @@ Date: 2026-08-08 (Asia/Shanghai); reader amendment recorded 2026-08-24
 
 Authority hashes:
 
-- unique frozen V6 reader: `ffe96c57c7986a77c54b1c52b9708088c714efa2a0cd67561aaf84a5b73c548b` (SHA-256 of `Idea1-CSI-PAIRS-冻结版-零基础阅读稿-v6_VSCode兼容版.md`, hashed 2026-08-24 after C13 llm-judge amendment)
+- unique frozen V6 reader: `5c31212d75fdde35074fe327cc4c6ea22abe5c7e3e8633e4f00ee267a9ef338f` (SHA-256 of `Idea1-CSI-PAIRS-冻结版-零基础阅读稿-v6_VSCode兼容版.md`, hashed 2026-08-24 after the launch-gate amendment)
 - prior unique frozen V6 reader (2026-08-24 route amendment, pre-C13 llm-judge): `6f83b3701946e0a15f66869f58c3ffea6437a2ba14b41979cd41be1af28b6054`
 - prior unique frozen V6 reader (pre-2026-08-24 amendment): `5866888fac736bcb812ebe3630b38095ad4989979a9fdf68cabcdbfe286f737e`
 - integrated Goal prompt: `79b759141bd31a75fbefc80365ef5e6467e6cfedfa58457fa78b4ddebb4bb132`
