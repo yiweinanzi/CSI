@@ -18,7 +18,7 @@ No authenticated non-fixture result exists. Every claim below is `BLOCKED`; none
 | C10 | Registered path incidence passes matched-stratum trend and zero-path equivalence gates. | Geometry/scene confounding; bank-level matched inference discriminates. | Remove path-mechanism interpretation. | Sec. 5 boundary | `BLOCKED` |
 | C11 | Independent RT calibration passes path loss, delay spread, angular spread and visible-path count on held-out units. | Simulator self-consistency; independent fit/validation bindings discriminate. | Restrict to uncalibrated simulator-defined effects. | Sec. 3.1 | `BLOCKED` |
 | C12 | A second RT engine or controlled real intervention reproduces active direction and null stability. | Single-engine artifact; independently probed G8 retrace discriminates. | Do not claim external validity or real-world causality. | Secs. 7-8 | `BLOCKED` |
-| C13 | A current, auditable literature/resource review supports the final novelty wording. | Incomplete search; human review remains mandatory even after a passing manifest. | Remove priority/first claims and narrow positioning. | Related Work | `BLOCKED` |
+| C13 | A current, auditable literature/resource review supports the final novelty wording. | Incomplete search; an allowed LLM-as-judge (`codex` / `claude-code` / `cursor`) must bind `LLM_JUDGE_REVIEW.md`. | Remove priority/first claims and narrow positioning. | Related Work | `BLOCKED` |
 
 ## Subgate state
 

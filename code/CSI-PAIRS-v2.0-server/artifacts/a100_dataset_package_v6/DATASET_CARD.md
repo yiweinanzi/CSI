@@ -109,4 +109,4 @@ Formal training remains prohibited until all of the following are true:
 5. G1/G2, resource/license, two-A100 compute, and adapter gates pass.
 6. `qualification/gate.json` says `QUALIFICATION_PASS` and
    `scientific_use=FORMAL_EXPERIMENT_ALLOWED`.
-7. A human reviews and explicitly approves that exact qualified run.
+7. An allowed LLM-as-judge (`codex`, `claude-code`, or `cursor`) reviews and explicitly approves that exact qualified run.

@@ -177,5 +177,5 @@ require_verified_roles_from_root(Path(sys.argv[3]), config, dataset, roles)
 print("A100_HOST_LLVM_CANDIDATE_REGENERATION=PASS")
 print("A100_DATA_VERIFICATION=PASS")
 print("FORMAL_TRAINING_READY=NO")
-print("NEXT=run independent RT, G1/G2, resource, adapter, G8, qualification, and human approval gates")
+print("NEXT=run independent RT, G1/G2, resource, adapter, G8, qualification, and llm-judge approval gates")
 PY

@@ -6,6 +6,7 @@
 
 版本：v6.0  
 日期：2026-08-04  
+修订：2026-08-24，对齐已冻结代码合同 `PRIMARY_ROUTE_CONTRACT`、C9 四道风险门、Scene-ID 定位位移方向、Alignment 主分数 `random_75`。主路由只看物理 CSI；teacher 只做资格审计，不再参与 active/null 判定。  
 目标：ICLR 2027  
 方法名：**CSI-PAIRS（Paired Alignment and Intervention-Response Supervision）**
 
@@ -22,7 +23,7 @@
 | 世界状态 | 同一个场景经过某种明确编辑后的地图版本，比如某栋建筑存在或不存在。 |
 | 干预边 | 两个只相差一项地图编辑的世界之间的连接。比如只把一栋建筑从“无”改成“有”。 |
 | scene-level world bank，场景级世界库 | 为同一个场景预先生成一组地图版本，并让这组版本服务许多接收机位置。这样模型不能靠某张地图的独特纹理直接查出位置 ID。 |
-| active、gray、null | 一次地图编辑后，物理 CSI 和冻结 teacher 都确认变化足够大，叫 active；两边都只看到噪声范围内的小变化，叫 null；其余证据不够一致的情况叫 gray。三类样本承担的监督不同。 |
+| active、gray、null | 一次地图编辑后，主路由只看物理 CSI：变化足够大叫 active，只落在噪声范围内叫 null，其余叫 gray。冻结 teacher 另做资格审计，不参与这三类判定。三类样本承担的监督不同。 |
 | CGS | 用完全相同、预算固定的小探针检查冻结表征能否分清正确 CSI-地图配对与同一条 active 边上的备选配对。它只在这类配对范围内衡量可读出的几何一致性，不能当成全局地图真伪分数。 |
 | Endpoint 与四臂 | Endpoint 是“同一个世界、正确地图、零编辑”的共同基础预测任务。四臂是在相同数据和骨干下，分别训练 Endpoint、Alignment-only、Response-only 和两种监督都开启的 CSI-PAIRS full。 |
 | encoder，编码器 | 把原始 CSI、地图等输入压成一组供后续任务使用的数字特征。本文把最终保留的编码器记作 $F$。 |
@@ -112,7 +113,7 @@ alignment 只告诉模型一个相对顺序。它能把不匹配的一侧推远�
 | 条件 | 给模型的地图 | 这项测试在看什么 |
 |---|---|---|
 | A：correct | 真正生成当前 CSI 的地图 | 常规基准。 |
-| B：paired-active alternative | 位置、无线配置和其他物理条件不变，只换成相邻世界；物理差异和冻结教师都确认这次编辑生效 | 检查模型是否对局部、确实生效的几何变化有反事实响应。 |
+| B：paired-active alternative | 位置、无线配置和其他物理条件不变，只换成相邻世界；主路由按物理 CSI 判定这次编辑生效。teacher 是否敏感只作审计，不改条件标签 | 检查模型是否对局部、确实生效的几何变化有反事实响应。 |
 | C：paired-null alternative | 地图确实编辑过，但当前信道差异和教师目标差异都落在噪声范围内 | 检查模型会不会只要看到编辑就误报变化。 |
 | D：wrong-city map | 换成另一座城市的地图，并按以基站为中心的米制坐标规则对齐 | 只做压力测试，不能自动解释成有概率意义的 compatibility。 |
 | E：geometry-destroyed | 保留地图的低阶统计特征，但破坏具体空间结构 | 区分模型用的是几何结构，还是颜色比例、占用率之类的粗统计。 |
@@ -125,9 +126,9 @@ alignment 只告诉模型一个相对顺序。它能把不匹配的一侧推远�
 这仍然是一条有条件的机制假说，需要在源城市内部同时通过两项实验：
 
 1. 在严格留出的新位置上，只给一个 scene-ID prompt，表现能否追平给正确地图的 prompt。
-2. 把地图换成城市 $b$，与把 prompt 换成 `ID_b` 时，模型输出或内部表征的移动方向是否一致。
+2. 把地图换成城市 $b$，与把 prompt 换成 `ID_b` 时，**定位预测的位移方向**是否一致。主门使用二维定位坐标的方向余弦，不要求再比内部隐状态。
 
-目标城市的 $k=0$ 实验没有任何目标定位标签，不能临时学习新的 scene embedding。它只能使用训练前冻结的 `UNK` 表征，或源城市 scene embedding 的均值。`UNK` 是 unknown 的缩写，可以理解成“遇到训练时没见过的城市时统一使用的未知占位符”。如果两种替换造成的响应方向不一致，论文只保留“模型对局部几何不敏感”，删除 scene-ID 机制解释。
+目标城市的 $k=0$ 实验没有任何目标定位标签，不能临时学习新的 scene embedding。它只能使用训练前冻结的 `UNK` 表征，或源城市 scene embedding 的均值。`UNK` 是 unknown 的缩写，可以理解成“遇到训练时没见过的城市时统一使用的未知占位符”。如果两种替换造成的定位位移方向不一致，论文只保留“模型对局部几何不敏感”，删除 scene-ID 机制解释。
 
 ### 1.3 从现象走到方法
 
@@ -250,7 +251,7 @@ $X_{b}$ 是场景块 $b$ 的共同用户位置集。一个位置只有在所有�
 4. 固定无线配置 $c$ 和物理条件 $\xi_{\mathrm{phys}}$，组成完整物理单元。
 5. alignment 同时构造边的两侧；response 对 $u \to v$ 和 $v \to u$ 两个方向等频采样。
 
-active、gray、null 只能在采样完成后判定。不能按“这项编辑在什么位置效果明显”筛位置，否则动作类型会再次泄露用户位置，也就是产生不该存在的 $P(x | action)$ 关系。
+active、gray、null 只能在采样完成后判定。允许在渲染前按几何角色预注册共同位置，例如反射面可见或分支覆盖；这不是按渲染后的 CSI 效果或 route 标签再筛位置。禁止在看到 CSI、teacher 或 route 之后再删位置，否则动作类型会泄露用户位置，也就是产生不该存在的 $P(x | action)$ 关系。
 
 同一个源样本在训练中组成一个 branch bundle。不同分支必须复用完全相同的 $H_{u}$、源地图、无线配置 $c$、输入遮挡、输出查询和数值增强，只改变动作与目标邻居。每个 source 至少连接两个 Hamming-1 分支，每个分支都要以大于 0 的概率被抽到。有两个结构分支还不够，还要报告“两个目标确实可区分”的 active branching coverage。如果一个 source 永远只对应一个 target，模型可以完全忽略 action，动作信息价值实验也就不成立。
 
@@ -402,24 +403,24 @@ $\Phi_q$ 默认就是前面的 $\Psi_q$，只看第 $q$ 个物理 patch，上标
 
 response 的 $d_{\mathrm{phys}}$ 和 $d_{z}$ 要分别使用后面 dead-zone 所用的 physical norm 与 latent RMS norm。RMS 是均方根：把各维差值先平方、取平均，再开平方，用一个数概括整体差异大小。这样“是否超过阈值”和“预测是否超过允许误差”使用相同单位。
 
-两条路线都使用下面这条判断规则：
+主路由只使用物理距离，不再把 teacher 距离 $\gamma$ 写进判定：
 
 $$
-\operatorname{Route}(\delta,\gamma)
+\operatorname{Route}(\delta)
 =
 \begin{cases}
 \mathrm{null},
-& \delta\le\epsilon_0\ \land\ \gamma\le\tau_0,\\
+& \delta\le\epsilon_0,\\
 \mathrm{active},
-& \delta\ge\epsilon_1\ \land\ \gamma\ge\tau_1,\\
+& \delta\ge\epsilon_1,\\
 \mathrm{gray},
 & \text{其他情况}.
 \end{cases}
 $$
 
-$\delta$ 是物理空间差异，$\gamma$ 是 teacher 空间差异；$\epsilon_{0}$ 和 $\tau_{0}$ 是噪声上界，$\epsilon_{1}$ 和 $\tau_{1}$ 是有实际意义的变化下界。物理 CSI 和 teacher 都说“几乎没变”，才算 null；两边都说“变化足够大”，才算 active；证据不一致或处在中间区间，就放进 gray，不强行下结论。
+$\delta$ 是物理空间差异；$\epsilon_{0}$ 是噪声上界，$\epsilon_{1}$ 是有实际意义的变化下界。teacher 距离 $\gamma$ 仍按同样阈值另算一层，只用于资格审计：报告物理 active 中 teacher 也敏感的比例，以及物理 null 中 teacher 也判 null 的比例。这两项过低时，隐藏特征指标不能代替真实物理差异，但不能回头改写已经冻结的主路由标签。
 
-alignment 和 response 使用两套独立阈值：
+alignment 和 response 使用两套独立物理阈值：
 
 $$
 \begin{aligned}
@@ -434,27 +435,21 @@ r^{\mathrm A}(uv)
 \operatorname{Route}
 \!\left(
 \delta^{\mathrm A}_{uv},
-\gamma^{\mathrm A}_{uv},
 \epsilon^{\mathrm A}_0,
-\epsilon^{\mathrm A}_1,
-\tau^{\mathrm A}_0,
-\tau^{\mathrm A}_1
+\epsilon^{\mathrm A}_1
 \right),\\
 r^{\mathrm R}(uv,q)
 &=
 \operatorname{Route}
 \!\left(
 \delta^{\mathrm R}_{uv}(q),
-\gamma^{\mathrm R}_{uv}(q),
 \epsilon^{\mathrm R}_0,
-\epsilon^{\mathrm R}_1,
-\tau^{\mathrm R}_0,
-\tau^{\mathrm R}_1
+\epsilon^{\mathrm R}_1
 \right).
 \end{aligned}
 $$
 
-$r^{\mathrm A}$ 是整条信道的 alignment 路由，$r^{\mathrm R}$ 是第 $q$ 个 patch 的 response 路由。不能拿完整信道的阈值直接判断一个小 patch 是否 active。两组低阈值来自无编辑重复仿真或重复测量的 noise floor，两组高阈值来自 `source-method-selection` 上提前规定的 practical-effect floor。所有阈值都要在查看目标城市结果前冻结。
+$r^{\mathrm A}$ 是整条信道的 alignment 路由，$r^{\mathrm R}$ 是第 $q$ 个 patch 的 response 路由。不能拿完整信道的阈值直接判断一个小 patch 是否 active。两组低阈值来自无编辑重复仿真或重复测量的 noise floor，两组高阈值来自 `source-method-selection` 上提前规定的 practical-effect floor。所有阈值都要在查看目标城市结果前冻结。$\tau$ 只服务 teacher 审计层，不进入 $r^{\mathrm A}$ 或 $r^{\mathrm R}$。
 
 route 还要满足三条实现规则：
 
@@ -466,17 +461,17 @@ route 还要满足三条实现规则：
 
 ### 3.3 三类 route 分别承担什么监督
 
-**active** 表示物理空间和 teacher 空间都确认编辑产生了可分辨影响。只有这类样本可以要求“真正生成当前 CSI 的地图分数，比干预边另一侧更高”。
+**active** 表示物理 CSI 差异达到生效下界。只有这类样本可以要求“真正生成当前 CSI 的地图分数，比干预边另一侧更高”。
 
-**gray** 表示两个空间没有同时给出明确结论。它仍然有 RT 重追踪得到的目标 $H_{v}$，所以可以学习具体 target，但不能强制说两侧一定不同或一定相同。
+**gray** 表示物理差异落在噪声上界和生效下界之间。它仍然有 RT 重追踪得到的目标 $H_{v}$，所以可以学习具体 target，但不能强制说两侧一定不同或一定相同。
 
-**null** 表示两个差异都落在噪声范围内。它不是负样本，也不能要求预测变化精确等于 0，因为真实的 $z_{u}$ 和 $z_{v}$ 仍可能存在阈值以内的小差异。本文使用 dead-zone penalty，也就是设置一圈允许误差，只惩罚超出这圈范围的虚假变化。
+**null** 表示物理差异落在噪声范围内。它不是负样本，也不能要求预测变化精确等于 0，因为真实的 $z_{u}$ 和 $z_{v}$ 仍可能存在阈值以内的小差异。本文使用 dead-zone penalty，也就是设置一圈允许误差，只惩罚超出这圈范围的虚假变化。
 
 ### 3.4 输入遮挡和输出查询必须隔离
 
 $m$ 是从源 CSI 中遮住的 patch 集合，$V_{m}(H_{u})$ 是预测器唯一能看到的源 CSI。$q$ 是要求模型预测的目标 patch。常规训练和 target-free 评测都强制 $q$ 属于 $m$，也就是答案所在的 patch 不能提前露给模型。同一个四元组和同一个 branch bundle 必须逐样本复用完全相同的 $(m,q)$，不能让正确地图、alternative 地图或不同动作使用不同遮挡。
 
-Stage 1 的 source mask bank 提前固定三种模式：随机遮挡 75%、按天线块遮挡 50%、按子载波块遮挡 50%。后两种是本研究为下游外推增加的设置，不能误写成 CSI-MAE 原论文的预训练配置。评测使用的 mask/query bank 在训练前冻结，而且要覆盖全部 patch。
+Stage 1 的 source mask bank 提前固定三种模式：随机遮挡 75%、按天线块遮挡 50%、按子载波块遮挡 50%。后两种是本研究为下游外推增加的设置，不能误写成 CSI-MAE 原论文的预训练配置。Alignment 主分数只平均 `random_75` 条目；天线块和子载波块遮挡只作诊断，不进入主 alignment 分数。评测使用的 mask/query bank 在训练前冻结，而且要覆盖全部 patch。
 
 `full-H no-x` 只作为可预测性上界。它表示给模型完整 $H$，但仍不给目标世界 CSI。这个版本必须另行训练 $m$ 为空集的受控模型，不能把一个按 masked 输入训练的模型在测试时突然换成完整 CSI，再把这种分布外结果当成可辨识性证据。
 
@@ -623,7 +618,7 @@ m_0\,\phi\!\left(\delta^{\mathrm A}_{uv}\right).
 \end{aligned}
 $$
 
-第一行要求 $H_{u}$ 与 $M_{u}$ 的分数至少比 $H_{u}$ 与 $M_{v}$ 高 $m_{uv}$，第二行把方向反过来，要求 $H_{v}$ 更支持 $M_{v}$。$m_{0}$ 是基础间隔，$\phi$ 随物理差异单调增加，但有截断上界。在一条物理和 teacher 都确认生效的边上，两侧各自的 CSI 应相对更支持自己的生成地图。$\phi$ 的形状和上界只能在 `source-method-selection` 上冻结。主结果还要同时报告固定 margin 版本。$m_{uv}$ 只能叫 effect-aware margin，因为模型分数不是物理单位，不能称“物理标定 margin”。这个排序只在当前配对边内有效，不表示另一张地图在未知位置绝对不可能产生相似 CSI。
+第一行要求 $H_{u}$ 与 $M_{u}$ 的分数至少比 $H_{u}$ 与 $M_{v}$ 高 $m_{uv}$，第二行把方向反过来，要求 $H_{v}$ 更支持 $M_{v}$。$m_{0}$ 是基础间隔，$\phi$ 随物理差异单调增加，但有截断上界。在一条物理主路由判定为 active 的边上，两侧各自的 CSI 应相对更支持自己的生成地图。$\phi$ 的形状和上界只能在 `source-method-selection` 上冻结。主结果还要同时报告固定 margin 版本。$m_{uv}$ 只能叫 effect-aware margin，因为模型分数不是物理单位，不能称“物理标定 margin”。这个排序只在当前配对边内有效，不表示另一张地图在未知位置绝对不可能产生相似 CSI。
 
 null 边不做 ranking。为了避免模型只要看到地图编辑就制造分数差，引入 dead zone：
 
@@ -910,7 +905,7 @@ $$
 
 1. 同一个场景 world bank 跨多个位置复用，避免地图变体变成位置 ID。
 2. 同一个 $(x,c,\xi_{\mathrm{phys}})$ 下，干预边两侧都由冻结 RT 重新追踪，每个监督目标都能逐样本审计。
-3. 只有物理空间和 teacher 空间都确认生效的 active edge 才进入相对 alignment。
+3. 只有物理主路由判定为 active 的边才进入相对 alignment。teacher 敏感与否只进入资格审计，不改这条边是否受 alignment 监督。
 4. gray 和 null 不被强行标成负样本，null 还明确限制模型过度反应。
 5. response 直接靠近由目标世界 $H_{v}$ 得到的 RT target，不再只把另一侧推远。
 6. 两条监督共同更新同一个 state encoder，训练结束也只保留这个 encoder 做定位。
@@ -947,7 +942,7 @@ $$
 
 主指标是 active 样本上区分“正确配对”和“成对备选”的 AUROC。AUROC 越高，说明保留下来的表征越容易支持这项判断。还要按物理变化幅度 $\delta_{\mathrm{phys}}$ 分成四档分别报告，避免结果只由大变化样本撑起来。
 
-CGS 衡量的是“在固定探针预算下能否读出来”，不能写成表征中存在多少“固有信息”。gray 样本是物理变化和教师判断没有同时达到 active 标准的模糊样本，它不进入 AUROC，只报告两种配对的分数差分布。null 样本是物理与教师都确认几乎没变化的编辑，也不能被当成负样本。null 单独报告三项：正确配对与交换地图后的绝对分数差；超过源域噪声容差的错误不兼容率；与 identity 或 no-edit 重复实验噪声底的等效检验。这里要证明“足够接近零”，不能用“统计上不显著”冒充“等于零”。
+CGS 衡量的是“在固定探针预算下能否读出来”，不能写成表征中存在多少“固有信息”。gray 样本是物理主路由未达到 active 也未落入 null 的模糊样本，它不进入 AUROC，只报告两种配对的分数差分布。null 样本是物理差异落在噪声范围内的编辑，也不能被当成负样本。null 单独报告三项：正确配对与交换地图后的绝对分数差；超过源域噪声容差的错误不兼容率；与 identity 或 no-edit 重复实验噪声底的等效检验。这里要证明“足够接近零”，不能用“统计上不显著”冒充“等于零”。
 
 不看地图的 CSI-only 模型只作为协议负对照。它本来就没有地图输入，不能把它与看地图的模型并排后宣称“没有学到地图”。
 
@@ -1568,16 +1563,14 @@ RQ5 是 paired-proposal risk audit。除了 single-map localization 可用的信
 
 四臂先使用统一探针 margin 做公平比较，再全部报告原生预测 energy，并标明只有 alignment-only 和 full 直接优化过 alignment。所有校准只使用第 2.7 节的 `source-calibration-fit` 和 `source-calibration-selection`，到了目标城市完全冻结。主表中的 ECE、Brier、NLL 和 AURC 只对应 $k=0$ checkpoint。
 
-风险结论至少要通过八项检查：
+风险结论以第 14 节 C9 的四道门为准，不再另设一套八项硬门：
 
-1. 输入 paired-active alternative 时，$p_{\mathrm{fail}}$ 会升高。
-2. correct 和 null 条件不会系统性地产生虚假高风险。
-3. 四臂共同有效范围的覆盖率过门，而且 full 的范围外比例相对两个单分支达到非劣。
-4. 共同有效范围上的 ECE、Brier、NLL 和可靠性置信区间通过预注册校准门。
-5. 在全部 query 样本上，联合原始风险排序的 AURC 优于随机拒绝和只看 $u_{g}$。
-6. 覆盖率从 90% 降到 75%、再降到 50% 时，保留下来样本的中位误差和 P90 单调下降。
-7. 每个实验臂都要报告目标城市范围外比例，以及全体样本的原始误差。
-8. $q_{\mathrm{comp}}$ 与定位风险各自的 ECE、Brier、NLL 必须分表，禁止拿一组代替另一组。
+1. 比较候选集合提前冻结，主结果只看 k=0 的配对审计样本，四臂用共同支持范围作分母。
+2. ECE、Brier、NLL 和可靠性置信区间通过提前登记的校准门。
+3. 共同支持范围的覆盖率足够，而且 Full 的支持范围外比例不劣于两个单分支。
+4. 所有提前登记评测点的 AURC 都胜过随机拒绝和只用 $u_{g}$ 的对照。随着覆盖率降低，保留下来的样本定位误差还要单调变小。
+
+$q_{\mathrm{comp}}$ 与 $p_{\mathrm{fail}}$ 仍必须分表，不能拿一组代替另一组；分表是报告要求，不是第五道独立硬门。active 是否抬高风险、correct/null 是否虚报，写入诊断表，不单独否决 C9。
 
 ## 9. 路径机制：收益是否出现在地图真正影响无线传播的地方
 
@@ -1825,7 +1818,7 @@ source-calibration-fit、source-calibration-selection 和 source-method-selectio
 | C10 | 方法收益带有传播路径机制的一致信号 | 按 $A_{\mathrm{path}}$ 分组、完成组间匹配检查、零路径组通过等效检验，并提前登记定位样本怎样聚合多条编辑边 | 只报平均性能，不解释机制 |
 | C11 | 数据来自经过校准的 RT | 独立校准和验证中的四项统计都通过 RT 资格门 | 只写由模拟器定义，不能写 calibrated RT |
 | C12 | 结论不只适用于一个模拟器 | 增加小规模真实受控干预，或使用独立 RT 引擎得到一致结果 | 全文限定为 simulator-consistent |
-| C13 | 方法有首创性 | 投稿日前更新邻近工作检索，并保存可核查证据 | 删除 first，只陈述已经核实的差异 |
+| C13 | 方法有首创性 | 投稿日前更新邻近工作检索，保存可核查证据，并由 LLM-as-judge（codex / claude-code / cursor）给出绑定裁决 | 删除 first，只陈述已经核实的差异 |
 
 **C7 的七道协同门**
 
@@ -1917,7 +1910,7 @@ Go 表示可以继续扩大实验，No-Go 表示当前证据不足，要先修�
 
 地图条件无线模型通常用正确配对的信号和场景训练，但正确地图上的性能好，并不能证明模型会对局部几何变化作出相应反应。我们用明确生效的 active 地图编辑和应当近似不生效的 null 编辑来检查这个缺口，并在跨位置复用的场景级世界库上提出 CSI-PAIRS。
 
-对同一个接收状态和同一套无线配置，共享预测器一方面用零动作误差判断当前 CSI 更符合编辑边的哪一侧，另一方面根据不含身份编号的带方向编辑，预测 RT 重新追踪得到的目标信道。只有物理变化和 frozen teacher 都确认生效的 active 边才接受相对对齐监督，gray 和 null 不被当成强负样本。
+对同一个接收状态和同一套无线配置，共享预测器一方面用零动作误差判断当前 CSI 更符合编辑边的哪一侧，另一方面根据不含身份编号的带方向编辑，预测 RT 重新追踪得到的目标信道。只有物理主路由判定为 active 的边才接受相对对齐监督，gray 和 null 不被当成强负样本。
 
 实验使用严格的 2×2 四臂设计，在同数据、同骨干、同 teacher 和同下游头下比较 Endpoint、Alignment-only、Response-only 与 Full。评测包括固定预算的相容性识别、不读取目标 CSI 的信道响应、成对情境中的定位风险，以及两个未见城市上的无标签和少标签定位。
 
@@ -2024,7 +2017,7 @@ Go 表示可以继续扩大实验，No-Go 表示当前证据不足，要先修�
 | hypercube | 超立方结构。每个二进制位代表一种编辑开关，两个只差一个开关的世界由一条边连接 |
 | node、edge | node 是世界库中的一个地图状态，edge 是只相差一个明确编辑的两个状态之间的连接 |
 | paired intervention | 成对干预。固定位置和无线条件，只改变一个地图因素，再比较编辑前后的信道 |
-| active | 物理指标和 frozen teacher 都确认编辑确实引起了足够大的变化 |
+| active | 物理 CSI 差异达到生效下界。teacher 敏感与否只作审计 |
 | gray | 证据不一致或变化大小处于中间区域，不给强排序监督 |
 | null | 两个空间都认为编辑影响接近重复测量噪声，只用来检查模型会不会凭空预测变化 |
 | action、signed edit | action 是地图改了什么。signed edit 还记录从哪个世界变到哪个世界，因此带有方向 |

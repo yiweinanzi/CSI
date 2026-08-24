@@ -361,10 +361,11 @@ class DataVerifierAuthenticationTests(unittest.TestCase):
             gate["verification_receipt_sha256"],
             sha256_file(relocated / "verification_receipt.json"),
         )
-        with self.assertRaisesRegex(RuntimeError, "live independent regeneration"):
-            require_verified_roles_from_root(
-                output, self.config, self.dataset, ("target",)
-            )
+        advisory = require_verified_roles_from_root(
+            output, self.config, self.dataset, ("target",)
+        )
+        self.assertNotEqual(advisory.get("passed"), True)
+        self.assertEqual(advisory.get("status"), "DIAGNOSTIC_NOT_CLAIM")
 
         regenerated = relocated / "regenerated.npz"
         regenerated.write_bytes(regenerated.read_bytes() + b"tampered")

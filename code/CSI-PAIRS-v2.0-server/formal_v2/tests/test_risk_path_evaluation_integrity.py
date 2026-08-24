@@ -16,6 +16,7 @@ from formal_v2.formal_evaluation import (
     _gray_cells_complete,
     _native_probe_correlation_macro,
     _periodic_power_spread,
+    _protocol_transition_skill,
     _response_effect_rows,
     _shortcut_metadata_features,
     _transition_metrics,
@@ -1254,7 +1255,7 @@ class RiskPathEvaluationIntegrityTests(unittest.TestCase):
             target, source, source, target, normalization, spec
         )
         self.assertAlmostEqual(result["native_sgcs"], 1.0)
-        self.assertAlmostEqual(result["native_transition_skill"], 1.0)
+        self.assertNotIn("native_transition_skill", result)
         for name in ("path_loss", "delay_spread", "angular_spread"):
             self.assertAlmostEqual(result[f"native_{name}_change_mae"], 0.0)
             self.assertAlmostEqual(result[f"native_{name}_direction_accuracy"], 1.0)
@@ -1283,7 +1284,7 @@ class RiskPathEvaluationIntegrityTests(unittest.TestCase):
             source, source, source, target, normalization, spec
         )
         self.assertAlmostEqual(result["native_sgcs"], 0.0)
-        self.assertAlmostEqual(result["native_transition_skill"], 0.0)
+        self.assertNotIn("native_transition_skill", result)
 
     def test_transition_delta_uses_model_zero_action_not_source_truth(self):
         spec = PatchSpec(
@@ -1308,7 +1309,256 @@ class RiskPathEvaluationIntegrityTests(unittest.TestCase):
         result = _transition_metrics(
             action, zero_action, source, target, normalization, spec
         )
-        self.assertAlmostEqual(result["native_transition_skill"], 1.0)
+        source_baseline = _transition_metrics(
+            action, source, source, target, normalization, spec
+        )
+        self.assertAlmostEqual(result["native_sgcs"], 1.0)
+        self.assertNotIn("native_transition_skill", result)
+        self.assertNotAlmostEqual(
+            result["native_path_loss_change_mae"],
+            source_baseline["native_path_loss_change_mae"],
+        )
+        for name in ("path_loss", "delay_spread", "angular_spread"):
+            self.assertTrue(np.isfinite(result[f"native_{name}_change_mae"]))
+            self.assertTrue(np.isfinite(result[f"native_{name}_direction_accuracy"]))
+
+    def test_protocol_transition_skill_perfect_latent_match(self):
+        latent_source = np.zeros((2, 3, 4), dtype=np.float64)
+        latent_target = np.ones((2, 3, 4), dtype=np.float64)
+        include = np.asarray([True, True])
+        self.assertEqual(
+            _protocol_transition_skill(
+                latent_target, latent_source, latent_target, include
+            ),
+            1.0,
+        )
+
+    def test_protocol_transition_skill_copy_latent(self):
+        latent_source = np.zeros((2, 3, 4), dtype=np.float64)
+        latent_target = np.ones((2, 3, 4), dtype=np.float64)
+        include = np.asarray([True, True])
+        self.assertEqual(
+            _protocol_transition_skill(
+                latent_source, latent_source, latent_target, include
+            ),
+            0.0,
+        )
+
+    def test_protocol_transition_skill_is_bank_level_ratio_not_mean(self):
+        latent_source = np.asarray([[[0.0]], [[0.0]]], dtype=np.float64)
+        latent_target = np.asarray([[[2.0]], [[4.0]]], dtype=np.float64)
+        latent_prediction = np.asarray([[[1.0]], [[0.0]]], dtype=np.float64)
+        include = np.asarray([True, True])
+        unit_errors = np.sqrt(
+            np.mean((latent_prediction - latent_target) ** 2, axis=(1, 2))
+        )
+        unit_denoms = np.sqrt(
+            np.mean((latent_source - latent_target) ** 2, axis=(1, 2))
+        )
+        expected = 1.0 - float(np.sum(unit_errors) / np.sum(unit_denoms))
+        unit_mean = float(np.mean(1.0 - unit_errors / unit_denoms))
+        skill = _protocol_transition_skill(
+            latent_prediction, latent_source, latent_target, include
+        )
+        self.assertAlmostEqual(skill, expected)
+        self.assertNotAlmostEqual(skill, unit_mean)
+
+    def test_protocol_transition_skill_empty_or_tiny_denom_is_none(self):
+        latent = np.ones((2, 3, 4), dtype=np.float64)
+        self.assertIsNone(
+            _protocol_transition_skill(
+                latent, latent, latent, np.asarray([False, False])
+            )
+        )
+        self.assertIsNone(
+            _protocol_transition_skill(
+                latent, latent, latent, np.asarray([True, True])
+            )
+        )
+
+    def test_protocol_transition_skill_ignores_non_teacher_sensitive_units(self):
+        latent_source = np.zeros((2, 3, 4), dtype=np.float64)
+        latent_target = np.ones((2, 3, 4), dtype=np.float64)
+        latent_prediction = np.stack(
+            (latent_target[0], np.full((3, 4), 99.0, dtype=np.float64))
+        )
+        include = np.asarray([True, False])
+        self.assertEqual(
+            _protocol_transition_skill(
+                latent_prediction, latent_source, latent_target, include
+            ),
+            1.0,
+        )
+
+    def test_evaluation_gate_accepts_na_transition_skill(self):
+        strong = {
+            "assessed": True,
+            "cluster_count": 4,
+            "paired_mean_difference": 0.4,
+            "ci95_low": 0.2,
+            "ci95_high": 0.6,
+            "confidence_level": 0.95,
+            "p_value_two_sided": 1e-12,
+        }
+        scoped = {
+            scope: {
+                "alignment_superiority": dict(strong),
+                "response_superiority": dict(strong),
+                "response_vs_copy": dict(strong),
+                "response_vs_no_action": dict(strong),
+                "response_vs_action_swap": dict(strong),
+                "response_direction": dict(strong),
+            }
+            for scope in ("source_final_unseen_bank", "target:target-a")
+        }
+        dataset = SimpleNamespace(
+            city_ids=np.asarray(["source-a", "target-a"]),
+            scene_roles=np.asarray(["source_final_unseen_bank", "target"]),
+            bank_ids=np.asarray(["source-bank", "target-bank"]),
+            is_fixture=False,
+            indices_for_role=lambda role: np.asarray(
+                [0] if role == "source_final_unseen_bank" else [1]
+            ),
+        )
+        config = {
+            "seeds": [1],
+            "factorial": {
+                "arms": ["endpoint", "alignment", "response", "full"]
+            },
+            "qualification": {
+                "minimum_geometry_matched_wrong_action_fraction": 0.5
+            },
+            "evaluation": {
+                "bootstrap_resamples": 100,
+                "familywise_alpha": 0.05,
+                "minimum_alignment_superiority": 0.01,
+                "minimum_response_superiority": 0.01,
+                "minimum_native_probe_correlation": 0.0,
+                "null_score_equivalence_margin": 0.01,
+                "response_null_violation_rate_max": 0.05,
+                "response_null_equivalence_margin": 0.01,
+                "minimum_cgs_noninferiority": -0.01,
+                "minimum_response_noninferiority": -0.01,
+            },
+        }
+        response_row = {
+            "arm": "response",
+            "native_null_violation_rate": 0.0,
+            "native_latent_null_violation_rate": 0.0,
+            "native_null_delta_rms_mean": 0.0,
+            "native_latent_null_delta_rms_mean": 0.0,
+            "native_action_swap_exact_count": 1,
+            "native_action_swap_exact_fraction": 1.0,
+            "probe_action_swap_exact_count": 1,
+            "probe_action_swap_exact_fraction": 1.0,
+            "probe_oracle_x_active_patch_nmse": 0.0,
+            "native_delta_relative_magnitude_error": 0.0,
+            "native_sgcs": 1.0,
+            "native_transition_skill": None,
+            "native_path_loss_change_mae": 0.0,
+            "native_delay_spread_change_mae": 0.0,
+            "native_angular_spread_change_mae": 0.0,
+            "native_path_loss_direction_accuracy": 1.0,
+            "native_delay_spread_direction_accuracy": 1.0,
+            "native_angular_spread_direction_accuracy": 1.0,
+        }
+        contracts = {
+            "scene_id_only": "stable_hashed_bank_token_no_label_feature",
+            "edit_status_xor": "separate_world_bits_and_natural_flags_no_xor",
+            "variant_id_matcher": "separate_stable_hashed_variant_tokens_no_match_or_unk_override",
+        }
+        shortcut_rows = []
+        for arm, bank in itertools.product(config["factorial"]["arms"], dataset.bank_ids):
+            for baseline in (
+                "constant",
+                "csi_only",
+                "map_only",
+                "scene_id_only",
+                "edit_status_xor",
+                "variant_id_matcher",
+            ):
+                row = {
+                    "seed": 1,
+                    "arm": arm,
+                    "canonical_bank_digest": bank,
+                    "baseline": baseline,
+                    "unseen_bank_auroc": 0.5,
+                }
+                if baseline in contracts:
+                    row["identity_token_contract"] = contracts[baseline]
+                shortcut_rows.append(row)
+        null_safety = {
+            arm: {"passed": True} for arm in config["factorial"]["arms"]
+        }
+
+        def run_gate(row):
+            with (
+                patch(
+                    "formal_v2.formal_evaluation._null_safety_by_arm",
+                    return_value=null_safety,
+                ),
+                patch(
+                    "formal_v2.formal_evaluation._paired_arm_comparison",
+                    return_value=dict(strong),
+                ),
+                patch(
+                    "formal_v2.formal_evaluation._within_arm_advantage_interval",
+                    return_value=dict(strong),
+                ),
+                patch(
+                    "formal_v2.formal_evaluation._within_arm_level_interval",
+                    return_value=dict(strong),
+                ),
+                patch(
+                    "formal_v2.formal_evaluation._g3_primary_scope_intervals",
+                    return_value=scoped,
+                ),
+                patch(
+                    "formal_v2.formal_evaluation._effect_bins_complete",
+                    return_value=True,
+                ),
+                patch(
+                    "formal_v2.formal_evaluation._gray_cells_complete",
+                    return_value=True,
+                ),
+                patch(
+                    "formal_v2.formal_evaluation._native_probe_correlation_macro",
+                    return_value=1.0,
+                ),
+                patch(
+                    "formal_v2.formal_evaluation._canonical_bank_digest",
+                    side_effect=lambda data, scene: str(data.bank_ids[scene]),
+                ),
+            ):
+                return _evaluation_gate(
+                    config,
+                    dataset,
+                    [],
+                    [],
+                    [],
+                    [row, {**row, "arm": "full"}],
+                    shortcut_rows,
+                    {"g4_subgates": {"complete": "PASS"}, "gate_vector": {"G5": "PASS"}},
+                    {},
+                    qualification_gate_sha256="a" * 64,
+                    factorial_gate_sha256="b" * 64,
+                )
+
+        na_gate = run_gate(response_row)
+        self.assertEqual(
+            na_gate["g3_subgates"]["4_response_direction_and_magnitude"],
+            "PASS",
+        )
+        finite_fail = run_gate({**response_row, "native_sgcs": float("nan")})
+        self.assertEqual(
+            finite_fail["g3_subgates"]["4_response_direction_and_magnitude"],
+            "FAIL",
+        )
+        skill_nan = run_gate({**response_row, "native_transition_skill": float("nan")})
+        self.assertEqual(
+            skill_nan["g3_subgates"]["4_response_direction_and_magnitude"],
+            "FAIL",
+        )
 
     def test_nonexact_action_swap_is_excluded_from_response_effect(self):
         evaluated = {

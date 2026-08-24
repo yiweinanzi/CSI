@@ -34,7 +34,7 @@
     "built-in source-only SigMap scene-ID runner with checkpoint and training-provenance binding",
     "five first-party resource controls with complete seed checkpoints, loss traces, profiler events, and replay",
     "common localization head excluded symmetrically while concat bottleneck parameters and FLOPs remain counted",
-    "two-phase nonce/hash-bound human approval with complete late-input and compute preflight",
+    "two-phase nonce/hash-bound llm-judge approval with complete late-input and compute preflight",
     "global target support/query isolation, per-role source-city coverage, and dynamic per-city cluster qualification",
     "CPython 3.12 main-runtime enforcement with reviewed per-platform wheel hashes, a bound pip install receipt, exact versions, and installed RECORD/file authentication",
     "deterministic Torch, CUBLAS and TF32 settings are configured and reauthenticated by every evidence entrypoint",

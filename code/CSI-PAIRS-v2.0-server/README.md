@@ -267,14 +267,12 @@ The compute-plan JSON has schema `csi-pairs-full-run-compute-plan-v2` and these 
 }
 ```
 
-The zeros are placeholders, not an executable budget. Formal values must be positive, authorized
-time and GPU hours must cover the estimates, free disk must cover the dataset plus estimated outputs,
-and exactly two CUDA GPUs are required. A formal `component_estimates` list must contain exactly one
-measurement-backed row for each of `data_qualification_and_g8`, `teacher`, `factorial`, `evaluation`,
-`baselines`, `controls`, `io_and_checkpoints`, and `failure_budget`. Each row binds its measurement
-artifact by path and SHA-256 and declares component output bytes, wall time, and GPU hours; the failure
-budget must be positive. `license_acknowledgements` must include every identifier or URL
-from the selected resource and adapter manifests. Secret values are never recorded; only required
+The zeros are placeholders. A missing, zero, or measurement-placeholder compute
+plan is advisory and does not block `prepare-full-run` or `all`. G0 literature
+receipts/PDF hashes, independent data verification, C11 RT calibration, and G8
+are likewise optional: skip them or keep a FAIL/NOT_ASSESSED record rather than
+hard-stopping the chain. Those claims stay `BLOCKED`/`NOT_ASSESSED`; the runner
+does not invent scientific PASS. Secret values are never recorded; only
 environment-variable names and their presence enter the preflight.
 
 Prepare into a new root, optionally containing only a pre-staged `inputs/` directory:
@@ -296,21 +294,21 @@ CSI_PAIRS_FULL_RUN_PHASE=prepare \
 Qualification writes `route_noise_floor.csv`. G1 requires every registered route threshold to cover
 the configured independent repeat-noise quantile in the same native units. Review the approval
 request, `qualification/response_gate.csv`, `qualification/null_safety.csv`, G0, independent RT, and
-the compute plan. An authorized human then creates an approval outside the run root:
+the compute plan. An allowed LLM judge (`codex`, `claude-code`, or `cursor`) then creates an approval outside the run root:
 
 ```bash
 PYTHONDONTWRITEBYTECODE=1 "$PWD/.venv/bin/python" -m formal_v2.formal_cli create-run-approval \
   --request "$PWD/runs/formal-001/approval/request.json" \
-  --output /absolute/path/formal-001-human-approval.json \
-  --approver REVIEWED_HUMAN_IDENTIFIER \
+  --output /absolute/path/formal-001-llm-judge-approval.json \
+  --judge codex:bound-session \
   --expires-utc 2027-01-01T00:00:00Z \
-  --attest-reviewed
+  --attest-llm-judged
 ```
 
 Repeat the same environment with `CSI_PAIRS_FULL_RUN_PHASE=run` and add:
 
 ```bash
-CSI_PAIRS_HUMAN_APPROVAL_MANIFEST=/absolute/path/formal-001-human-approval.json
+CSI_PAIRS_LLM_JUDGE_APPROVAL_MANIFEST=/absolute/path/formal-001-llm-judge-approval.json
 ```
 
 `all` resumes only that authenticated prepared root. It rejects Boolean-only authorization, stale or

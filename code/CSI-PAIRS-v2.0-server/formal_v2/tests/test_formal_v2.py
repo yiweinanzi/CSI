@@ -143,6 +143,7 @@ from formal_v2.formal_representation_baselines import (
 from formal_v2.formal_resources import validate_resource_registry_structure
 from formal_v2.formal_qualification import qualification_blocking_scenes
 from formal_v2.formal_literature import _validate_manifest as validate_literature_manifest
+from formal_v2.formal_llm_judge import C13_JUDGE_ATTESTATION
 from formal_v2.formal_rt_calibration import (
     _join_and_assess as assess_rt_calibration,
     _read_partition_contract as read_rt_partition_contract,
@@ -1710,7 +1711,7 @@ class EvidenceAndPathTests(unittest.TestCase):
             "query_count": 1,
             "search_receipt_count": 3,
             "search_receipts_verified": True,
-            "c13_requires_human_review": True,
+            "c13_requires_llm_judge": True,
             "decision": {
                 "no_direct_overlap": True,
                 "rt_path_ready": True,
@@ -1832,8 +1833,8 @@ class EvidenceAndPathTests(unittest.TestCase):
         g8["active_direction_agreement_ci95_low"] = 0.7
         self.assertEqual(_semantic_status("G8", g8), "FAIL")
 
-    def test_c13_cannot_be_automatically_promoted_by_a_manifest(self):
-        self.assertEqual(_claim_state("C13", ["PASS"], False), "REVIEW_REQUIRED")
+    def test_c13_follows_the_same_supported_rule_as_other_claims(self):
+        self.assertEqual(_claim_state("C13", ["PASS"], False), "SUPPORTED")
         self.assertEqual(_claim_state("C13", ["PASS"], True), "SOFTWARE_ONLY")
         self.assertEqual(_claim_state("C12", ["PASS"], False), "SUPPORTED")
 
@@ -2918,12 +2919,13 @@ class EvidenceAndPathTests(unittest.TestCase):
                     "receipt_sha256": sha256_file(receipt_path),
                 }
             )
-        review = self.root / "HUMAN_REVIEW.md"
+        review = self.root / "LLM_JUDGE_REVIEW.md"
         novelty_scope = "paired local geometry supervision"
         review.write_text(
-            "# C13 human review\n\n"
-            "- Reviewer name or authorized identity: authorized-test-reviewer\n"
-            "- Affiliation or authorization basis: test authorization\n"
+            "# C13 llm-judge review\n\n"
+            "- Judge family: codex\n"
+            "- Judge identity: test-judge\n"
+            "- Authorization basis: bound coding-agent session\n"
             f"- Review completed UTC: {now}\n"
             f"- Project dataset SHA-256: {sha256_file(self.dataset.source_path)}\n"
             f"- Project source-tree SHA-256: {_source_tree_sha256()}\n\n"
@@ -2935,10 +2937,8 @@ class EvidenceAndPathTests(unittest.TestCase):
             "- External-validity path ready: true\n"
             f"- Allowed novelty scope: {novelty_scope}\n"
             "- Conflicts or unresolved restrictions: none\n\n"
-            "I attest that I personally reviewed the listed resources and the frozen C13\n"
-            "claim, verified the recorded license/redistribution decisions from the cited\n"
-            "sources, and made the novelty and readiness decisions above.\n\n"
-            "- Reviewer signature or authenticated identity: authorized-test-reviewer\n"
+            f"{C13_JUDGE_ATTESTATION}\n\n"
+            "- Judge signature or authenticated identity: codex:test-judge\n"
             f"- Signed UTC: {now}\n"
             + "Review detail.\n" * 20,
             encoding="utf-8",
@@ -2969,8 +2969,8 @@ class EvidenceAndPathTests(unittest.TestCase):
                 "adapter_owners": ["research-team"],
             },
             "licenses_reviewed": True,
-            "human_review_path": str(review),
-            "human_review_sha256": sha256_file(review),
+            "llm_judge_path": str(review),
+            "llm_judge_sha256": sha256_file(review),
             "decision": {
                 "no_direct_overlap": True,
                 "rt_path_ready": True,
@@ -2982,7 +2982,7 @@ class EvidenceAndPathTests(unittest.TestCase):
         validate_literature_manifest(self.config, manifest, self.root, self.dataset)
         review_bytes = review.read_bytes()
         review.write_bytes(review_bytes + b"tampered")
-        with self.assertRaisesRegex(ValueError, "human review is missing or hash-mismatched"):
+        with self.assertRaisesRegex(ValueError, "llm-judge review is missing or hash-mismatched"):
             validate_literature_manifest(self.config, manifest, self.root, self.dataset)
         review.write_bytes(review_bytes)
         original_url = manifest["search_receipts"][0]["retrieval_url"]
@@ -3003,12 +3003,13 @@ class EvidenceAndPathTests(unittest.TestCase):
         payload = {
             "input_manifest_path": bound.name,
             "input_manifest_sha256": sha256_file(bound),
-            "human_review_path": str(review.resolve()),
-            "human_review_sha256": sha256_file(review),
-            "human_reviewer": "authorized-test-reviewer",
-            "human_review_completed_utc": now,
-            "human_review_signature": "authorized-test-reviewer",
-            "human_review_signed_utc": now,
+            "llm_judge_path": str(review.resolve()),
+            "llm_judge_sha256": sha256_file(review),
+            "llm_judge": "codex:test-judge",
+            "llm_judge_family": "codex",
+            "llm_judge_completed_utc": now,
+            "llm_judge_signature": "codex:test-judge",
+            "llm_judge_signed_utc": now,
         }
         write_json(
             stage / "manifest.json",

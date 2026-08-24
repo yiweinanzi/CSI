@@ -1,8 +1,10 @@
-# HUMAN REVIEW REQUIRED: C13 novelty and license review
+# LLM-AS-JUDGE REQUIRED: C13 novelty and license review
 
-This is the human-only review entry point for the CSI-PAIRS V6 formal
-experiment. Machine evidence is complete, but it does not make a novelty,
-overlap, licensing, redistribution, or scientific-readiness decision.
+This is the coding-agent review entry point for CSI-PAIRS V6 C13. Allowed
+judge families are `codex`, `claude-code`, and `cursor`. A human signature
+is not accepted. Unit tests exist; formal C1–C13 / G0–G8 machine gates have
+not been executed in this clone. This file does not itself make a novelty or
+scientific-readiness decision.
 
 ## Current binding
 
@@ -11,9 +13,9 @@ overlap, licensing, redistribution, or scientific-readiness decision.
 - Formal configuration SHA-256: `6842a565ba733ec6e6d2d3f96e99926cba75ea29dc87d46019bdea795d6def42`
 - Paper claim file: `code/CSI-PAIRS-v2.0-server/paper_v2/main.tex`
 - Paper claim SHA-256: `9a0d4aeb3655d16788c9d234cc454c8f6d22b45026de93877f96206e31379183`
-- Frozen machine test evidence: `571/571 PASS`
-- Search evidence: Crossref `3/3`, OpenAlex `3/3`, Semantic Scholar `3/3`
-- Authenticated paper files: `7/7`
+- Frozen machine test evidence: unittest methods under `formal_v2/tests/`
+- These results are **unit tests**, not executed C1–C13 / G0–G8 scientific gates; `FORMAL_GO` remains NO-GO until authenticated data and formal stages pass.
+- Do not treat the bound dataset SHA as an authenticated formal NPZ in this clone; no `.npz` is present.
 
 The formal source digest covers the executable/configuration files under
 `formal_v2`. This review entry point and `.gitignore` are outside that digest.
@@ -55,12 +57,12 @@ Also verify the official source archives and upstream license terms:
 | Sionna | `04ddb9312116b408093b9d3ad363a3df355093a6` | Apache-2.0 |
 | Sionna large radio maps | `1ba19ae1df1d26302fcfbaab14efc2347313da5d` | Apache-2.0 |
 
-Do not infer a human licensing decision solely from the table. Verify the
-upstream license and the actual resource before signing.
+Do not infer a license decision solely from the table. Verify the upstream
+license and the actual resource before writing the judge file.
 
-## Required human decisions
+## Required judge decisions
 
-The completed review must explicitly state:
+The completed `LLM_JUDGE_REVIEW.md` must explicitly state:
 
 - Whether every local paper and source license was reviewed.
 - Whether any prior work directly overlaps the frozen C13 claim.
@@ -71,42 +73,40 @@ The completed review must explicitly state:
 
 ## Required output
 
-After personally completing the review, create:
+Create:
 
-`/root/xunlian/Futaoran/formal_external_inputs/c13_literature/HUMAN_REVIEW.md`
+`LLM_JUDGE_REVIEW.md`
 
-Use the full local template at:
-
-`/root/xunlian/Futaoran/formal_external_inputs/c13_literature/HUMAN_REVIEW_TEMPLATE.md`
-
-The completed file must contain all of the following, with no placeholders:
+next to the literature-resource manifest. The completed file must contain all
+of the following, with no placeholders:
 
 ```text
-Reviewer name or authorized identity:
-Affiliation or authorization basis:
-Review completed UTC:
-Dataset SHA-256:
-Project source-tree SHA-256:
-Project formal configuration SHA-256:
-Paper claim SHA-256:
+- Judge family: codex|claude-code|cursor
+- Judge identity: <bound session or model id>
+- Authorization basis: bound coding-agent session
+- Review completed UTC:
+- Project dataset SHA-256:
+- Project source-tree SHA-256:
+- Licenses reviewed for every local PDF/source resource: true|false
+- No direct overlap with the frozen C13 claim: true|false
+- RT path ready: true|false
+- Map path ready: true|false
+- External-validity path ready: true|false
+- Allowed novelty scope:
+- Conflicts or unresolved restrictions:
 
-Record-by-record review:
-  [all seven papers and all four source archives]
-
-Licenses reviewed for every local PDF/source resource: true|false
-No direct overlap with the frozen C13 claim: true|false
-RT path ready: true|false
-Map path ready: true|false
-External-validity path ready: true|false
-Allowed novelty scope:
-Conflicts or unresolved restrictions:
-
-I attest that I personally reviewed the listed resources and the frozen C13
+This LLM-as-judge review bound the listed resources and the frozen C13
 claim, verified the recorded license/redistribution decisions from the cited
 sources, and made the novelty and readiness decisions above.
+The judge family is one of: codex, claude-code, cursor.
 
-Reviewer signature or authenticated identity:
-Signed UTC:
+- Judge signature or authenticated identity: <family:identity>
+- Signed UTC:
 ```
 
-An AI-generated signature or a renamed blank template is not valid evidence.
+A human-personal attestation (`I attest that I personally reviewed...`) is
+rejected. A renamed blank template is not valid evidence.
+
+Full-run authorization is a separate llm-judge approval:
+
+`python -m formal_v2.formal_cli create-run-approval --judge family:id --attest-llm-judged ...`

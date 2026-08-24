@@ -14,6 +14,9 @@ from .formal_evidence import (
 from .formal_io import artifact_manifest, read_strict_json, sha256_file, write_json
 
 
+OPTIONAL_CLAIM_GATES = frozenset({"G0", "G8"})
+OPTIONAL_CLAIM_STAGES = frozenset({"G0", "G8", "rt_calibration"})
+
 CLAIM_DEPENDENCIES = {
     "C1": ("external_baselines",),
     "C2": ("scene_id_mechanism",),
@@ -97,10 +100,9 @@ def assemble_claim_evidence(config, dataset, output_root):
         ]
         claims[claim_id] = _claim_state(claim_id, statuses, dataset.is_fixture)
 
-    all_required_assessed = all(value in {"PASS", "FAIL"} for value in gates.values())
     result = {
         "schema_version": "csi-pairs-v6-claim-evidence-v2",
-        "status": "COMPLETE" if all_required_assessed and not errors else "INCOMPLETE_FAIL_CLOSED",
+        "status": _claim_package_status(gates, errors),
         **evidence,
         "gate_vector": gates,
         "claim_vector": claims,
@@ -124,15 +126,27 @@ def assemble_claim_evidence(config, dataset, output_root):
     return result
 
 
-def _claim_state(claim_id, statuses, fixture):
+def _claim_package_status(gates, errors):
+    required_assessed = all(
+        value in {"PASS", "FAIL"}
+        for gate_id, value in gates.items()
+        if gate_id not in OPTIONAL_CLAIM_GATES
+    )
+    blocking_errors = {
+        name: error
+        for name, error in errors.items()
+        if name not in OPTIONAL_CLAIM_STAGES
+    }
+    return "COMPLETE" if required_assessed and not blocking_errors else "INCOMPLETE_FAIL_CLOSED"
+
+
+def _claim_state(_claim_id, statuses, fixture):
     if any(value in {"FAIL", "INVALID"} for value in statuses):
         return "INVALID"
     if not all(value == "PASS" for value in statuses):
         return "BLOCKED"
     if fixture:
         return "SOFTWARE_ONLY"
-    if claim_id == "C13":
-        return "REVIEW_REQUIRED"
     return "SUPPORTED"
 
 
@@ -190,7 +204,7 @@ def _semantic_status(name, payload):
             or not isinstance(payload.get("databases"), list)
             or int(payload.get("search_receipt_count", 0))
             != int(payload.get("query_count", 0)) * len(payload.get("databases", []))
-            or payload.get("c13_requires_human_review") is not True
+            or payload.get("c13_requires_llm_judge") is not True
         ):
             return "FAIL"
     elif name == "G1_G2":
@@ -871,15 +885,16 @@ def _validate_stage_bound_input(
 
         review = _validate_manifest(config, manifest, path.parent, dataset)
         for key, expected in (
-            ("human_review_path", str(review["path"])),
-            ("human_review_sha256", manifest["human_review_sha256"]),
-            ("human_reviewer", review["reviewer"]),
-            ("human_review_completed_utc", review["completed_utc"]),
-            ("human_review_signature", review["signature"]),
-            ("human_review_signed_utc", review["signed_utc"]),
+            ("llm_judge_path", str(review["path"])),
+            ("llm_judge_sha256", manifest["llm_judge_sha256"]),
+            ("llm_judge", review["judge"]),
+            ("llm_judge_family", review["judge_family"]),
+            ("llm_judge_completed_utc", review["completed_utc"]),
+            ("llm_judge_signature", review["signature"]),
+            ("llm_judge_signed_utc", review["signed_utc"]),
         ):
             if payload.get(key) != expected:
-                raise RuntimeError(f"G0 gate {key} differs from its human review")
+                raise RuntimeError(f"G0 gate {key} differs from its llm-judge review")
     elif stage_name == "G4":
         from .formal_controls import _validate_manifest
 

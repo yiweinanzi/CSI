@@ -65,4 +65,4 @@ WWM 原始数据不在包内。DeepSense Scenario 8/33 只是明确标注的非�
 这份 split 账本解决的是“谁可以读取哪部分数据”，不等于论文实验已经获准开始。
 CPU 34-bank 数据仍是 `CANDIDATE_NOT_CLAIM`，A100 Sionna 数据仍是
 `fixture=true`、`scientific_use=FORBIDDEN`。正式训练还需要在预批准的 Linux/A100
-运行时重新生成并通过全部资格门和人工批准。
+运行时重新生成并通过全部资格门和 LLM-as-judge 批准。

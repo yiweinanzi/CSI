@@ -317,12 +317,10 @@ export CUDA_VISIBLE_DEVICES=0,1
 ```
 
 Then follow the two-phase `prepare-full-run` and `all` commands in the root
-`README.md`. Preparation runs G0, independent RT, independent data verification,
-G1/G2, and the independent G8 external-validity gate before it emits a
-human-approval request. `all` starts the four-arm
-training only after that exact request is reviewed and approved.
-
-Stop on any nonzero exit, failed regeneration role, RT partition overlap,
-Response/no-x/null-safety failure, runtime mismatch, or resource preflight
-failure. Before those gates pass, `SCIENTIFIC_EVIDENCE=NOT_ASSESSED` and
-`FORMAL_GO=NO-GO` remain the only valid status.
+`README.md`. Preparation still trains a teacher and writes an llm-judge
+approval request. G0 literature receipts/PDF hashes, independent data
+verification, C11 RT calibration, G8, and a measurement-backed compute plan
+are optional: missing or failing those stages does not hard-stop prepare or
+`all`. The corresponding claims stay `NOT_ASSESSED`/`BLOCKED`. G1/G2
+qualification and the LLM-as-judge approval remain part of the two-phase path.
+The runner does not invent scientific PASS for skipped gates.

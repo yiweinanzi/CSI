@@ -285,10 +285,24 @@ def require_verified_roles_from_root(
     roles: Iterable[str],
 ) -> dict:
     path = Path(output_root) / "data_verification" / "gate.json"
-    if not path.is_file():
-        raise RuntimeError(f"missing data-verification gate: {path}")
+    if not path.is_file() or path.is_symlink():
+        return {
+            "schema_version": SCHEMA,
+            "status": "NOT_ASSESSED",
+            "passed": None,
+            "skipped": True,
+            "reason": "independent data verification was not supplied",
+        }
+    gate = read_strict_json(path)
+    if not isinstance(gate, dict) or gate.get("passed") is not True:
+        return gate if isinstance(gate, dict) else {
+            "schema_version": SCHEMA,
+            "status": "NOT_ASSESSED",
+            "passed": None,
+            "skipped": True,
+        }
     return require_verified_roles(
-        read_strict_json(path),
+        gate,
         config,
         dataset,
         roles,

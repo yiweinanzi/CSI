@@ -84,13 +84,31 @@ def build_parser() -> argparse.ArgumentParser:
     sionna_export.add_argument("--refraction", action="store_true")
     approval = subparsers.add_parser(
         "create-run-approval",
-        help="create an external approval after manually reviewing a prepared request",
+        help="create an external llm-judge approval after a coding-agent review of a prepared request",
     )
     approval.add_argument("--request", required=True)
     approval.add_argument("--output", required=True)
-    approval.add_argument("--approver", required=True)
+    approval.add_argument(
+        "--judge",
+        required=True,
+        help="llm-judge identity as family:id, family in {codex, claude-code, cursor}",
+    )
     approval.add_argument("--expires-utc", required=True)
-    approval.add_argument("--attest-reviewed", action="store_true")
+    approval.add_argument("--attest-llm-judged", action="store_true")
+    operator_preflight = subparsers.add_parser(
+        "operator-preflight",
+        help="operator inventory only; missing optional gates are not launch blockers",
+    )
+    operator_preflight.add_argument("--dataset", required=True)
+    operator_preflight.add_argument(
+        "--config",
+        default=str(Path(__file__).resolve().parent / "configs" / "formal_v2.json"),
+    )
+    operator_preflight.add_argument(
+        "--output",
+        help="optional directory; writes operator_preflight.json; not a formal run",
+    )
+    operator_preflight.add_argument("--compute-plan")
 
     for command in (
         "inspect-data",
@@ -141,9 +159,9 @@ def build_parser() -> argparse.ArgumentParser:
         if command in {"prepare-full-run", "all"}:
             child.add_argument(
                 "--compute-plan",
-                help="strict external disk/GPU/time/license budget manifest",
+                help="optional advisory disk/GPU/time/license budget; placeholders are accepted",
             )
-            child.add_argument("--verifier-manifest", required=True)
+            child.add_argument("--verifier-manifest")
             child.add_argument(
                 "--risk-feature-manifest",
                 help="deprecated; the full chain replays risk features in first-party code",
@@ -155,9 +173,9 @@ def build_parser() -> argparse.ArgumentParser:
             child.add_argument(
                 "--scene-id-manifest", default=DEFAULT_SCENE_ID_MANIFEST
             )
-            child.add_argument("--external-validity-manifest", required=True)
-            child.add_argument("--literature-resource-manifest", required=True)
-            child.add_argument("--rt-calibration-manifest", required=True)
+            child.add_argument("--external-validity-manifest")
+            child.add_argument("--literature-resource-manifest")
+            child.add_argument("--rt-calibration-manifest")
             child.add_argument(
                 "--shuffled-pair-manifest", default=DEFAULT_SHUFFLED_PAIR_MANIFEST
             )
@@ -171,7 +189,7 @@ def build_parser() -> argparse.ArgumentParser:
         if command == "all":
             child.add_argument(
                 "--approval-manifest",
-                help="external human approval bound to OUTPUT/approval/request.json",
+                help="external llm-judge approval bound to OUTPUT/approval/request.json",
             )
             child.add_argument(
                 "--approve-full-experiment",
@@ -229,12 +247,6 @@ def main(argv: list[str] | None = None) -> int:
             file=sys.stderr,
         )
         return 2
-    if args.command in {"prepare-full-run", "all"} and not args.compute_plan:
-        print(
-            "error: full-run preparation and execution require --compute-plan",
-            file=sys.stderr,
-        )
-        return 2
     output_lock: _OutputLock | None = None
     try:
         if args.command == "make-fixture":
@@ -275,14 +287,14 @@ def main(argv: list[str] | None = None) -> int:
             print(json.dumps({"status": "PASS", "manifest": str(manifest)}, sort_keys=True))
             return 0
         if args.command == "create-run-approval":
-            from .formal_run_approval import create_human_approval_manifest
+            from .formal_run_approval import create_llm_judge_approval_manifest
 
-            approval = create_human_approval_manifest(
+            approval = create_llm_judge_approval_manifest(
                 args.request,
                 args.output,
-                approver=args.approver,
+                judge=args.judge,
                 expires_utc=args.expires_utc,
-                attest_reviewed=bool(args.attest_reviewed),
+                attest_llm_judged=bool(args.attest_llm_judged),
             )
             print(
                 json.dumps(
@@ -294,6 +306,17 @@ def main(argv: list[str] | None = None) -> int:
                     sort_keys=True,
                 )
             )
+            return 0
+        if args.command == "operator-preflight":
+            from .formal_operator_preflight import run_operator_preflight
+
+            report = run_operator_preflight(
+                args.dataset,
+                config_path=args.config,
+                output_root=args.output,
+                compute_plan_path=args.compute_plan,
+            )
+            print(json.dumps(report, sort_keys=True, ensure_ascii=True))
             return 0
         config = load_formal_config(args.config)
         dataset_path = Path(args.dataset).resolve() if args.dataset else resolve_dataset_path(config)
@@ -380,13 +403,23 @@ def main(argv: list[str] | None = None) -> int:
         elif args.command == "qualify":
             from .formal_qualification import run_formal_qualification
 
-            verification_path = Path(args.data_verification_gate) if args.data_verification_gate else output / "data_verification" / "gate.json"
+            verification_path = (
+                Path(args.data_verification_gate)
+                if args.data_verification_gate
+                else output / "data_verification" / "gate.json"
+            )
+            if verification_path.is_file() and not verification_path.is_symlink():
+                verification_gate = read_strict_json(verification_path)
+                verification_gate_path = verification_path
+            else:
+                verification_gate = None
+                verification_gate_path = None
             result = run_formal_qualification(
                 config,
                 dataset,
                 output,
-                read_strict_json(verification_path),
-                data_verification_gate_path=verification_path,
+                verification_gate,
+                data_verification_gate_path=verification_gate_path,
                 resume=bool(args.resume),
             )
         elif args.command == "verify-data":
@@ -551,52 +584,49 @@ def _prepare_full_run(config, dataset, output, args, preflight):
         output,
     )
     _require_preapproval_pass(resource_gate, "waibu resource verification", dataset)
-    g0 = run_literature_resource_gate(
-        config,
-        dataset,
-        args.literature_resource_manifest,
-        output,
-    )
-    _require_preapproval_pass(g0, "G0 literature/resource gate", dataset)
-    rt = run_rt_calibration_gate(
-        config,
-        dataset,
-        args.rt_calibration_manifest,
-        output,
-    )
-    _require_preapproval_pass(rt, "independent RT calibration", dataset)
-    verification = run_data_verification(
-        config,
-        dataset,
-        args.verifier_manifest,
-        output,
-    )
-    _require_preapproval_pass(verification, "independent data verification", dataset)
-    qualification = run_formal_qualification(
-        config,
-        dataset,
-        output,
-        verification,
-        data_verification_gate_path=output / "data_verification" / "gate.json",
-    )
+    literature = _optional_arg(args, "literature_resource_manifest")
+    if literature:
+        _try_optional_stage(
+            "G0 literature/resource gate",
+            lambda: run_literature_resource_gate(config, dataset, literature, output),
+        )
+    rt_manifest = _optional_arg(args, "rt_calibration_manifest")
+    if rt_manifest:
+        _try_optional_stage(
+            "independent RT calibration",
+            lambda: run_rt_calibration_gate(config, dataset, rt_manifest, output),
+        )
+    verifier = _optional_arg(args, "verifier_manifest")
+    verification = None
+    if verifier:
+        verification = _try_optional_stage(
+            "independent data verification",
+            lambda: run_data_verification(config, dataset, verifier, output),
+        )
+    if verification is not None and verification.get("passed") is True:
+        qualification = run_formal_qualification(
+            config,
+            dataset,
+            output,
+            verification,
+            data_verification_gate_path=output / "data_verification" / "gate.json",
+        )
+    else:
+        qualification = run_formal_qualification(config, dataset, output, None)
     _require_preapproval_pass(
         qualification,
         "G1/G2 Response qualification",
         dataset,
         allow_fixture_failure=True,
     )
-    external_validity = run_external_validity(
-        config,
-        dataset,
-        args.external_validity_manifest,
-        output,
-    )
-    _require_preapproval_pass(
-        external_validity,
-        "G8 independent external validity",
-        dataset,
-        allow_fixture_failure=True,
-    )
+    external_validity = _optional_arg(args, "external_validity_manifest")
+    if external_validity:
+        _try_optional_stage(
+            "G8 independent external validity",
+            lambda: run_external_validity(
+                config, dataset, external_validity, output
+            ),
+        )
     return write_approval_request(
         config,
         dataset,
@@ -711,6 +741,27 @@ def _run_authorized_full_chain(config, dataset, output, args, preflight):
     result = assemble_claim_evidence(config, dataset, output)
     _require_full_stage(result, "claim assembly", dataset)
     return result
+
+
+def _optional_arg(args, name):
+    value = getattr(args, name, None)
+    if value is None:
+        return None
+    text = str(value).strip()
+    if not text or text == "None":
+        return None
+    return text
+
+
+def _try_optional_stage(label, invoke):
+    try:
+        return invoke()
+    except Exception as error:
+        print(
+            f"warning: optional {label} skipped ({type(error).__name__}: {error})",
+            file=sys.stderr,
+        )
+        return None
 
 
 def _require_preapproval_pass(

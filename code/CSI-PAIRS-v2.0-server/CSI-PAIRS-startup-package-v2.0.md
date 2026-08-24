@@ -167,18 +167,18 @@ CSI_PAIRS_FULL_RUN_PHASE=prepare \
   formal_v2/scripts/run_formal_v2.sh
 ```
 
-`prepare` 在任何正式后期训练前认证资源、运行时、许可、预算、G0、独立 RT、数据再生成与 G1/G2，然后写入 `approval/request.json` 并停止。人工复核该 request 及早期 gate 后，在 run root 外签发一次性 approval：
+`prepare` 在任何正式后期训练前认证资源、运行时、许可、预算、G0、独立 RT、数据再生成与 G1/G2，然后写入 `approval/request.json` 并停止。允许的 LLM-as-judge（`codex` / `claude-code` / `cursor`）复核该 request 及早期 gate 后，在 run root 外签发一次性 approval：
 
 ```bash
 PYTHONDONTWRITEBYTECODE=1 /unused/path/csi-pairs-v2-env/bin/python -m formal_v2.formal_cli create-run-approval \
   --request /unused/path/formal-run/approval/request.json \
-  --output /path/to/formal-run-human-approval.json \
-  --approver REVIEWED_HUMAN_IDENTIFIER \
+  --output /path/to/formal-run-llm-judge-approval.json \
+  --judge codex:bound-session \
   --expires-utc 2027-01-01T00:00:00Z \
-  --attest-reviewed
+  --attest-llm-judged
 ```
 
-使用完全相同的输入环境，把 `CSI_PAIRS_FULL_RUN_PHASE` 改为 `run`，并设置 `CSI_PAIRS_HUMAN_APPROVAL_MANIFEST=/path/to/formal-run-human-approval.json`。runner 只恢复同一份已认证的 prepare root；旧 run、布尔 approval、输入/运行时/gate/预算变化、跨 run 重放和已消费 approval 均被拒绝。完整 compute-plan 字段和所有默认 manifest 见根 `README.md` 第 5 节。每次正式 run 使用新的输出目录；脚本拒绝覆盖 stage 目录。
+使用完全相同的输入环境，把 `CSI_PAIRS_FULL_RUN_PHASE` 改为 `run`，并设置 `CSI_PAIRS_LLM_JUDGE_APPROVAL_MANIFEST=/path/to/formal-run-llm-judge-approval.json`。runner 只恢复同一份已认证的 prepare root；旧 run、布尔 approval、输入/运行时/gate/预算变化、跨 run 重放和已消费 approval 均被拒绝。完整 compute-plan 字段和所有默认 manifest 见根 `README.md` 第 5 节。每次正式 run 使用新的输出目录；脚本拒绝覆盖 stage 目录。
 
 ## 8. 论文 V2 图表与结果槽位
 

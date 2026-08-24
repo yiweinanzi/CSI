@@ -1524,9 +1524,6 @@ def _transition_metrics(
         np.abs(flat_true_delta) ** 2, axis=1
     )
     sgcs = numerator / np.maximum(denominator, 1e-12)
-    transition_skill = 1.0 - np.sum(np.abs(predicted_delta - true_delta) ** 2, axis=(1, 2)) / np.maximum(
-        np.sum(np.abs(true_delta) ** 2, axis=(1, 2)), 1e-12
-    )
     errors = {name: [] for name in ("path_loss", "delay_spread", "angular_spread")}
     directions = {name: [] for name in errors}
     for index in range(predicted.shape[0]):
@@ -1545,7 +1542,6 @@ def _transition_metrics(
             )
     return {
         "native_sgcs": float(np.mean(sgcs)),
-        "native_transition_skill": float(np.mean(transition_skill)),
         **{
             f"native_{name}_change_mae": float(np.mean(values))
             for name, values in errors.items()
@@ -1555,6 +1551,22 @@ def _transition_metrics(
             for name, values in directions.items()
         },
     }
+
+
+def _protocol_transition_skill(latent_prediction, latent_source, latent_target, include):
+    """Bank-level teacher-latent TransitionSkill. None means N/A."""
+    include = np.asarray(include, dtype=bool)
+    if not np.any(include):
+        return None
+    predicted = np.asarray(latent_prediction, dtype=np.float64)[include]
+    source = np.asarray(latent_source, dtype=np.float64)[include]
+    target = np.asarray(latent_target, dtype=np.float64)[include]
+    axes = tuple(range(1, predicted.ndim))
+    numer = float(np.sum(np.sqrt(np.mean((predicted - target) ** 2, axis=axes))))
+    denom = float(np.sum(np.sqrt(np.mean((source - target) ** 2, axis=axes))))
+    if denom <= 1e-12:
+        return None
+    return float(1.0 - numer / denom)
 
 
 def _native_mask_cover_metrics(model, dataset, teacher, config, normalization, scenes, bank_id):
@@ -1577,6 +1589,7 @@ def _native_mask_cover_metrics(model, dataset, teacher, config, normalization, s
     latent_sources = []
     targets = []
     latent_targets = []
+    teacher_sensitive = []
     wrong_action_statuses = []
     direction_cosines = []
     magnitude_errors = []
@@ -1711,6 +1724,7 @@ def _native_mask_cover_metrics(model, dataset, teacher, config, normalization, s
             latent_sources.append(latent_source)
             targets.append(target)
             latent_targets.append(latent_target)
+            teacher_sensitive.append(routed.alignment_teacher_stratum[akey] == 2)
             wrong_action_statuses.append(swap_status)
             true_delta = (target - source).reshape(-1)
             predicted_delta = (predicted - predicted_no_action).reshape(-1)
@@ -1758,6 +1772,12 @@ def _native_mask_cover_metrics(model, dataset, teacher, config, normalization, s
         target,
         normalization,
         teacher.patch_spec,
+    )
+    native_transition_skill = _protocol_transition_skill(
+        latent_prediction,
+        latent_source,
+        latent_target,
+        np.asarray(teacher_sensitive, dtype=bool),
     )
     return {
         "native_target_free_full_channel_nmse": float(
@@ -1830,6 +1850,7 @@ def _native_mask_cover_metrics(model, dataset, teacher, config, normalization, s
         "native_delta_direction_cosine": float(np.mean(direction_cosines)),
         "native_delta_relative_magnitude_error": float(np.mean(magnitude_errors)),
         **transition_metrics,
+        "native_transition_skill": native_transition_skill,
         "native_null_patch_count": len(null_delta_norms),
         "native_null_delta_rms_mean": (
             float(np.mean(null_delta_norms)) if null_delta_norms else None
@@ -2252,7 +2273,6 @@ def _evaluation_gate(
                 np.isfinite(row[name])
                 for name in (
                     "native_sgcs",
-                    "native_transition_skill",
                     "native_path_loss_change_mae",
                     "native_delay_spread_change_mae",
                     "native_angular_spread_change_mae",
@@ -2260,6 +2280,10 @@ def _evaluation_gate(
                     "native_delay_spread_direction_accuracy",
                     "native_angular_spread_direction_accuracy",
                 )
+            )
+            and (
+                row["native_transition_skill"] is None
+                or np.isfinite(row["native_transition_skill"])
             )
             for row in response_rows
             if row["arm"] == "response"

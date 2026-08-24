@@ -43,4 +43,4 @@ paper use remains blocked until dataset-level license review and an immutable,
 machine-readable split ledger assign every scenario/map/transmitter/
 configuration/sequence/location group to exactly one partition and pass an
 overlap audit. Fresh independent RT, G1/G2, resource, adapter, G8,
-qualification, and explicit human-approval gates also remain required.
+qualification, and explicit llm-judge approval gates also remain required.

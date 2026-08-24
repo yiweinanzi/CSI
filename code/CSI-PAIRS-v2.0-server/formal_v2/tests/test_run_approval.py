@@ -18,6 +18,7 @@ from formal_v2.formal_cli import (
     build_parser,
     main as formal_cli_main,
 )
+from formal_v2.formal_llm_judge import parse_llm_judge
 from formal_v2.formal_run_approval import (
     APPROVAL_ATTESTATION,
     APPROVAL_ACCEPTED_SCHEMA,
@@ -26,11 +27,11 @@ from formal_v2.formal_run_approval import (
     COMPUTE_PLAN_SCHEMA,
     EARLY_STAGE_GATES,
     FORMAL_COMPUTE_COMPONENTS,
-    HUMAN_APPROVAL_SCHEMA,
+    LLM_JUDGE_APPROVAL_SCHEMA,
     PREFLIGHT_SCHEMA,
     PREPARED_RUN_SCHEMA,
     authenticate_prepared_run,
-    create_human_approval_manifest,
+    create_llm_judge_approval_manifest,
     _bind_pre_staged_inputs,
     _gpu_inventory,
     _merge_external_runtimes,
@@ -38,7 +39,7 @@ from formal_v2.formal_run_approval import (
     _validate_prepared_record,
     _validate_request_against_current_run,
     _validate_compute_plan,
-    _validate_human_approval,
+    _validate_llm_judge_approval,
     mark_approval_accepted,
 )
 from formal_v2.formal_io import read_strict_json, sha256_file, write_json
@@ -98,7 +99,7 @@ class FullRunApprovalTests(unittest.TestCase):
     def _approval(self):
         request = self._request()
         return {
-            "schema_version": HUMAN_APPROVAL_SCHEMA,
+            "schema_version": LLM_JUDGE_APPROVAL_SCHEMA,
             "decision": "APPROVE",
             "run_id": request["run_id"],
             "run_nonce": request["run_nonce"],
@@ -109,14 +110,21 @@ class FullRunApprovalTests(unittest.TestCase):
                 "G1_G2": "c" * 64,
                 "G8": "e" * 64,
             },
-            "approver": "authorized-human",
+            "judge": "codex:authorized-judge",
             "approved_utc": "2026-08-08T00:01:00Z",
             "expires_utc": "2026-08-09T00:00:00Z",
             "attestation": APPROVAL_ATTESTATION,
         }
 
+    def test_llm_judge_identity_rejects_human_placeholders(self):
+        with self.assertRaisesRegex(ValueError, "family:identity"):
+            parse_llm_judge("authorized-human")
+        with self.assertRaisesRegex(ValueError, "human-review placeholder"):
+            parse_llm_judge("codex:human")
+        self.assertEqual(parse_llm_judge("claude-code:opus-session"), ("claude-code", "opus-session"))
+
     def test_human_approval_binds_request_nonce_compute_plan_and_every_gate(self):
-        _validate_human_approval(
+        _validate_llm_judge_approval(
             self._approval(),
             self._request(),
             "d" * 64,
@@ -127,19 +135,19 @@ class FullRunApprovalTests(unittest.TestCase):
         approval = self._approval()
         approval["run_nonce"] = "f" * 64
         with self.assertRaisesRegex(RuntimeError, "run_nonce"):
-            _validate_human_approval(approval, self._request(), "d" * 64)
+            _validate_llm_judge_approval(approval, self._request(), "d" * 64)
         approval = self._approval()
         with self.assertRaisesRegex(RuntimeError, "stale"):
-            _validate_human_approval(approval, self._request(), "e" * 64)
+            _validate_llm_judge_approval(approval, self._request(), "e" * 64)
 
     def test_human_approval_rejects_expiry_and_partial_gate_binding(self):
         approval = self._approval()
         approval["approved_gate_sha256s"].pop("G8")
         with self.assertRaisesRegex(RuntimeError, "every prepared gate"):
-            _validate_human_approval(approval, self._request(), "d" * 64)
+            _validate_llm_judge_approval(approval, self._request(), "d" * 64)
         approval = self._approval()
         with self.assertRaisesRegex(RuntimeError, "expired"):
-            _validate_human_approval(
+            _validate_llm_judge_approval(
                 approval,
                 self._request(),
                 "d" * 64,
@@ -149,7 +157,7 @@ class FullRunApprovalTests(unittest.TestCase):
     def test_human_approval_rejects_future_timestamp_and_excessive_lifetime(self):
         approval = self._approval()
         with self.assertRaisesRegex(RuntimeError, "future"):
-            _validate_human_approval(
+            _validate_llm_judge_approval(
                 approval,
                 self._request(),
                 "d" * 64,
@@ -158,7 +166,7 @@ class FullRunApprovalTests(unittest.TestCase):
         approval = self._approval()
         approval["expires_utc"] = "2026-08-09T00:01:01Z"
         with self.assertRaisesRegex(RuntimeError, "24-hour"):
-            _validate_human_approval(
+            _validate_llm_judge_approval(
                 approval,
                 self._request(),
                 "d" * 64,
@@ -344,7 +352,7 @@ class FullRunApprovalTests(unittest.TestCase):
             "prepared_root": str(run.resolve()),
             "request_path": "approval/request.json",
             "request_sha256": sha256_file(request_path),
-            "status": "AWAITING_HUMAN_APPROVAL",
+            "status": "AWAITING_LLM_JUDGE",
         }
         write_json(approval_dir / "prepared.json", prepared)
         approval = self._approval()
@@ -414,28 +422,28 @@ class FullRunApprovalTests(unittest.TestCase):
         expires_utc = (
             datetime.now(timezone.utc) + timedelta(hours=1)
         ).isoformat().replace("+00:00", "Z")
-        with self.assertRaisesRegex(RuntimeError, "attest-reviewed"):
-            create_human_approval_manifest(
+        with self.assertRaisesRegex(RuntimeError, "attest-llm-judged"):
+            create_llm_judge_approval_manifest(
                 request_path,
                 self.root / "approval.json",
-                approver="reviewer",
+                judge="codex:test-judge",
                 expires_utc=expires_utc,
-                attest_reviewed=False,
+                attest_llm_judged=False,
             )
         with self.assertRaisesRegex(RuntimeError, "outside"):
-            create_human_approval_manifest(
+            create_llm_judge_approval_manifest(
                 request_path,
                 run / "approval.json",
-                approver="reviewer",
+                judge="codex:test-judge",
                 expires_utc=expires_utc,
-                attest_reviewed=True,
+                attest_llm_judged=True,
             )
-        result = create_human_approval_manifest(
+        result = create_llm_judge_approval_manifest(
             request_path,
             self.root / "approval.json",
-            approver="reviewer",
+            judge="codex:test-judge",
             expires_utc=expires_utc,
-            attest_reviewed=True,
+            attest_llm_judged=True,
         )
         self.assertEqual(result["decision"], "APPROVE")
         self.assertTrue((self.root / "approval.json").is_file())
@@ -480,7 +488,7 @@ class FullRunApprovalTests(unittest.TestCase):
             "prepared_root": str(run.resolve()),
             "request_path": "approval/request.json",
             "request_sha256": sha256_file(request_path),
-            "status": "AWAITING_HUMAN_APPROVAL",
+            "status": "AWAITING_LLM_JUDGE",
         }
         _validate_prepared_record(prepared, request, run.resolve(), request_path)
         with self.assertRaisesRegex(RuntimeError, "another output root"):
@@ -543,7 +551,7 @@ class FullRunApprovalTests(unittest.TestCase):
             ),
             patch(
                 "formal_v2.formal_run_approval.write_approval_request",
-                side_effect=lambda *_args, **_kwargs: calls.append("request") or {"status": "AWAITING_HUMAN_APPROVAL"},
+                side_effect=lambda *_args, **_kwargs: calls.append("request") or {"status": "AWAITING_LLM_JUDGE"},
             ),
         ):
             _prepare_full_run({}, dataset, self.root / "run", args, {})
@@ -554,7 +562,39 @@ class FullRunApprovalTests(unittest.TestCase):
         self.assertIn("G8", EARLY_STAGE_GATES)
         self.assertIn("G8 independent external-validity gate", APPROVAL_REVIEW_SCOPE)
 
-    def test_prepare_g8_failure_stops_before_approval_request(self):
+    def test_prepare_skips_optional_stages_when_manifests_absent(self):
+        calls = []
+
+        def stage(name):
+            def invoke(*_args, **_kwargs):
+                calls.append(name)
+                return {"status": "PASS", "passed": True}
+
+            return invoke
+
+        args = SimpleNamespace()
+        dataset = SimpleNamespace(is_fixture=False)
+        with (
+            patch("formal_v2.formal_resources.verify_waibu_resources", stage("resources")),
+            patch("formal_v2.formal_literature.run_literature_resource_gate", stage("G0")),
+            patch("formal_v2.formal_rt_calibration.run_rt_calibration_gate", stage("RT")),
+            patch("formal_v2.formal_data_verification.run_data_verification", stage("data")),
+            patch("formal_v2.formal_qualification.run_formal_qualification", stage("G1_G2")),
+            patch(
+                "formal_v2.formal_external_validity.run_external_validity",
+                stage("G8"),
+            ),
+            patch(
+                "formal_v2.formal_run_approval.write_approval_request",
+                side_effect=lambda *_args, **_kwargs: calls.append("request")
+                or {"status": "AWAITING_LLM_JUDGE"},
+            ),
+        ):
+            result = _prepare_full_run({}, dataset, self.root / "run", args, {})
+        self.assertEqual(calls, ["resources", "G1_G2", "request"])
+        self.assertEqual(result["status"], "AWAITING_LLM_JUDGE")
+
+    def test_prepare_g8_failure_does_not_block_approval_request(self):
         calls = []
 
         def passed(name):
@@ -583,15 +623,16 @@ class FullRunApprovalTests(unittest.TestCase):
             ),
             patch(
                 "formal_v2.formal_run_approval.write_approval_request",
-                side_effect=lambda *_args, **_kwargs: calls.append("request"),
+                side_effect=lambda *_args, **_kwargs: calls.append("request")
+                or {"status": "AWAITING_LLM_JUDGE"},
             ),
-            self.assertRaisesRegex(RuntimeError, "G8 independent external validity"),
         ):
-            _prepare_full_run({}, dataset, self.root / "run", args, {})
+            result = _prepare_full_run({}, dataset, self.root / "run", args, {})
         self.assertEqual(
             calls,
-            ["resources", "G0", "RT", "data", "G1_G2", "G8"],
+            ["resources", "G0", "RT", "data", "G1_G2", "G8", "request"],
         )
+        self.assertEqual(result["status"], "AWAITING_LLM_JUDGE")
 
     def test_authorized_chain_order_and_failure_short_circuit(self):
         run = self.root / "authorized-run"
@@ -794,7 +835,7 @@ class FullRunApprovalTests(unittest.TestCase):
             "gate_bindings": {"G0": {"gate_sha256": "8" * 64}},
             "teacher_checkpoint": "qualification/checkpoints/teacher.pt",
             "teacher_checkpoint_sha256": "9" * 64,
-            "decision_required": "HUMAN_REVIEW_REQUIRED",
+            "decision_required": "LLM_JUDGE_REQUIRED",
             "scientific_use": "FORBIDDEN",
             "review_scope": APPROVAL_REVIEW_SCOPE,
         }

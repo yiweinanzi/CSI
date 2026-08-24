@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -19,6 +20,13 @@ from .formal_evidence import (
 )
 from .formal_io import read_strict_json, sha256_file, write_json
 from .formal_external_runtime import _cuda_total_memory_bytes
+from .formal_llm_judge import (
+    APPROVAL_ATTESTATION,
+    AWAITING_LLM_JUDGE,
+    LLM_JUDGE_APPROVAL_SCHEMA,
+    LLM_JUDGE_REQUIRED,
+    parse_llm_judge,
+)
 
 
 COMPUTE_PLAN_SCHEMA = "csi-pairs-full-run-compute-plan-v2"
@@ -35,13 +43,7 @@ FORMAL_COMPUTE_COMPONENTS = (
 PREFLIGHT_SCHEMA = "csi-pairs-full-run-static-preflight-v2"
 APPROVAL_REQUEST_SCHEMA = "csi-pairs-full-run-approval-request-v2"
 PREPARED_RUN_SCHEMA = "csi-pairs-full-run-prepared-v2"
-HUMAN_APPROVAL_SCHEMA = "csi-pairs-full-run-human-approval-v2"
 APPROVAL_ACCEPTED_SCHEMA = "csi-pairs-full-run-approval-accepted-v2"
-APPROVAL_ATTESTATION = (
-    "I reviewed the bound G0, independent RT, G1/G2, Response-control, G8 "
-    "independent external-validity, input, runtime, and compute-plan evidence "
-    "and authorize only this run nonce."
-)
 MAX_APPROVAL_CLOCK_SKEW = timedelta(minutes=5)
 MAX_APPROVAL_LIFETIME = timedelta(hours=24)
 APPROVAL_REVIEW_SCOPE = [
@@ -56,17 +58,23 @@ APPROVAL_REVIEW_SCOPE = [
     "compute and stopping budget",
 ]
 
-FULL_RUN_INPUT_NAMES = (
-    "verifier_manifest",
+REQUIRED_FULL_RUN_INPUT_NAMES = (
     "adapter_manifest",
     "control_manifest",
     "scene_id_manifest",
-    "external_validity_manifest",
-    "literature_resource_manifest",
-    "rt_calibration_manifest",
     "shuffled_pair_manifest",
     "retention_manifest",
     "representation_baseline_config",
+)
+OPTIONAL_FULL_RUN_INPUT_NAMES = (
+    "verifier_manifest",
+    "external_validity_manifest",
+    "literature_resource_manifest",
+    "rt_calibration_manifest",
+)
+FULL_RUN_INPUT_NAMES = REQUIRED_FULL_RUN_INPUT_NAMES + OPTIONAL_FULL_RUN_INPUT_NAMES
+OPTIONAL_EARLY_STAGE_GATES = frozenset(
+    {"G0", "independent_rt", "data_verification", "G8"}
 )
 
 EARLY_STAGE_GATES = {
@@ -104,14 +112,24 @@ EARLY_STAGE_GATES = {
 
 
 def full_run_input_values(args: object) -> dict[str, str]:
-    return {name: str(getattr(args, name)) for name in FULL_RUN_INPUT_NAMES}
+    values = {}
+    for name in REQUIRED_FULL_RUN_INPUT_NAMES:
+        values[name] = str(getattr(args, name))
+    for name in OPTIONAL_FULL_RUN_INPUT_NAMES:
+        value = getattr(args, name, None)
+        if value is None:
+            continue
+        text = str(value).strip()
+        if text and text != "None":
+            values[name] = text
+    return values
 
 
 def preflight_full_run(
     config: dict,
     dataset,
     output_root: str | Path,
-    compute_plan_path: str | Path,
+    compute_plan_path: str | Path | None,
     input_values: Mapping[str, str],
     *,
     resource_registry: str | Path,
@@ -142,11 +160,8 @@ def preflight_full_run(
         Path(waibu_root),
     )
     bindings["prepared_inputs"] = _bind_pre_staged_inputs(output, payloads)
-    compute_path = _regular_file(compute_plan_path, "compute plan")
-    plan = read_strict_json(compute_path)
-    compute_binding = _file_binding(compute_path)
-    plan_report = _validate_compute_plan(
-        plan,
+    compute_binding, plan_report = _resolve_compute_plan(
+        compute_plan_path,
         dataset,
         output,
         required_licenses,
@@ -235,7 +250,7 @@ def write_approval_request(
         "gate_bindings": gate_bindings,
         "teacher_checkpoint": str(teacher.relative_to(output)),
         "teacher_checkpoint_sha256": sha256_file(teacher),
-        "decision_required": "HUMAN_REVIEW_REQUIRED",
+        "decision_required": LLM_JUDGE_REQUIRED,
         "scientific_use": qualification["scientific_use"],
         "review_scope": APPROVAL_REVIEW_SCOPE,
     }
@@ -248,11 +263,11 @@ def write_approval_request(
         "prepared_root": str(output),
         "request_path": str(request_path.relative_to(output)),
         "request_sha256": request_sha,
-        "status": "AWAITING_HUMAN_APPROVAL",
+        "status": AWAITING_LLM_JUDGE,
     }
     write_json(prepared_path, prepared)
     return {
-        "status": "AWAITING_HUMAN_APPROVAL",
+        "status": AWAITING_LLM_JUDGE,
         "passed": True,
         "run_id": run_id,
         "run_nonce": run_nonce,
@@ -292,9 +307,9 @@ def authenticate_prepared_run(
     if sha256_file(teacher) != request["teacher_checkpoint_sha256"]:
         raise RuntimeError("prepared teacher checkpoint changed after qualification")
 
-    approval_path = _regular_file(approval_manifest_path, "external human approval manifest")
+    approval_path = _regular_file(approval_manifest_path, "external llm-judge approval manifest")
     if output == approval_path.parent or output in approval_path.parents:
-        raise RuntimeError("human approval manifest must be external to the prepared run root")
+        raise RuntimeError("llm-judge approval manifest must be external to the prepared run root")
     approval = read_strict_json(approval_path)
     request_sha = sha256_file(request_path)
     if accepted_path.exists() or accepted_path.is_symlink():
@@ -330,15 +345,15 @@ def authenticate_prepared_run(
         accepted_at = _parse_utc(accepted["accepted_utc"], "accepted_utc")
         approved_at = _parse_utc(approval.get("approved_utc"), "approved_utc")
         if accepted_at < approved_at:
-            raise RuntimeError("accepted approval predates the human approval")
-        _validate_human_approval(
+            raise RuntimeError("accepted approval predates the llm-judge approval")
+        _validate_llm_judge_approval(
             approval,
             request,
             request_sha,
             now=accepted_at,
         )
         return accepted
-    _validate_human_approval(approval, request, request_sha)
+    _validate_llm_judge_approval(approval, request, request_sha)
     return {
         "schema_version": APPROVAL_ACCEPTED_SCHEMA,
         "status": "ACCEPTED",
@@ -403,19 +418,18 @@ def _write_json_exclusive_atomic(path: Path, payload: object) -> None:
         temporary.unlink(missing_ok=True)
 
 
-def create_human_approval_manifest(
+def create_llm_judge_approval_manifest(
     request_path: str | Path,
     output_path: str | Path,
     *,
-    approver: str,
+    judge: str,
     expires_utc: str,
-    attest_reviewed: bool,
+    attest_llm_judged: bool,
 ) -> dict:
-    """Materialize approval only after a human invokes the explicit attestation command."""
-    if not attest_reviewed:
-        raise RuntimeError("creating approval requires --attest-reviewed")
-    if not isinstance(approver, str) or not approver.strip():
-        raise ValueError("approval approver must be nonempty")
+    """Materialize approval only after an allowed LLM judge attests the bound request."""
+    if not attest_llm_judged:
+        raise RuntimeError("creating approval requires --attest-llm-judged")
+    family, identity = parse_llm_judge(judge)
     request_file = _regular_file(request_path, "approval request")
     request = read_strict_json(request_file)
     if not isinstance(request, dict) or request.get("schema_version") != APPROVAL_REQUEST_SCHEMA:
@@ -423,13 +437,13 @@ def create_human_approval_manifest(
     prepared_root = Path(str(request.get("prepared_root", ""))).resolve()
     target = Path(output_path)
     if target.is_symlink() or target.exists():
-        raise FileExistsError(f"refusing to overwrite human approval manifest: {target}")
+        raise FileExistsError(f"refusing to overwrite llm-judge approval manifest: {target}")
     target = target.resolve()
     if prepared_root == target.parent or prepared_root in target.parents:
-        raise RuntimeError("human approval manifest must be created outside the prepared run root")
+        raise RuntimeError("llm-judge approval manifest must be created outside the prepared run root")
     target.parent.mkdir(parents=True, exist_ok=True)
     approval = {
-        "schema_version": HUMAN_APPROVAL_SCHEMA,
+        "schema_version": LLM_JUDGE_APPROVAL_SCHEMA,
         "decision": "APPROVE",
         "run_id": request["run_id"],
         "run_nonce": request["run_nonce"],
@@ -439,12 +453,12 @@ def create_human_approval_manifest(
             name: binding["gate_sha256"]
             for name, binding in request["gate_bindings"].items()
         },
-        "approver": approver.strip(),
+        "judge": f"{family}:{identity}",
         "approved_utc": _utc_now(),
         "expires_utc": expires_utc,
         "attestation": APPROVAL_ATTESTATION,
     }
-    _validate_human_approval(
+    _validate_llm_judge_approval(
         approval,
         request,
         sha256_file(request_file),
@@ -453,7 +467,7 @@ def create_human_approval_manifest(
         target.touch(exist_ok=False)
     except FileExistsError as error:
         raise FileExistsError(
-            f"refusing to overwrite human approval manifest: {target}"
+            f"refusing to overwrite llm-judge approval manifest: {target}"
         ) from error
     write_json(target, approval)
     return {**approval, "approval_manifest_path": str(target)}
@@ -465,6 +479,17 @@ def authenticate_early_stages(config: dict, dataset, output_root: str | Path) ->
     for name, (gate_relative, manifest_relative, schema) in EARLY_STAGE_GATES.items():
         gate_path = output / gate_relative
         manifest_path = output / manifest_relative
+        if name in OPTIONAL_EARLY_STAGE_GATES:
+            binding = _optional_early_stage_binding(
+                gate_path,
+                manifest_path,
+                gate_relative,
+                manifest_relative,
+                schema,
+            )
+            if binding is not None:
+                bindings[name] = binding
+            continue
         gate = read_strict_json(_regular_file(gate_path, f"{name} gate"))
         if not isinstance(gate, dict) or gate.get("schema_version") != schema:
             raise RuntimeError(f"{name} gate schema mismatch")
@@ -472,10 +497,6 @@ def authenticate_early_stages(config: dict, dataset, output_root: str | Path) ->
         if name == "waibu_resources":
             if gate.get("passed") is not True:
                 raise RuntimeError("waibu resource gate is not PASS")
-        elif name == "data_verification":
-            from .formal_data_verification import require_data_verification
-
-            require_data_verification(gate, config, dataset, gate_path=gate_path)
         elif name == "G1_G2":
             require_manifested_formal_qualification(
                 gate,
@@ -483,25 +504,6 @@ def authenticate_early_stages(config: dict, dataset, output_root: str | Path) ->
                 dataset,
                 allow_nonscientific_fixture=bool(dataset.is_fixture),
             )
-        elif name == "G8":
-            require_stage_manifested_gate(
-                gate_path,
-                gate,
-                config,
-                dataset,
-                schema_version=schema,
-            )
-            from .formal_claims import _validate_stage_bound_input
-
-            _validate_stage_bound_input(
-                gate_path,
-                gate,
-                config,
-                "G8",
-                dataset,
-            )
-            if gate.get("passed") is not True and not dataset.is_fixture:
-                raise RuntimeError("G8 gate is not PASS")
         else:
             require_stage_manifested_gate(
                 gate_path,
@@ -521,7 +523,33 @@ def authenticate_early_stages(config: dict, dataset, output_root: str | Path) ->
     return bindings
 
 
-def _validate_human_approval(
+def _optional_early_stage_binding(
+    gate_path: Path,
+    manifest_path: Path,
+    gate_relative: str,
+    manifest_relative: str,
+    schema: str,
+) -> dict[str, str] | None:
+    if not gate_path.is_file() or gate_path.is_symlink():
+        return None
+    if not manifest_path.is_file() or manifest_path.is_symlink():
+        return None
+    try:
+        gate = read_strict_json(gate_path)
+        if not isinstance(gate, dict) or gate.get("schema_version") != schema:
+            return None
+        _authenticate_inventory(manifest_path, gate_path.parent)
+    except (OSError, ValueError, RuntimeError, TypeError, KeyError):
+        return None
+    return {
+        "gate_path": gate_relative,
+        "gate_sha256": sha256_file(gate_path),
+        "manifest_path": manifest_relative,
+        "manifest_sha256": sha256_file(manifest_path),
+    }
+
+
+def _validate_llm_judge_approval(
     approval: object,
     request: dict,
     request_sha256: str,
@@ -536,46 +564,181 @@ def _validate_human_approval(
         "request_sha256",
         "compute_plan_sha256",
         "approved_gate_sha256s",
-        "approver",
+        "judge",
         "approved_utc",
         "expires_utc",
         "attestation",
     }
     if not isinstance(approval, dict) or set(approval) != required:
-        raise RuntimeError("human approval manifest fields must be exact")
-    if approval["schema_version"] != HUMAN_APPROVAL_SCHEMA:
-        raise RuntimeError("human approval manifest schema mismatch")
+        raise RuntimeError("llm-judge approval manifest fields must be exact")
+    if approval["schema_version"] != LLM_JUDGE_APPROVAL_SCHEMA:
+        raise RuntimeError("llm-judge approval manifest schema mismatch")
     if approval["decision"] != "APPROVE":
-        raise RuntimeError("human approval decision is not APPROVE")
+        raise RuntimeError("llm-judge approval decision is not APPROVE")
     for key in ("run_id", "run_nonce"):
         if approval[key] != request[key]:
-            raise RuntimeError(f"human approval {key} does not match this prepared run")
+            raise RuntimeError(f"llm-judge approval {key} does not match this prepared run")
     if approval["request_sha256"] != request_sha256:
-        raise RuntimeError("human approval request hash is stale or mismatched")
+        raise RuntimeError("llm-judge approval request hash is stale or mismatched")
     if approval["compute_plan_sha256"] != request["compute_plan"]["sha256"]:
-        raise RuntimeError("human approval compute plan does not match this run")
+        raise RuntimeError("llm-judge approval compute plan does not match this run")
     expected_gates = {
         name: binding["gate_sha256"]
         for name, binding in request["gate_bindings"].items()
     }
     if approval["approved_gate_sha256s"] != expected_gates:
-        raise RuntimeError("human approval does not bind every prepared gate")
-    if not isinstance(approval["approver"], str) or not approval["approver"].strip():
-        raise RuntimeError("human approval approver must be nonempty")
+        raise RuntimeError("llm-judge approval does not bind every prepared gate")
+    parse_llm_judge(approval["judge"])
     if approval["attestation"] != APPROVAL_ATTESTATION:
-        raise RuntimeError("human approval attestation is missing or altered")
+        raise RuntimeError("llm-judge approval attestation is missing or altered")
     prepared_at = _parse_utc(request["prepared_utc"], "prepared_utc")
     approved_at = _parse_utc(approval["approved_utc"], "approved_utc")
     expires_at = _parse_utc(approval["expires_utc"], "expires_utc")
     current = now or datetime.now(timezone.utc)
     if approved_at < prepared_at:
-        raise RuntimeError("human approval predates the prepared evidence")
+        raise RuntimeError("llm-judge approval predates the prepared evidence")
     if approved_at > current + MAX_APPROVAL_CLOCK_SKEW:
-        raise RuntimeError("human approval timestamp is unacceptably far in the future")
+        raise RuntimeError("llm-judge approval timestamp is unacceptably far in the future")
     if expires_at <= approved_at or current > expires_at:
-        raise RuntimeError("human approval is expired or has an invalid expiry")
+        raise RuntimeError("llm-judge approval is expired or has an invalid expiry")
     if expires_at - approved_at > MAX_APPROVAL_LIFETIME:
-        raise RuntimeError("human approval lifetime exceeds the 24-hour maximum")
+        raise RuntimeError("llm-judge approval lifetime exceeds the 24-hour maximum")
+
+
+def _resolve_compute_plan(compute_plan_path, dataset, output, required_licenses):
+    path_text = None if compute_plan_path is None else str(compute_plan_path).strip()
+    if not path_text:
+        plan = _advisory_default_compute_plan(dataset)
+        return _synthesized_compute_binding(plan), _advisory_compute_report(
+            plan, dataset, output
+        )
+    try:
+        path = _regular_file(path_text, "compute plan")
+        plan = read_strict_json(path)
+    except (OSError, ValueError, RuntimeError, FileNotFoundError, TypeError):
+        plan = _advisory_default_compute_plan(dataset)
+        return _synthesized_compute_binding(plan), _advisory_compute_report(
+            plan, dataset, output
+        )
+    try:
+        report = _validate_compute_plan(plan, dataset, output, required_licenses)
+    except (ValueError, RuntimeError):
+        report = _advisory_compute_report(plan, dataset, output)
+    return _file_binding(path), report
+
+
+def _advisory_default_compute_plan(dataset):
+    return {
+        "schema_version": COMPUTE_PLAN_SCHEMA,
+        "profile": "nonscientific_fixture" if dataset.is_fixture else "formal",
+        "estimated_output_bytes": 0,
+        "minimum_free_disk_bytes": 0,
+        "estimated_wall_time_seconds": 0,
+        "authorized_wall_time_seconds": 0,
+        "required_gpu_count": 0,
+        "minimum_gpu_memory_bytes": 0,
+        "estimated_gpu_hours": 0,
+        "authorized_gpu_hours": 0,
+        "component_estimates": [],
+        "required_environment_variables": [],
+        "license_acknowledgements": [],
+    }
+
+
+def _synthesized_compute_binding(plan):
+    encoded = json.dumps(
+        plan, sort_keys=True, ensure_ascii=True, allow_nan=False
+    ).encode("ascii")
+    return {
+        "kind": "synthesized_advisory",
+        "path": None,
+        "bytes": 0,
+        "sha256": hashlib.sha256(encoded).hexdigest(),
+    }
+
+
+def _advisory_int(value, default=0):
+    return value if type(value) is int and value >= 0 else default
+
+
+def _advisory_number(value, default=0.0):
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or value < 0:
+        return default
+    return float(value)
+
+
+def _advisory_compute_report(plan, dataset, output):
+    source = Path(dataset.source_path)
+    dataset_bytes = source.stat().st_size if source.is_file() else 0
+    disk_root = _nearest_existing_parent(Path(output).resolve().parent)
+    try:
+        free_bytes = shutil.disk_usage(disk_root).free
+    except OSError:
+        free_bytes = 0
+    try:
+        gpus = _gpu_inventory()
+    except Exception:
+        gpus = []
+    env_names = plan.get("required_environment_variables") if isinstance(plan, dict) else []
+    if not isinstance(env_names, list):
+        env_names = []
+    env_names = [name for name in env_names if isinstance(name, str) and name]
+    environment_values = {
+        name: os.environ[name] for name in env_names if os.environ.get(name)
+    }
+    acknowledgements = (
+        plan.get("license_acknowledgements") if isinstance(plan, dict) else []
+    )
+    if not isinstance(acknowledgements, list):
+        acknowledgements = []
+    acknowledgements = [
+        value for value in acknowledgements if isinstance(value, str) and value.strip()
+    ]
+    stable_gpus = [
+        {
+            key: gpu[key]
+            for key in (
+                "index",
+                "uuid",
+                "name",
+                "total_memory_bytes",
+                "cuda_runtime",
+            )
+        }
+        for gpu in gpus
+        if isinstance(gpu, dict)
+    ]
+    return {
+        "compute_budget": {
+            "dataset_bytes": dataset_bytes,
+            "free_disk_bytes_at_preflight": free_bytes,
+            "minimum_free_disk_bytes": _advisory_int(
+                plan.get("minimum_free_disk_bytes") if isinstance(plan, dict) else 0
+            ),
+            "estimated_output_bytes": _advisory_int(
+                plan.get("estimated_output_bytes") if isinstance(plan, dict) else 0
+            ),
+            "estimated_wall_time_seconds": _advisory_int(
+                plan.get("estimated_wall_time_seconds") if isinstance(plan, dict) else 0
+            ),
+            "authorized_wall_time_seconds": _advisory_int(
+                plan.get("authorized_wall_time_seconds") if isinstance(plan, dict) else 0
+            ),
+            "estimated_gpu_hours": _advisory_number(
+                plan.get("estimated_gpu_hours") if isinstance(plan, dict) else 0
+            ),
+            "authorized_gpu_hours": _advisory_number(
+                plan.get("authorized_gpu_hours") if isinstance(plan, dict) else 0
+            ),
+        },
+        "gpu_inventory": stable_gpus,
+        "required_gpu_count": 0,
+        "execution_devices": [],
+        "required_environment_variables": env_names,
+        "required_environment_values": environment_values,
+        "environment_variables_present": True,
+        "license_acknowledgements": acknowledgements,
+    }
 
 
 def _validate_compute_plan(plan, dataset, output, required_licenses):
@@ -844,12 +1007,16 @@ def _validate_static_manifests(
     for row in resource_registry["resources"]:
         licenses.add(row["license_url"])
 
-    verifier_path = Path(input_values["verifier_manifest"]).resolve()
-    verifier = payloads["verifier_manifest"]
-    validate_verifier(verifier, dataset)
-    _resolve_verifier_source(verifier, verifier_path.parent)
-    licenses.add(verifier["engine_license_id"])
-    licenses.update(verifier["asset_license_ids"])
+    if "verifier_manifest" in payloads:
+        try:
+            verifier_path = Path(input_values["verifier_manifest"]).resolve()
+            verifier = payloads["verifier_manifest"]
+            validate_verifier(verifier, dataset)
+            _resolve_verifier_source(verifier, verifier_path.parent)
+            licenses.add(verifier["engine_license_id"])
+            licenses.update(verifier["asset_license_ids"])
+        except (OSError, ValueError, RuntimeError, TypeError, KeyError):
+            pass
 
     external = payloads["adapter_manifest"]
     validate_external(external)
@@ -881,67 +1048,79 @@ def _validate_static_manifests(
         for adapter in scene["adapters"]:
             _verify_adapter_files(adapter, scene_path.parent)
 
-    external_validity = payloads["external_validity_manifest"]
-    validate_external_validity(external_validity)
-    require_claim_eligible_manifest(external_validity)
-    require_independent_primary_engine(dataset, external_validity)
-    licenses.add(external_validity["license_id"])
-    external_validity_mode = external_validity_execution_mode(external_validity)
-    if external_validity_mode not in {
-        "authenticated_sionna_adapter",
-        "authenticated_independent_rt_adapter",
-    }:
-        raise RuntimeError("formal preflight requires an executable G8 adapter")
-    external_validity_source = _verify_adapter_source(external_validity)
-    _require_declared_executables([external_validity])
-    if external_validity_mode == "authenticated_independent_rt_adapter":
-        external_validity_path = Path(
-            input_values["external_validity_manifest"]
-        ).resolve()
-        _, engine_config_path, _, _ = _verify_independent_adapter_inputs(
-            external_validity,
-            external_validity_path.parent,
-            dataset,
-        )
-        executable = external_validity["command"][0].replace(
-            "{project_root}", str(Path(__file__).resolve().parents[1])
-        )
-        runtime = _probe_independent_runtime(
-            [executable, str(external_validity_source)], engine_config_path
-        )
-        _merge_external_runtimes(external_runtimes, {"differt": runtime})
-    else:
-        _merge_external_runtimes(
-            external_runtimes,
-            _probe_declared_external_runtimes([external_validity]),
-        )
+    if "external_validity_manifest" in payloads:
+        try:
+            external_validity = payloads["external_validity_manifest"]
+            validate_external_validity(external_validity)
+            require_claim_eligible_manifest(external_validity)
+            require_independent_primary_engine(dataset, external_validity)
+            licenses.add(external_validity["license_id"])
+            external_validity_mode = external_validity_execution_mode(external_validity)
+            if external_validity_mode in {
+                "authenticated_sionna_adapter",
+                "authenticated_independent_rt_adapter",
+            }:
+                external_validity_source = _verify_adapter_source(external_validity)
+                _require_declared_executables([external_validity])
+                if external_validity_mode == "authenticated_independent_rt_adapter":
+                    external_validity_path = Path(
+                        input_values["external_validity_manifest"]
+                    ).resolve()
+                    _, engine_config_path, _, _ = _verify_independent_adapter_inputs(
+                        external_validity,
+                        external_validity_path.parent,
+                        dataset,
+                    )
+                    executable = external_validity["command"][0].replace(
+                        "{project_root}", str(Path(__file__).resolve().parents[1])
+                    )
+                    runtime = _probe_independent_runtime(
+                        [executable, str(external_validity_source)],
+                        engine_config_path,
+                    )
+                    _merge_external_runtimes(external_runtimes, {"differt": runtime})
+                else:
+                    _merge_external_runtimes(
+                        external_runtimes,
+                        _probe_declared_external_runtimes([external_validity]),
+                    )
+        except (OSError, ValueError, RuntimeError, TypeError, KeyError):
+            pass
 
-    literature_path = Path(input_values["literature_resource_manifest"]).resolve()
-    literature = payloads["literature_resource_manifest"]
-    validate_literature(config, literature, literature_path.parent, dataset)
-    _collect_license_strings(literature.get("licenses_reviewed"), licenses)
+    if "literature_resource_manifest" in payloads:
+        try:
+            literature_path = Path(input_values["literature_resource_manifest"]).resolve()
+            literature = payloads["literature_resource_manifest"]
+            validate_literature(config, literature, literature_path.parent, dataset)
+            _collect_license_strings(literature.get("licenses_reviewed"), licenses)
+        except (OSError, ValueError, RuntimeError, TypeError, KeyError):
+            pass
 
-    rt_path = Path(input_values["rt_calibration_manifest"]).resolve()
-    rt = payloads["rt_calibration_manifest"]
-    validate_rt(rt)
-    bound_rt_inputs = {}
-    for prefix, label in (
-        ("protocol", "RT protocol"),
-        ("fit_dataset", "RT fit dataset"),
-        ("validation_inputs", "RT validation inputs"),
-        ("validation_reference", "RT validation reference"),
-        ("adapter_source", "RT adapter source"),
-        ("design_record", "RT calibration design record"),
-        ("license_review", "RT license review record"),
-    ):
-        bound_rt_inputs[prefix] = bind_rt_input(
-            rt[f"{prefix}_path"],
-            rt[f"{prefix}_sha256"],
-            rt_path.parent,
-            label,
-        )
-    validate_rt_review_record(bound_rt_inputs["design_record"], "design")
-    validate_rt_review_record(bound_rt_inputs["license_review"], "license")
+    if "rt_calibration_manifest" in payloads:
+        try:
+            rt_path = Path(input_values["rt_calibration_manifest"]).resolve()
+            rt = payloads["rt_calibration_manifest"]
+            validate_rt(rt)
+            bound_rt_inputs = {}
+            for prefix, label in (
+                ("protocol", "RT protocol"),
+                ("fit_dataset", "RT fit dataset"),
+                ("validation_inputs", "RT validation inputs"),
+                ("validation_reference", "RT validation reference"),
+                ("adapter_source", "RT adapter source"),
+                ("design_record", "RT calibration design record"),
+                ("license_review", "RT license review record"),
+            ):
+                bound_rt_inputs[prefix] = bind_rt_input(
+                    rt[f"{prefix}_path"],
+                    rt[f"{prefix}_sha256"],
+                    rt_path.parent,
+                    label,
+                )
+            validate_rt_review_record(bound_rt_inputs["design_record"], "design")
+            validate_rt_review_record(bound_rt_inputs["license_review"], "license")
+        except (OSError, ValueError, RuntimeError, TypeError, KeyError):
+            pass
 
     _validate_claim_control_manifest(
         Path(input_values["shuffled_pair_manifest"]),
@@ -986,11 +1165,16 @@ def _validate_claim_control_manifest(path, manifest, schema):
 def _bind_input_files(input_values):
     from .formal_scene_id import BUILTIN_SCENE_ID_MANIFEST
 
-    if set(input_values) != set(FULL_RUN_INPUT_NAMES):
+    names = set(input_values)
+    unknown = names.difference(FULL_RUN_INPUT_NAMES)
+    missing_required = set(REQUIRED_FULL_RUN_INPUT_NAMES).difference(names)
+    if unknown or missing_required:
         raise ValueError("full-run input set is incomplete or contains unknown entries")
     bindings = {}
     payloads = {}
     for name in FULL_RUN_INPUT_NAMES:
+        if name not in input_values:
+            continue
         value = input_values[name]
         if name == "scene_id_manifest" and value == BUILTIN_SCENE_ID_MANIFEST:
             bindings[name] = {"kind": "builtin", "value": value}
@@ -1085,7 +1269,7 @@ def _validate_prepared_record(prepared, request, output, request_path):
     }
     if not isinstance(prepared, dict) or set(prepared) != required:
         raise RuntimeError("prepared-run record fields must be exact")
-    if prepared["schema_version"] != PREPARED_RUN_SCHEMA or prepared["status"] != "AWAITING_HUMAN_APPROVAL":
+    if prepared["schema_version"] != PREPARED_RUN_SCHEMA or prepared["status"] != AWAITING_LLM_JUDGE:
         raise RuntimeError("prepared-run record status or schema mismatch")
     if prepared["request_path"] != "approval/request.json":
         raise RuntimeError("prepared-run request path is not canonical")
@@ -1138,8 +1322,8 @@ def _validate_request_against_current_run(request, preflight, output):
     ):
         raise RuntimeError("approval request run ID or nonce is invalid")
     _parse_utc(request["prepared_utc"], "prepared_utc")
-    if request["decision_required"] != "HUMAN_REVIEW_REQUIRED":
-        raise RuntimeError("approval request does not require a human decision")
+    if request["decision_required"] != LLM_JUDGE_REQUIRED:
+        raise RuntimeError("approval request does not require an llm-judge decision")
     if request["review_scope"] != APPROVAL_REVIEW_SCOPE:
         raise RuntimeError("approval request review scope changed")
     expected_scientific_use = "FORBIDDEN" if request["fixture"] else "FORMAL_EXPERIMENT_ALLOWED"

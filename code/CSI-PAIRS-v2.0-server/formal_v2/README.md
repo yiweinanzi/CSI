@@ -29,7 +29,7 @@ Formal orchestration is split between `prepare-full-run` and `all`. Preparation 
 static manifest/disk/CUDA/license/credential preflight, then runs resources, G0, independent RT,
 independent data verification, G1/G2, and independent G8 external validity before emitting a
 random-nonce approval request. `all`
-requires an external, unexpired human approval bound to that exact request and prepared root; the
+requires an external, unexpired llm-judge approval bound to that exact request and prepared root; the
 deprecated Boolean flag has no authorization power. After authentication, `all` runs the remaining
 factorial, evaluation, risk, path, external-baseline, representation, resource-control, scene-ID,
 shuffled-pair, retention, and claim stages without rerunning preapproval stages.
@@ -88,8 +88,9 @@ per-unit absolute error and evaluates each C11 statistic by frozen mean absolute
 opposite signed errors cannot cancel. G8 adapters emit raw independent-engine CSI in
 an exact NPZ contract; direction and effect are recomputed outside the adapter before cluster-macro
 confidence intervals are evaluated. G0 requires one raw API receipt for every frozen database/query
-pair plus authenticated PDF records. A G0 PASS never automatically proves C13: non-fixture C13
-remains `REVIEW_REQUIRED`. Each validated input manifest is copied into its stage output and
+pair plus authenticated PDF records. C13 is supported only when G0 PASSes with a bound
+`LLM_JUDGE_REVIEW.md` from an allowed coding-agent family (`codex`, `claude-code`, or `cursor`).
+Each validated input manifest is copied into its stage output and
 reauthenticated during claim assembly.
 
 Every stage records and reauthenticates the formal source-tree digest, requirements-lock digest,

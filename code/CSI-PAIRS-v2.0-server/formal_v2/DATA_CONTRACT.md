@@ -48,7 +48,7 @@ The exact source ledger is:
 6. `source_calibration_selection`
 7. `source_final_unseen_bank`
 
-`target` and `external_validation` are separate evaluation roles. Source and target city IDs must be disjoint. Formal configuration requires at least two source cities, two target cities, multiple independent banks per target city, and the configured bank minimum in every source role. A base-map cluster may not cross a role or city.
+`target` and `external_validation` are separate evaluation roles. Unseen-edit/operator holdout is a generation-time split axis, not an eighth `scene_roles` value. Source and target city IDs must be disjoint. Formal configuration requires at least two source cities, two target cities, multiple independent banks per target city, and the configured bank minimum in every source role. A base-map cluster may not cross a role or city.
 
 Every target city must contain at least `max(localization.label_budgets)` unique
 `support_pool` physical positions. The runner checks this capacity before creating formal run

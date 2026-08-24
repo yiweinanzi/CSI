@@ -33,7 +33,7 @@ failed tests.
 - per-city Response, null and C1 decisions;
 - exact action displacement and complete Holm families;
 - safe, unique adapter identifiers and fail-closed resource exits;
-- two-phase nonce/hash-bound human approval and full static compute preflight;
+- two-phase nonce/hash-bound llm-judge approval and full static compute preflight;
 - main, Wi-GATr and Sionna runtime provenance, exact versions and RECORD authentication;
 - complete stage inventories and same-run qualification/factorial/evaluation/control bindings;
 - C8 G3/G4/G5 chain authentication and runtime re-probes;

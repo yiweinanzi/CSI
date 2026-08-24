@@ -2,12 +2,19 @@
 
 Date: 2026-08-09 (Asia/Shanghai)
 
+Amended 2026-08-24: G0 literature receipts/PDF hashes/decision consistency,
+independent data verification, C11 RT calibration, G8, and a
+measurement-backed compute plan are **not launch blockers**. Missing or
+failing those rows leave the matching claims `NOT_ASSESSED`/`BLOCKED`.
+They do not set a hard `FORMAL_GO=NO-GO` stop on `prepare-full-run` or
+`all`. This file remains a scientific-gap inventory, not a runner
+kill-switch.
+
 `PROTOCOL_READY=PASS`, `M4_DATA_PRODUCTION_READY=REPORTED`,
 `EVIDENCE_REGISTRY_READY=YES`, and
 `FORMAL_CANDIDATE_READY=EXTERNAL_DEEP_VERIFICATION_REQUIRED`.
-`FORMAL_INPUT_READY=BLOCKED`, `FORMAL_TRAINING_READY=NO`,
-`LAUNCH_READY=BLOCKED`, and `SCIENTIFIC_EVIDENCE=NOT_ASSESSED`
-remain mandatory until every open P0 row below closes.
+`SCIENTIFIC_EVIDENCE=NOT_ASSESSED` remains the honest status for skipped
+optional gates. The runner does not invent scientific PASS.
 
 | ID | Severity/type | Missing decision or input | Acceptance check | Consequence |
 |---|---|---|---|---|
@@ -46,4 +53,4 @@ No candidate-data finding is closed by registry ingestion or portable replay.
 
 - `SMOKE_GO=GO`: CPU fixture, static checks, packaging, and paper compilation only.
 - `PILOT_GO=CONDITIONAL-GO`: disposable fixture/qualification diagnostics, no GPU, at most 30 minutes wall time and 5 GiB output per run. Stop on any nonzero exit or evidence mismatch. Every artifact remains `scientific_use=FORBIDDEN`.
-- `FORMAL_GO=NO-GO`: do not start formal Stage-0, Wi-GATr training, four-arm training, two-city evaluation, or G8 until every required external preflight row closes.
+- Optional scientific rows (G0/C13 receipts and hashes, data verification, C11, G8, measured compute plan) no longer hard-stop launch. Start the two-phase path when a loadable NPZ and G1/G2 plus LLM-as-judge approval are available; skipped rows stay `NOT_ASSESSED`.

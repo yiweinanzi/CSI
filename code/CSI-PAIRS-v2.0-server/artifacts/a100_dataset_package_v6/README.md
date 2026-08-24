@@ -81,4 +81,4 @@ currently has no pre-approved Linux x86_64 libLLVM entry, so the script must
 fail closed until that destination library is reviewed in a separate commit.
 Even a successful new generation and zero-tolerance verification leaves
 `FORMAL_TRAINING_READY=NO`; formal G1/G2 qualification, independent RT/G8,
-resource checks, and explicit human approval remain separate gates.
+resource checks, and explicit llm-judge approval remain separate gates.

@@ -612,6 +612,10 @@ def run_formal_factorial(
     )
     write_json(output_dir / "gate.json", gate)
     write_json(
+        output_dir / "information_budget_checklist.json",
+        _information_budget_checklist(config),
+    )
+    write_json(
         output_dir / "manifest.json",
         {
             "schema_version": "csi-pairs-formal-stage-manifest-v2.1-v6",
@@ -1997,6 +2001,31 @@ def _measure_execution(model, corpus, plan, weights):
         for hook in predict_hooks:
             hook.remove()
     return counts
+
+
+INFORMATION_BUDGET_CHECKLIST_SCHEMA = "csi-pairs-v6-information-budget-checklist-v1"
+
+
+def _information_budget_checklist(config) -> list[dict]:
+    rows = []
+    for budget in config["localization"]["label_budgets"]:
+        label_budget = int(budget)
+        labeled = label_budget > 0
+        rows.append(
+            {
+                "label_budget": label_budget,
+                "uses_map": True,
+                "uses_bs_pose": True,
+                "uses_unlabeled_target_csi": True,
+                "uses_reference_library": False,
+                "uses_position_labels": labeled,
+                "uses_target_norm_stats": False,
+                "allows_encoder_param_updates": False,
+                "allows_position_head_param_updates": labeled,
+                "schema_version": INFORMATION_BUDGET_CHECKLIST_SCHEMA,
+            }
+        )
+    return rows
 
 
 def _run_localization(config, dataset, models, normalization, patch_spec, execution_devices):

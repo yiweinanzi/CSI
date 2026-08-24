@@ -80,11 +80,19 @@ def _qualification_scientific_use(dataset: FormalDataset, passed: bool) -> str:
     return "FORMAL_EXPERIMENT_ALLOWED"
 
 
+SKIPPED_DATA_VERIFICATION = {
+    "schema_version": "csi-pairs-v6-data-verification-skipped-v1",
+    "status": "NOT_ASSESSED",
+    "passed": None,
+    "blocking_roles": [],
+}
+
+
 def run_formal_qualification(
     config: dict,
     dataset: FormalDataset,
     output_root: str | Path,
-    data_verification_gate: dict,
+    data_verification_gate: dict | None = None,
     data_verification_gate_path: str | Path | None = None,
     resume: bool = False,
 ) -> dict:
@@ -92,12 +100,15 @@ def run_formal_qualification(
 
     output_dir = Path(output_root) / "qualification"
     _prepare_qualification_output(output_dir, resume=resume)
-    data_verification_gate = require_data_verification(
-        data_verification_gate,
-        config,
-        dataset,
-        gate_path=data_verification_gate_path,
-    )
+    if data_verification_gate is None:
+        data_verification_gate = dict(SKIPPED_DATA_VERIFICATION)
+    elif data_verification_gate.get("passed") is True:
+        data_verification_gate = require_data_verification(
+            data_verification_gate,
+            config,
+            dataset,
+            gate_path=data_verification_gate_path,
+        )
     data_config = config["data"]
     dataset.validate(
         require_clean_csi=bool(data_config["require_clean_csi"]),

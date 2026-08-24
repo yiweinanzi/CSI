@@ -1,0 +1,91 @@
+{
+  "schema_version": "csi-pairs-full-run-compute-plan-v2",
+  "profile": "formal",
+  "estimated_output_bytes": 0,
+  "minimum_free_disk_bytes": 0,
+  "estimated_wall_time_seconds": 0,
+  "authorized_wall_time_seconds": 0,
+  "required_gpu_count": 2,
+  "minimum_gpu_memory_bytes": 0,
+  "estimated_gpu_hours": 0,
+  "authorized_gpu_hours": 0,
+  "component_estimates": [
+    {
+      "component": "data_qualification_and_g8",
+      "basis": "measured",
+      "basis_artifact_path": "REPLACE_WITH_MEASURED_BASIS_ARTIFACT_PATH",
+      "basis_artifact_sha256": "REPLACE_WITH_MEASURED_SHA256",
+      "estimated_output_bytes": 0,
+      "estimated_wall_time_seconds": 0,
+      "estimated_gpu_hours": 0
+    },
+    {
+      "component": "teacher",
+      "basis": "measured",
+      "basis_artifact_path": "REPLACE_WITH_MEASURED_BASIS_ARTIFACT_PATH",
+      "basis_artifact_sha256": "REPLACE_WITH_MEASURED_SHA256",
+      "estimated_output_bytes": 0,
+      "estimated_wall_time_seconds": 0,
+      "estimated_gpu_hours": 0
+    },
+    {
+      "component": "factorial",
+      "basis": "measured",
+      "basis_artifact_path": "REPLACE_WITH_MEASURED_BASIS_ARTIFACT_PATH",
+      "basis_artifact_sha256": "REPLACE_WITH_MEASURED_SHA256",
+      "estimated_output_bytes": 0,
+      "estimated_wall_time_seconds": 0,
+      "estimated_gpu_hours": 0
+    },
+    {
+      "component": "evaluation",
+      "basis": "measured",
+      "basis_artifact_path": "REPLACE_WITH_MEASURED_BASIS_ARTIFACT_PATH",
+      "basis_artifact_sha256": "REPLACE_WITH_MEASURED_SHA256",
+      "estimated_output_bytes": 0,
+      "estimated_wall_time_seconds": 0,
+      "estimated_gpu_hours": 0
+    },
+    {
+      "component": "baselines",
+      "basis": "measured",
+      "basis_artifact_path": "REPLACE_WITH_MEASURED_BASIS_ARTIFACT_PATH",
+      "basis_artifact_sha256": "REPLACE_WITH_MEASURED_SHA256",
+      "estimated_output_bytes": 0,
+      "estimated_wall_time_seconds": 0,
+      "estimated_gpu_hours": 0
+    },
+    {
+      "component": "controls",
+      "basis": "measured",
+      "basis_artifact_path": "REPLACE_WITH_MEASURED_BASIS_ARTIFACT_PATH",
+      "basis_artifact_sha256": "REPLACE_WITH_MEASURED_SHA256",
+      "estimated_output_bytes": 0,
+      "estimated_wall_time_seconds": 0,
+      "estimated_gpu_hours": 0
+    },
+    {
+      "component": "io_and_checkpoints",
+      "basis": "measured",
+      "basis_artifact_path": "REPLACE_WITH_MEASURED_BASIS_ARTIFACT_PATH",
+      "basis_artifact_sha256": "REPLACE_WITH_MEASURED_SHA256",
+      "estimated_output_bytes": 0,
+      "estimated_wall_time_seconds": 0,
+      "estimated_gpu_hours": 0
+    },
+    {
+      "component": "failure_budget",
+      "basis": "measured",
+      "basis_artifact_path": "REPLACE_WITH_MEASURED_BASIS_ARTIFACT_PATH",
+      "basis_artifact_sha256": "REPLACE_WITH_MEASURED_SHA256",
+      "estimated_output_bytes": 0,
+      "estimated_wall_time_seconds": 0,
+      "estimated_gpu_hours": 0
+    }
+  ],
+  "required_environment_variables": [
+    "CSI_PAIRS_DEVICES",
+    "CUDA_VISIBLE_DEVICES"
+  ],
+  "license_acknowledgements": []
+}
