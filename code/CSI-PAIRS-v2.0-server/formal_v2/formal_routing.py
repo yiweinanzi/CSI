@@ -165,12 +165,12 @@ def fit_route_normalization(dataset: FormalDataset, bundle: TeacherBundle) -> Ro
         )
     channel_mean = bundle.channel_mean.copy()
     channel_scale = bundle.channel_scale.copy()
-    latent = teacher_targets(bundle, csi)
+    latent = _teacher_targets_by_scene(bundle, csi)
     latent_mean = latent.reshape(-1, latent.shape[-1]).mean(axis=0)
     latent_scale = latent.reshape(-1, latent.shape[-1]).std(axis=0)
     latent_scale[latent_scale < 1e-9] = 1.0
     spec = PatchSpec.from_metadata(dataset.metadata)
-    delay_angle = delay_angle_power(csi, spec)
+    delay_angle = _delay_angle_power_by_scene(csi, spec)
     delay_angle_mean = delay_angle.reshape(-1, delay_angle.shape[-1]).mean(axis=0)
     delay_angle_scale = delay_angle.reshape(-1, delay_angle.shape[-1]).std(axis=0)
     delay_angle_scale[delay_angle_scale < 1e-9] = 1.0
@@ -217,9 +217,6 @@ def route_dataset(
         dtype=np.float64,
     )
     q = config["qualification"]
-    scene_delay_angle = {
-        int(scene): delay_angle_power(dataset.csi[int(scene)], spec) for scene in scenes
-    }
     for scene in layout.scenes:
         start, stop = layout.scene_offsets[scene]
         sources = layout.sources[start:stop].astype(np.int64, copy=False)
@@ -228,8 +225,9 @@ def route_dataset(
         target_csi = dataset.csi[scene, targets]
         source_latent = scene_latent[scene][sources]
         target_latent = scene_latent[scene][targets]
-        source_delay_angle = scene_delay_angle[scene][sources]
-        target_delay_angle = scene_delay_angle[scene][targets]
+        scene_delay_angle = delay_angle_power(dataset.csi[scene], spec)
+        source_delay_angle = scene_delay_angle[sources]
+        target_delay_angle = scene_delay_angle[targets]
         complex_difference = (target_csi - source_csi) / norm.channel_scale
         delay_angle_difference = (
             target_delay_angle - source_delay_angle
@@ -315,6 +313,32 @@ def route_dataset(
         response_distances=response_distances,
         normalization=norm,
     )
+
+
+def _teacher_targets_by_scene(bundle: TeacherBundle, csi: np.ndarray) -> np.ndarray:
+    """Preserve frozen row order while bounding teacher inference memory."""
+    values = np.asarray(csi)
+    if values.ndim < 2 or values.shape[0] < 1:
+        raise ValueError("route normalization requires at least one scene")
+    first = teacher_targets(bundle, values[0])
+    output = np.empty((values.shape[0], *first.shape), dtype=first.dtype)
+    output[0] = first
+    for index in range(1, values.shape[0]):
+        output[index] = teacher_targets(bundle, values[index])
+    return output
+
+
+def _delay_angle_power_by_scene(csi: np.ndarray, spec: PatchSpec) -> np.ndarray:
+    """Compute the unchanged transform without one all-scene temporary."""
+    values = np.asarray(csi)
+    if values.ndim < 2 or values.shape[0] < 1:
+        raise ValueError("route normalization requires at least one scene")
+    first = delay_angle_power(values[0], spec)
+    output = np.empty((values.shape[0], *first.shape), dtype=first.dtype)
+    output[0] = first
+    for index in range(1, values.shape[0]):
+        output[index] = delay_angle_power(values[index], spec)
+    return output
 
 
 def route_code(
