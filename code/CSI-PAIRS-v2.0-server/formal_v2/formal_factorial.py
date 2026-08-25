@@ -79,6 +79,7 @@ ARM_FACTORS = {
 # is deliberately frozen separately from lambda_By (the endpoint loss weight).
 ALIGNMENT_SCORE_PHYSICAL_WEIGHT = 1.0
 FORMAL_CHECKPOINT_INTERVAL_STEPS = 100
+NOOP_SCORE_BATCH_SIZE = 256
 
 
 @dataclass(frozen=True)
@@ -1107,20 +1108,35 @@ def _estimate_noop_kappa(model, corpus, quantile):
     return float(np.quantile(np.asarray(gaps), float(quantile)))
 
 
-def _noop_score_gaps(model, corpus, units):
+def _noop_score_gaps(model, corpus, units, *, batch_size=NOOP_SCORE_BATCH_SIZE):
+    if type(batch_size) is not int or batch_size < 1:
+        raise ValueError("no-op score batch size must be a positive integer")
+    units = tuple(units)
     gaps = []
-    for unit in units:
-        scene, world, position = unit
+    for start in range(0, len(units), batch_size):
+        chunk = units[start : start + batch_size]
         scores = []
-        for supplied in (
-            corpus.dataset.maps[scene, world],
-            corpus.dataset.noop_maps[scene, world],
-        ):
+        for use_noop in (False, True):
+            supplied_maps = [
+                (
+                    corpus.dataset.noop_maps[scene, world]
+                    if use_noop
+                    else corpus.dataset.maps[scene, world]
+                )
+                for scene, world, _position in chunk
+            ]
             errors = []
             for entry in corpus.alignment_bank:
-                batch = _identity_batch(corpus, [(scene, world, position)], [entry], supplied_maps=[supplied])
+                batch = _identity_batch(
+                    corpus,
+                    chunk,
+                    [entry] * len(chunk),
+                    supplied_maps=supplied_maps,
+                )
                 batch = batch_for_module(model, batch)
-                state = model.state(batch["visible"], batch["maps"], batch["radio"], batch["masks"])
+                state = model.state(
+                    batch["visible"], batch["maps"], batch["radio"], batch["masks"]
+                )
                 prediction_z, prediction_y = model.predict_identity(
                     state, batch["query"]
                 )
@@ -1131,11 +1147,11 @@ def _noop_score_gaps(model, corpus, units):
                         batch["target_z"],
                         batch["target_y"],
                         ALIGNMENT_SCORE_PHYSICAL_WEIGHT,
-                    )[0]
+                    )
                 )
-            scores.append(-torch.mean(torch.stack(errors)))
-        gaps.append(float(torch.abs(scores[0] - scores[1]).detach()))
-    return gaps
+            scores.append(-torch.mean(torch.stack(errors), dim=0))
+        gaps.extend(torch.abs(scores[0] - scores[1]).detach().cpu().tolist())
+    return [float(value) for value in gaps]
 
 
 def _train_arm(

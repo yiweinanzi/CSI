@@ -217,13 +217,19 @@ def route_dataset(
         dtype=np.float64,
     )
     q = config["qualification"]
-    for (scene, source, target), edge_index in layout.edge_lookup.items():
-        source_csi = dataset.csi[scene, source]
-        target_csi = dataset.csi[scene, target]
-        source_latent = scene_latent[scene][source]
-        target_latent = scene_latent[scene][target]
-        source_delay_angle = delay_angle_power(source_csi, spec)
-        target_delay_angle = delay_angle_power(target_csi, spec)
+    scene_delay_angle = {
+        int(scene): delay_angle_power(dataset.csi[int(scene)], spec) for scene in scenes
+    }
+    for scene in layout.scenes:
+        start, stop = layout.scene_offsets[scene]
+        sources = layout.sources[start:stop].astype(np.int64, copy=False)
+        targets = layout.targets[start:stop].astype(np.int64, copy=False)
+        source_csi = dataset.csi[scene, sources]
+        target_csi = dataset.csi[scene, targets]
+        source_latent = scene_latent[scene][sources]
+        target_latent = scene_latent[scene][targets]
+        source_delay_angle = scene_delay_angle[scene][sources]
+        target_delay_angle = scene_delay_angle[scene][targets]
         complex_difference = (target_csi - source_csi) / norm.channel_scale
         delay_angle_difference = (
             target_delay_angle - source_delay_angle
@@ -241,8 +247,8 @@ def route_dataset(
                 axis=(-2, -1),
             )
         )
-        source_patches = scene_patches[scene][source]
-        target_patches = scene_patches[scene][target]
+        source_patches = scene_patches[scene][sources]
+        target_patches = scene_patches[scene][targets]
         physical_r = np.sqrt(
             np.mean(
                 ((target_patches - source_patches) / channel_patch_scale) ** 2,
@@ -255,30 +261,30 @@ def route_dataset(
                 axis=-1,
             )
         )
-        alignment_route_values[edge_index] = _route_codes(
+        alignment_route_values[start:stop] = _route_codes(
             physical_a,
             float(q["physical_null_rms_max"]),
             float(q["physical_active_rms_min"]),
         )
-        alignment_teacher_values[edge_index] = _route_codes(
+        alignment_teacher_values[start:stop] = _route_codes(
             latent_a,
             float(q["latent_null_rms_max"]),
             float(q["latent_active_rms_min"]),
         )
-        response_route_values[edge_index] = _route_codes(
+        response_route_values[start:stop] = _route_codes(
             physical_r,
             float(q["response_physical_null_rms_max"]),
             float(q["response_physical_active_rms_min"]),
         )
-        response_teacher_values[edge_index] = _route_codes(
+        response_teacher_values[start:stop] = _route_codes(
             latent_r,
             float(q["response_latent_null_rms_max"]),
             float(q["response_latent_active_rms_min"]),
         )
-        alignment_distance_values[edge_index, :, 0] = physical_a
-        alignment_distance_values[edge_index, :, 1] = latent_a
-        response_distance_values[edge_index, :, :, 0] = physical_r
-        response_distance_values[edge_index, :, :, 1] = latent_r
+        alignment_distance_values[start:stop, :, 0] = physical_a
+        alignment_distance_values[start:stop, :, 1] = latent_a
+        response_distance_values[start:stop, :, :, 0] = physical_r
+        response_distance_values[start:stop, :, :, 1] = latent_r
     alignment_route = CompactEdgeTensorMapping(
         layout, alignment_route_values, query_axis=False
     )

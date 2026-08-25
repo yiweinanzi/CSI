@@ -21,6 +21,7 @@ from formal_v2.formal_factorial import (
     _make_plan,
     _measure_execution,
     _new_model,
+    _noop_score_gaps,
     _response_batch,
     _normalized_action,
     _normalized_map,
@@ -306,6 +307,24 @@ class ArmExecutionMutationTests(unittest.TestCase):
         torch.testing.assert_close(direct_state, cached_state, rtol=0.0, atol=1e-6)
         for direct, cached_output in zip(direct_outputs, cached_outputs, strict=True):
             torch.testing.assert_close(direct, cached_output, rtol=0.0, atol=1e-6)
+
+    def test_batched_noop_scores_match_the_scalar_contract(self):
+        units = []
+        for scene, values in self.corpus.endpoint.items():
+            units.extend((scene, world, position) for world, position in values)
+        units = units[:7]
+        model = _new_model(self.config, self.corpus, 20270819).eval()
+        original = self.dataset.noop_maps.copy()
+        try:
+            for scene, world, _position in units:
+                self.dataset.noop_maps[scene, world, 0, 1:3, 2:5] += 0.25
+            scalar = _noop_score_gaps(model, self.corpus, units, batch_size=1)
+            batched = _noop_score_gaps(model, self.corpus, units, batch_size=4)
+        finally:
+            self.dataset.noop_maps[...] = original
+
+        self.assertTrue(any(value > 0.0 for value in scalar))
+        np.testing.assert_allclose(batched, scalar, rtol=0.0, atol=1e-6)
 
     def test_numpy_pool_matches_torch_reference_for_nondivisible_grids(self):
         for shape in ((2, 3, 32, 32), (1, 2, 19, 23), (3, 17, 29)):
