@@ -233,7 +233,7 @@ class FormalDataset:
         """Return one row for each stable physical support position in a target city."""
         selected: list[tuple[int, int]] = []
         identifiers: set[str] = set()
-        coordinates: list[np.ndarray] = []
+        coordinate_buckets: dict[tuple[int, int], list[np.ndarray]] = {}
         for scene_value in self.indices_for_role("target"):
             scene = int(scene_value)
             if str(self.city_ids[scene]) != str(city):
@@ -244,13 +244,33 @@ class FormalDataset:
                 position = int(position_value)
                 identifier = str(self.position_ids[scene, position])
                 coordinate = self.positions[scene, position]
-                if identifier in identifiers or any(
-                    same_physical_position(coordinate, existing)
-                    for existing in coordinates
-                ):
+                if identifier in identifiers:
+                    continue
+                bucket = tuple(
+                    int(value)
+                    for value in np.floor(
+                        np.asarray(coordinate, dtype=np.float64)
+                        / PHYSICAL_POSITION_ATOL_M
+                    )
+                )
+                duplicate_coordinate = False
+                for delta_x in (-1, 0, 1):
+                    for delta_y in (-1, 0, 1):
+                        nearby = coordinate_buckets.get(
+                            (bucket[0] + delta_x, bucket[1] + delta_y), ()
+                        )
+                        if any(
+                            same_physical_position(coordinate, existing)
+                            for existing in nearby
+                        ):
+                            duplicate_coordinate = True
+                            break
+                    if duplicate_coordinate:
+                        break
+                if duplicate_coordinate:
                     continue
                 identifiers.add(identifier)
-                coordinates.append(coordinate)
+                coordinate_buckets.setdefault(bucket, []).append(coordinate)
                 selected.append((scene, position))
         return selected
 

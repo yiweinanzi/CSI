@@ -28,6 +28,11 @@ from formal_v2.formal_factorial import (
     _training_normalization,
     _train_arm,
 )
+from formal_v2.formal_wrong_map import (
+    _assemble_localization_features,
+    _localization_features,
+    _localization_map_features,
+)
 from formal_v2.formal_fixture import write_nonscientific_fixture
 from formal_v2.formal_protocol import PatchSpec
 from formal_v2.formal_protocol import typed_signed_edit
@@ -325,6 +330,15 @@ class ArmExecutionMutationTests(unittest.TestCase):
 
         self.assertTrue(any(value > 0.0 for value in scalar))
         np.testing.assert_allclose(batched, scalar, rtol=0.0, atol=1e-6)
+
+    def test_cached_wrong_map_features_match_direct_features_exactly(self):
+        csi = self.dataset.csi[0, 0, 0]
+        supplied_map = self.dataset.maps[0, 0]
+        direct = _localization_features(csi, supplied_map)
+        cached = _assemble_localization_features(
+            csi, _localization_map_features(supplied_map)
+        )
+        np.testing.assert_array_equal(cached, direct)
 
     def test_numpy_pool_matches_torch_reference_for_nondivisible_grids(self):
         for shape in ((2, 3, 32, 32), (1, 2, 19, 23), (3, 17, 29)):

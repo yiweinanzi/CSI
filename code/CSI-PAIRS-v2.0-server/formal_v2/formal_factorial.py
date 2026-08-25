@@ -685,28 +685,36 @@ def _normalization_record(normalization: TrainingNormalization) -> dict:
 def _build_corpus(dataset, scenes, teacher, config, route_normalization, normalization):
     routed = route_dataset(dataset, teacher, config, scenes, normalization=route_normalization)
     scene_tuple = tuple(int(value) for value in scenes)
-    normalized_maps = {
-        (scene, world): _cached_model_spatial_input(
-            _normalized_map(normalization, dataset.maps[scene, world])
-        )
-        for scene in scene_tuple
-        for world in range(dataset.world_count)
-    }
+    normalized_maps = {}
     normalized_actions = {}
     for scene in scene_tuple:
-        for edge in dataset.directed_edges(scene):
+        scene_maps = _cached_model_spatial_input(
+            _normalized_map(normalization, dataset.maps[scene])
+        )
+        for world in range(dataset.world_count):
+            normalized_maps[(scene, world)] = scene_maps[world]
+
+        scene_edges = tuple(dataset.directed_edges(scene))
+        sources = np.asarray(
+            [int(edge.source_world) for edge in scene_edges], dtype=np.int64
+        )
+        targets = np.asarray(
+            [int(edge.target_world) for edge in scene_edges], dtype=np.int64
+        )
+        actions = typed_signed_edit(
+            dataset.maps[scene, sources],
+            dataset.maps[scene, targets],
+            dataset.map_channel_names,
+            int(dataset.metadata["assets"]["material_category_count"]),
+        )
+        cached_actions = _cached_model_spatial_input(
+            _normalized_action(normalization, actions)
+        )
+        for edge, cached_action in zip(scene_edges, cached_actions, strict=True):
             key = (scene, int(edge.source_world), int(edge.target_world))
             if key in normalized_actions:
                 raise RuntimeError("duplicate directed edge in response action cache")
-            action = typed_signed_edit(
-                dataset.maps[scene, edge.source_world],
-                dataset.maps[scene, edge.target_world],
-                dataset.map_channel_names,
-                int(dataset.metadata["assets"]["material_category_count"]),
-            )
-            normalized_actions[key] = _cached_model_spatial_input(
-                _normalized_action(normalization, action)
-            )
+            normalized_actions[key] = cached_action
     endpoint = {}
     natural_endpoint = {}
     alignment_active = {}
@@ -1899,7 +1907,10 @@ def _normalized_latent(corpus, scene, world, position, query):
 
 
 def _normalized_map(norm, maps):
-    return np.asarray(maps, dtype=np.float64) / norm.map_scale[:, None, None]
+    array = np.asarray(maps, dtype=np.float64)
+    return array / norm.map_scale.reshape(
+        *((1,) * (array.ndim - 3)), -1, 1, 1
+    )
 
 
 def _normalized_radio(norm, radio, bs_pose=None):

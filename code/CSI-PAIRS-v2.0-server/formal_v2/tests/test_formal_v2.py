@@ -864,6 +864,45 @@ class DatasetTests(unittest.TestCase):
         with self.assertRaisesRegex(FormalDatasetError, "fewer than configured max k"):
             self.dataset.validate_target_support_capacity(formal_required)
 
+    def test_support_spatial_index_matches_frozen_brute_force_selection(self):
+        for city in sorted(
+            set(
+                str(value)
+                for value in self.dataset.city_ids[
+                    self.dataset.scene_roles == "target"
+                ]
+            )
+        ):
+            selected = []
+            identifiers = set()
+            coordinates = []
+            for scene_value in self.dataset.indices_for_role("target"):
+                scene = int(scene_value)
+                if str(self.dataset.city_ids[scene]) != city:
+                    continue
+                for position_value in np.flatnonzero(
+                    self.dataset.position_roles[scene] == "support_pool"
+                ):
+                    position = int(position_value)
+                    identifier = str(self.dataset.position_ids[scene, position])
+                    coordinate = self.dataset.positions[scene, position]
+                    if identifier in identifiers or any(
+                        np.allclose(
+                            coordinate,
+                            existing,
+                            rtol=0.0,
+                            atol=1e-9,
+                        )
+                        for existing in coordinates
+                    ):
+                        continue
+                    identifiers.add(identifier)
+                    coordinates.append(coordinate)
+                    selected.append((scene, position))
+            self.assertEqual(
+                self.dataset.unique_target_support_positions(city), selected
+            )
+
     def test_target_city_cluster_minimum_uses_canonical_foundations(self):
         self.dataset.validate(
             minimum_independent_base_map_clusters_per_target_city=2

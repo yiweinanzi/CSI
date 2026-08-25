@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 import hashlib
+import os
 from pathlib import Path
 
 import numpy as np
@@ -8,7 +10,7 @@ import numpy as np
 from .formal_baselines import RidgeRegressor
 from .formal_dataset import FormalDataset
 from .formal_evidence import bind_rows, evidence_context, require_manifested_formal_qualification
-from .formal_features import response_features
+from .formal_features import map_pair_features, response_features
 from .formal_io import artifact_manifest, write_csv, write_json
 from .formal_routing import fit_route_normalization, route_dataset
 from .formal_teacher import load_teacher_bundle
@@ -55,14 +57,23 @@ def run_formal_wrong_map(
     for scene_value in train_scenes:
         scene = int(scene_value)
         for world in range(dataset.world_count):
-            for position in range(dataset.position_count):
-                train_x.append(
-                    _localization_features(
-                        dataset.csi[scene, world, position],
-                        dataset.maps[scene, world],
-                    )
+            map_features = _localization_map_features(dataset.maps[scene, world])
+            csi = np.asarray(dataset.csi[scene, world], dtype=np.float64).reshape(
+                dataset.position_count, -1
+            )
+            train_x.append(
+                np.concatenate(
+                    (
+                        csi,
+                        np.broadcast_to(
+                            map_features,
+                            (dataset.position_count, map_features.size),
+                        ),
+                    ),
+                    axis=1,
                 )
-                train_y.append(dataset.positions[scene, position])
+            )
+            train_y.append(dataset.positions[scene])
     model = RidgeRegressor(float(config["localization"]["ridge"])).fit(
         np.vstack(train_x), np.vstack(train_y)
     )
@@ -130,65 +141,105 @@ def _evaluation_rows(
     routed,
     model: RidgeRegressor,
 ) -> list[dict]:
-    rows: list[dict] = []
-    for scene_value in scenes:
-        scene = int(scene_value)
-        allowed_positions = (
-            np.flatnonzero(dataset.position_roles[scene] == "query")
-            if dataset.scene_roles[scene] == "target"
-            else np.arange(dataset.position_count)
-        )
+    scene_tuple = tuple(int(value) for value in scenes)
+    canonical_units = {
+        (scene, world)
+        for scene in scene_tuple
+        for world in range(dataset.world_count)
+    }
+    for scene in scene_tuple:
         wrong_scene = _wrong_city_scene(dataset, scene)
-        for source_world in range(dataset.world_count):
-            candidates = [edge for edge in dataset.directed_edges(scene) if edge.source_world == source_world]
-            for position in allowed_positions:
-                active = []
-                null = []
-                for edge in candidates:
-                    route = routed.alignment_route[
-                        (scene, source_world, edge.target_world, int(position))
-                    ]
-                    if route == 2:
-                        active.append(edge.target_world)
-                    elif route == 0:
-                        null.append(edge.target_world)
-                if not active or not null:
-                    continue
-                correct_map = dataset.maps[scene, source_world]
-                supplied = {
-                    "correct": correct_map,
-                    "paired_active_alternative": dataset.maps[scene, active[0]],
-                    "paired_null_alternative": dataset.maps[scene, null[0]],
-                    "wrong_city": dataset.maps[wrong_scene, int(dataset.natural_world_index[wrong_scene])],
-                    "geometry_destroyed": _geometry_destroyed(
+        canonical_units.add(
+            (wrong_scene, int(dataset.natural_world_index[wrong_scene]))
+        )
+    workers = _worker_count(len(scene_tuple))
+    ordered_units = sorted(canonical_units)
+    with ThreadPoolExecutor(max_workers=workers) as executor:
+        feature_values = executor.map(
+            _localization_map_features,
+            (dataset.maps[scene, world] for scene, world in ordered_units),
+        )
+        map_feature_cache = dict(zip(ordered_units, feature_values, strict=True))
+        scene_rows = executor.map(
+            lambda scene: _evaluation_rows_for_scene(
+                dataset, scene, routed, model, map_feature_cache
+            ),
+            scene_tuple,
+        )
+        return [row for rows in scene_rows for row in rows]
+
+
+def _evaluation_rows_for_scene(dataset, scene, routed, model, map_feature_cache):
+    rows: list[dict] = []
+    allowed_positions = (
+        np.flatnonzero(dataset.position_roles[scene] == "query")
+        if dataset.scene_roles[scene] == "target"
+        else np.arange(dataset.position_count)
+    )
+    wrong_scene = _wrong_city_scene(dataset, scene)
+    wrong_world = int(dataset.natural_world_index[wrong_scene])
+    empty_features = _localization_map_features(
+        np.zeros_like(dataset.maps[scene, 0])
+    )
+    scene_edges = tuple(dataset.directed_edges(scene))
+    for source_world in range(dataset.world_count):
+        candidates = [
+            edge for edge in scene_edges if edge.source_world == source_world
+        ]
+        for position in allowed_positions:
+            active = []
+            null = []
+            for edge in candidates:
+                route = routed.alignment_route[
+                    (scene, source_world, edge.target_world, int(position))
+                ]
+                if route == 2:
+                    active.append(edge.target_world)
+                elif route == 0:
+                    null.append(edge.target_world)
+            if not active or not null:
+                continue
+            correct_map = dataset.maps[scene, source_world]
+            supplied_features = {
+                "correct": map_feature_cache[(scene, source_world)],
+                "paired_active_alternative": map_feature_cache[(scene, active[0])],
+                "paired_null_alternative": map_feature_cache[(scene, null[0])],
+                "wrong_city": map_feature_cache[(wrong_scene, wrong_world)],
+                "geometry_destroyed": _localization_map_features(
+                    _geometry_destroyed(
                         correct_map,
                         f"{dataset.bank_ids[scene]}:{source_world}:{position}",
-                    ),
-                    "empty": np.zeros_like(correct_map),
-                }
-                csi = dataset.csi[scene, source_world, position]
-                unit_id = f"{dataset.bank_ids[scene]}:{source_world}:{position}"
-                for condition in CONDITIONS:
-                    prediction = model.predict(
-                        _localization_features(csi, supplied[condition])[None, :]
-                    )[0]
-                    error = float(np.linalg.norm(prediction - dataset.positions[scene, position]))
-                    rows.append(
-                        {
-                            "unit_id": unit_id,
-                            "scene_id": str(dataset.scene_ids[scene]),
-                            "city_id": str(dataset.city_ids[scene]),
-                            "bank_id": str(dataset.bank_ids[scene]),
-                            "source_world": source_world,
-                            "position_index": int(position),
-                            "condition": condition,
-                            "prediction_x": float(prediction[0]),
-                            "prediction_y": float(prediction[1]),
-                            "true_x": float(dataset.positions[scene, position, 0]),
-                            "true_y": float(dataset.positions[scene, position, 1]),
-                            "localization_error_m": error,
-                        }
                     )
+                ),
+                "empty": empty_features,
+            }
+            csi = dataset.csi[scene, source_world, position]
+            unit_id = f"{dataset.bank_ids[scene]}:{source_world}:{position}"
+            for condition in CONDITIONS:
+                prediction = model.predict(
+                    _assemble_localization_features(
+                        csi, supplied_features[condition]
+                    )[None, :]
+                )[0]
+                error = float(
+                    np.linalg.norm(prediction - dataset.positions[scene, position])
+                )
+                rows.append(
+                    {
+                        "unit_id": unit_id,
+                        "scene_id": str(dataset.scene_ids[scene]),
+                        "city_id": str(dataset.city_ids[scene]),
+                        "bank_id": str(dataset.bank_ids[scene]),
+                        "source_world": source_world,
+                        "position_index": int(position),
+                        "condition": condition,
+                        "prediction_x": float(prediction[0]),
+                        "prediction_y": float(prediction[1]),
+                        "true_x": float(dataset.positions[scene, position, 0]),
+                        "true_y": float(dataset.positions[scene, position, 1]),
+                        "localization_error_m": error,
+                    }
+                )
     return rows
 
 
@@ -231,6 +282,30 @@ def _localization_features(csi: np.ndarray, supplied_map: np.ndarray) -> np.ndar
         np.asarray(supplied_map, dtype=np.float64),
         include_action=False,
     )
+
+
+def _localization_map_features(supplied_map: np.ndarray) -> np.ndarray:
+    features, _zero_edit = map_pair_features(supplied_map, supplied_map)
+    return features
+
+
+def _assemble_localization_features(
+    csi: np.ndarray, map_features: np.ndarray
+) -> np.ndarray:
+    return np.concatenate(
+        (
+            np.asarray(csi, dtype=np.float64).ravel(),
+            np.asarray(map_features, dtype=np.float64).ravel(),
+        )
+    )
+
+
+def _worker_count(item_count: int) -> int:
+    try:
+        configured = int(os.environ.get("OMP_NUM_THREADS", "1"))
+    except ValueError:
+        configured = 1
+    return max(1, min(int(item_count), configured))
 
 
 def _wrong_city_scene(dataset: FormalDataset, scene: int) -> int:
