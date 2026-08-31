@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import json
 import math
+import multiprocessing
 import os
 import subprocess
 import sys
@@ -11,6 +12,8 @@ import threading
 import time
 from dataclasses import replace
 from datetime import datetime, timezone
+from multiprocessing.connection import Connection
+from multiprocessing.process import BaseProcess
 from pathlib import Path
 from typing import Mapping, Sequence
 
@@ -58,6 +61,11 @@ PERFORMANCE_RUNNER_SCHEMA = "csi-pairs-v6-migration-performance-runner-v1"
 CONTROL_RUNNER_SCHEMA = "csi-pairs-v6-migration-control-runner-v1"
 SUBSET_REFRESH_RECEIPT_SCHEMA = "csi-pairs-v6-subset-refresh-receipt-v1"
 INTERRUPTED_EXIT_CODE = 75
+CONTROL_CHILD_FAILURE_EXIT_CODE = 70
+CONTROL_CHILD_READY_TIMEOUT_SECONDS = 120.0
+CONTROL_CHILD_RELEASE_TIMEOUT_SECONDS = 60.0
+CONTROL_CHILD_JOIN_TIMEOUT_SECONDS = 10.0
+CONTROL_CHILD_COMPLETION_TIMEOUT_SECONDS = 120.0
 DEFAULT_GPU_SAMPLE_INTERVAL_SECONDS = 0.5
 GPU_PROCESS_BINDING_METHOD = "EXCLUSIVE_TARGET_GPU_PROCESS_SET_DELTA"
 SCALE_MULTIPLIERS = (1, 2, 4)
@@ -1078,6 +1086,117 @@ def _load_parts(
     return bytes(payload)
 
 
+def _control_process_context() -> multiprocessing.context.BaseContext:
+    """Return the only process start method permitted for control evidence."""
+
+    return multiprocessing.get_context("spawn")
+
+
+def _close_control_connections(
+    connections: Sequence[Connection],
+) -> list[BaseException]:
+    errors: list[BaseException] = []
+    for connection in connections:
+        try:
+            connection.close()
+        except BaseException as error:
+            errors.append(error)
+    return errors
+
+
+def _reap_exact_control_child(
+    process: BaseProcess,
+    *,
+    initial_timeout: float,
+) -> int:
+    """Boundedly join, then terminate/kill only the supplied child."""
+
+    errors: list[BaseException] = []
+    try:
+        process.join(timeout=initial_timeout)
+    except BaseException as error:
+        errors.append(error)
+    try:
+        alive = process.is_alive()
+    except BaseException as error:
+        errors.append(error)
+        alive = True
+    if alive:
+        try:
+            process.terminate()
+        except ProcessLookupError:
+            pass
+        except BaseException as error:
+            errors.append(error)
+        try:
+            process.join(timeout=CONTROL_CHILD_JOIN_TIMEOUT_SECONDS)
+        except BaseException as error:
+            errors.append(error)
+    try:
+        alive = process.is_alive()
+    except BaseException as error:
+        errors.append(error)
+        alive = True
+    if alive:
+        try:
+            process.kill()
+        except ProcessLookupError:
+            pass
+        except BaseException as error:
+            errors.append(error)
+        try:
+            process.join(timeout=CONTROL_CHILD_JOIN_TIMEOUT_SECONDS)
+        except BaseException as error:
+            errors.append(error)
+    try:
+        alive = process.is_alive()
+    except BaseException as error:
+        errors.append(error)
+        alive = True
+    if alive:
+        raise RuntimeError("exact control child remained alive after bounded kill")
+    exit_code = process.exitcode
+    if type(exit_code) is not int:
+        raise RuntimeError("exact control child has no exit code after reap")
+    if errors:
+        summary = "; ".join(
+            f"{type(error).__name__}: {error}" for error in errors
+        )
+        raise RuntimeError(f"exact control child cleanup was not clean: {summary}")
+    return exit_code
+
+
+def _finish_exact_control_child(
+    process: BaseProcess,
+    *,
+    initial_timeout: float,
+) -> int:
+    error: BaseException | None = None
+    traceback = None
+    exit_code: int | None = None
+    try:
+        exit_code = _reap_exact_control_child(
+            process, initial_timeout=initial_timeout
+        )
+    except BaseException as caught:
+        error = caught
+        traceback = caught.__traceback__
+    try:
+        process.close()
+    except BaseException as close_error:
+        if error is None:
+            raise RuntimeError("failed to close exact control child") from close_error
+        error.add_note(
+            "process close also failed: "
+            f"{type(close_error).__name__}: {close_error}"
+        )
+    if error is not None:
+        raise error.with_traceback(traceback)
+    if exit_code is None:
+        raise RuntimeError("exact control child cleanup lost its exit code")
+    return exit_code
+
+
 def _interrupted_writer(
     root: Path,
     run: EvaluationRunIdentity,
@@ -1093,7 +1212,7 @@ def _interrupted_writer(
                 store.commit_shard_bytes(identity, payload)
         os._exit(INTERRUPTED_EXIT_CODE)
     except BaseException:
-        os._exit(70)
+        os._exit(CONTROL_CHILD_FAILURE_EXIT_CODE)
 
 
 def _run_resume_control(
@@ -1103,12 +1222,45 @@ def _run_resume_control(
     parts: Sequence[tuple[int, int, bytes]],
     source_payload: bytes,
 ) -> tuple[dict[str, object], dict[str, object]]:
-    child = os.fork()
-    if child == 0:
-        _interrupted_writer(work_root, run, identities, parts)
-    waited, status = os.waitpid(child, 0)
-    exit_code = os.waitstatus_to_exitcode(status)
-    if waited != child or exit_code != INTERRUPTED_EXIT_CODE:
+    context = _control_process_context()
+    process = context.Process(
+        name="csi-pairs-resume-control",
+        target=_interrupted_writer,
+        args=(work_root, run, identities, parts),
+    )
+    try:
+        process.start()
+    except BaseException as error:
+        try:
+            child_after_error = process.pid
+        except BaseException as pid_error:
+            error.add_note(
+                "resume-control PID inspection also failed: "
+                f"{type(pid_error).__name__}: {pid_error}"
+            )
+            child_after_error = None
+        if type(child_after_error) is int and child_after_error > 0:
+            try:
+                _finish_exact_control_child(
+                    process,
+                    initial_timeout=CONTROL_CHILD_JOIN_TIMEOUT_SECONDS,
+                )
+            except BaseException as cleanup_error:
+                error.add_note(
+                    "resume-control cleanup also failed: "
+                    f"{type(cleanup_error).__name__}: {cleanup_error}"
+                )
+        raise
+    child = process.pid
+    if type(child) is not int or child <= 0:
+        _finish_exact_control_child(
+            process, initial_timeout=CONTROL_CHILD_JOIN_TIMEOUT_SECONDS
+        )
+        raise RuntimeError("resume control child has no valid PID")
+    exit_code = _finish_exact_control_child(
+        process, initial_timeout=CONTROL_CHILD_COMPLETION_TIMEOUT_SECONDS
+    )
+    if exit_code != INTERRUPTED_EXIT_CODE:
         raise RuntimeError("resume control did not observe the planned interruption")
     store = EvaluationResumeStore(work_root, run)
     reused = 0
@@ -1235,19 +1387,47 @@ def _lock_holder(
     run: EvaluationRunIdentity,
     identity: EvaluationShardIdentity,
     payload: bytes,
-    ready_fd: int,
-    release_fd: int,
+    ready_sender: Connection,
+    release_receiver: Connection,
 ) -> None:
+    exit_code = CONTROL_CHILD_FAILURE_EXIT_CODE
     try:
         store = EvaluationResumeStore(work_root, run)
         with store.writer_lock():
             store.commit_shard_bytes(identity, payload)
-            os.write(ready_fd, b"1")
-            if os.read(release_fd, 1) != b"1":
-                os._exit(70)
-        os._exit(0)
+            ready_sender.send_bytes(b"1")
+            ready_sender.close()
+            if not release_receiver.poll(CONTROL_CHILD_RELEASE_TIMEOUT_SECONDS):
+                raise RuntimeError("lock control parent did not release the child")
+            if release_receiver.recv_bytes() != b"1":
+                raise RuntimeError("lock control child received an invalid release")
+        exit_code = 0
     except BaseException:
-        os._exit(70)
+        exit_code = CONTROL_CHILD_FAILURE_EXIT_CODE
+    finally:
+        cleanup_errors = _close_control_connections(
+            (ready_sender, release_receiver)
+        )
+        if cleanup_errors:
+            exit_code = CONTROL_CHILD_FAILURE_EXIT_CODE
+    os._exit(exit_code)
+
+
+def _probe_contender_lock(
+    work_root: Path,
+    run: EvaluationRunIdentity,
+) -> bool:
+    contender = EvaluationResumeStore(work_root, run)
+    try:
+        with contender.writer_lock():
+            pass
+    except WriterLockError:
+        return True
+    return False
+
+
+def _send_lock_release(release_sender: Connection) -> None:
+    release_sender.send_bytes(b"1")
 
 
 def _run_lock_control(
@@ -1256,36 +1436,102 @@ def _run_lock_control(
     identity: EvaluationShardIdentity,
     payload: bytes,
 ) -> tuple[dict[str, object], dict[str, object]]:
-    ready_read, ready_write = os.pipe()
-    release_read, release_write = os.pipe()
-    child = os.fork()
-    if child == 0:
-        os.close(ready_read)
-        os.close(release_write)
-        _lock_holder(
-            work_root, run, identity, payload, ready_write, release_read
-        )
-    os.close(ready_write)
-    os.close(release_read)
-    if os.read(ready_read, 1) != b"1":
-        raise RuntimeError("first lock writer did not become ready")
+    context = _control_process_context()
+    connections: list[Connection] = []
+    ready_receiver: Connection | None = None
+    ready_sender: Connection | None = None
+    release_receiver: Connection | None = None
+    release_sender: Connection | None = None
+    process: BaseProcess | None = None
+    started = False
+    child: int | None = None
+    exit_code: int | None = None
     rejected = False
-    contender = EvaluationResumeStore(work_root, run)
+    primary_error: BaseException | None = None
+    primary_traceback = None
+    cleanup_errors: list[BaseException] = []
     try:
-        with contender.writer_lock():
-            pass
-    except WriterLockError:
-        rejected = True
-    os.write(release_write, b"1")
-    os.close(ready_read)
-    os.close(release_write)
-    waited, status = os.waitpid(child, 0)
-    exit_code = os.waitstatus_to_exitcode(status)
+        ready_receiver, ready_sender = context.Pipe(duplex=False)
+        connections.extend((ready_receiver, ready_sender))
+        release_receiver, release_sender = context.Pipe(duplex=False)
+        connections.extend((release_receiver, release_sender))
+        process = context.Process(
+            name="csi-pairs-lock-control",
+            target=_lock_holder,
+            args=(
+                work_root,
+                run,
+                identity,
+                payload,
+                ready_sender,
+                release_receiver,
+            ),
+        )
+        process.start()
+        started = True
+        child = process.pid
+        if type(child) is not int or child <= 0:
+            raise RuntimeError("lock control child has no valid PID")
+        cleanup_errors.extend(
+            _close_control_connections((ready_sender, release_receiver))
+        )
+        if not ready_receiver.poll(CONTROL_CHILD_READY_TIMEOUT_SECONDS):
+            raise RuntimeError("first lock writer did not become ready before timeout")
+        try:
+            ready_message = ready_receiver.recv_bytes()
+        except EOFError as error:
+            raise RuntimeError("first lock writer exited before readiness") from error
+        if ready_message != b"1":
+            raise RuntimeError("first lock writer sent invalid readiness")
+        rejected = _probe_contender_lock(work_root, run)
+    except BaseException as error:
+        primary_error = error
+        primary_traceback = error.__traceback__
+    finally:
+        if not started and process is not None:
+            try:
+                child_after_error = process.pid
+            except BaseException as error:
+                cleanup_errors.append(error)
+            else:
+                if type(child_after_error) is int and child_after_error > 0:
+                    started = True
+                    child = child_after_error
+        if started and release_sender is not None:
+            try:
+                _send_lock_release(release_sender)
+            except BaseException as error:
+                cleanup_errors.append(error)
+        cleanup_errors.extend(_close_control_connections(connections))
+        if started and process is not None:
+            try:
+                exit_code = _finish_exact_control_child(
+                    process,
+                    initial_timeout=CONTROL_CHILD_JOIN_TIMEOUT_SECONDS,
+                )
+            except BaseException as error:
+                cleanup_errors.append(error)
+    if primary_error is not None:
+        if cleanup_errors:
+            primary_error.add_note(
+                "lock-control cleanup errors: "
+                + "; ".join(
+                    f"{type(error).__name__}: {error}"
+                    for error in cleanup_errors
+                )
+            )
+        raise primary_error.with_traceback(primary_traceback)
+    if cleanup_errors:
+        summary = "; ".join(
+            f"{type(error).__name__}: {error}" for error in cleanup_errors
+        )
+        raise RuntimeError(f"lock-control cleanup failed: {summary}")
+    if child is None or exit_code is None:
+        raise RuntimeError("lock-control cleanup lost child identity")
     store = EvaluationResumeStore(work_root, run)
     completed = store.load_completed_shard(identity)
     preserved = (
-        waited == child
-        and exit_code == 0
+        exit_code == 0
         and completed is not None
         and completed.payload_path.read_bytes() == payload
     )

@@ -1,9 +1,13 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
+import multiprocessing
 import os
+import signal
 import tempfile
+import time
 import unittest
 from argparse import Namespace
 from pathlib import Path
@@ -14,6 +18,7 @@ from formal_v2.formal_evaluation_resume import (
     NO_MIGRATION_SHA256,
     EvaluationExecutionProfile,
     EvaluationRunIdentity,
+    EvaluationShardIdentity,
 )
 from formal_v2.formal_evaluation_streaming import (
     STREAMING_EVALUATION_SCHEMA,
@@ -22,6 +27,27 @@ from formal_v2.formal_evaluation_streaming import (
 from formal_v2.formal_io import sha256_file
 from formal_v2.formal_migration_evidence import validate_evidence_report
 from formal_v2.tests.test_formal_migration import FormalMigrationFixture
+
+
+def _failed_resume_worker(*_args: object) -> None:
+    os._exit(runner.CONTROL_CHILD_FAILURE_EXIT_CODE)
+
+
+def _lock_worker_never_ready(*_args: object) -> None:
+    while True:
+        time.sleep(1.0)
+
+
+def _lock_worker_exit_before_ready(*_args: object) -> None:
+    os._exit(runner.CONTROL_CHILD_FAILURE_EXIT_CODE)
+
+
+def _ignore_sigterm_worker(ready_sender) -> None:
+    signal.signal(signal.SIGTERM, signal.SIG_IGN)
+    ready_sender.send_bytes(b"1")
+    ready_sender.close()
+    while True:
+        time.sleep(1.0)
 
 
 class MigrationEvidenceRunnerTests(unittest.TestCase):
@@ -92,6 +118,33 @@ class MigrationEvidenceRunnerTests(unittest.TestCase):
             output_schema_id=STREAMING_EVALUATION_SCHEMA,
             output_schema_sha256=evaluation_output_schema_sha256(),
         )
+
+    def _control_material(
+        self,
+    ) -> tuple[
+        bytes,
+        tuple[tuple[int, int, bytes], ...],
+        EvaluationRunIdentity,
+        tuple[EvaluationShardIdentity, ...],
+    ]:
+        source_payload = (
+            b'{"schema_version":"real-formal-subset","rows":['
+            + b'"authenticated"' * 32
+            + b"]}\n"
+        )
+        source_sha = hashlib.sha256(source_payload).hexdigest()
+        parts = runner._split_payload(source_payload)
+        run = self._run_identity()
+        identities = runner._shard_identities(run, source_sha, parts)
+        return source_payload, parts, run, identities
+
+    def _assert_no_new_multiprocessing_children(self, before: set[int]) -> None:
+        after = {
+            int(process.pid)
+            for process in multiprocessing.active_children()
+            if process.pid is not None
+        }
+        self.assertEqual(after - before, set())
 
     def _subset_output(self, path: Path, checkpoint_count: int) -> dict[str, object]:
         return {
@@ -487,6 +540,277 @@ class MigrationEvidenceRunnerTests(unittest.TestCase):
             process.wait.call_args_list,
             [mock.call(timeout=10.0), mock.call(timeout=10.0)],
         )
+
+    def test_controls_use_spawn_and_resume_child_is_reaped(self) -> None:
+        source_payload, parts, run, identities = self._control_material()
+        state = self.external / "spawn-resume-state"
+        state.mkdir()
+        before = {
+            int(process.pid)
+            for process in multiprocessing.active_children()
+            if process.pid is not None
+        }
+        real_get_context = multiprocessing.get_context
+        with (
+            mock.patch.object(
+                runner.multiprocessing,
+                "get_context",
+                wraps=real_get_context,
+            ) as get_context,
+            mock.patch.object(
+                runner.os,
+                "fork",
+                side_effect=AssertionError("fork must not be used"),
+            ),
+        ):
+            results, details = runner._run_resume_control(
+                state, run, identities, parts, source_payload
+            )
+        get_context.assert_called_once_with("spawn")
+        self.assertTrue(results["output_equivalent"])
+        self.assertEqual(details["interrupted_exit_code"], 75)
+        self._assert_no_new_multiprocessing_children(before)
+
+    def test_resume_failure_child_is_reaped_without_resuming(self) -> None:
+        source_payload, parts, run, identities = self._control_material()
+        state = self.external / "failed-resume-state"
+        state.mkdir()
+        before = {
+            int(process.pid)
+            for process in multiprocessing.active_children()
+            if process.pid is not None
+        }
+        with mock.patch.object(
+            runner, "_interrupted_writer", _failed_resume_worker
+        ):
+            with self.assertRaisesRegex(RuntimeError, "planned interruption"):
+                runner._run_resume_control(
+                    state, run, identities, parts, source_payload
+                )
+        self._assert_no_new_multiprocessing_children(before)
+
+    def test_resume_start_error_reaps_only_child_with_an_assigned_pid(self) -> None:
+        source_payload, parts, run, identities = self._control_material()
+        state = self.external / "resume-start-error-state"
+        state.mkdir()
+        process = mock.Mock()
+        process.pid = 4321
+        process.start.side_effect = RuntimeError("spawn failed after PID assignment")
+        context = mock.Mock()
+        context.Process.return_value = process
+        with (
+            mock.patch.object(
+                runner, "_control_process_context", return_value=context
+            ),
+            mock.patch.object(
+                runner,
+                "_finish_exact_control_child",
+                return_value=-signal.SIGTERM,
+            ) as finish,
+        ):
+            with self.assertRaisesRegex(RuntimeError, "PID assignment"):
+                runner._run_resume_control(
+                    state, run, identities, parts, source_payload
+                )
+        finish.assert_called_once_with(
+            process,
+            initial_timeout=runner.CONTROL_CHILD_JOIN_TIMEOUT_SECONDS,
+        )
+
+    def test_lock_readiness_timeout_terminates_and_reaps_exact_child(self) -> None:
+        source_payload, parts, run, identities = self._control_material()
+        state = self.external / "lock-timeout-state"
+        state.mkdir()
+        before = {
+            int(process.pid)
+            for process in multiprocessing.active_children()
+            if process.pid is not None
+        }
+        with (
+            mock.patch.object(
+                runner, "_lock_holder", _lock_worker_never_ready
+            ),
+            mock.patch.object(
+                runner, "CONTROL_CHILD_READY_TIMEOUT_SECONDS", 0.1
+            ),
+            mock.patch.object(
+                runner, "CONTROL_CHILD_JOIN_TIMEOUT_SECONDS", 0.1
+            ),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "before timeout"):
+                runner._run_lock_control(
+                    state, run, identities[0], parts[0][2]
+                )
+        self._assert_no_new_multiprocessing_children(before)
+
+    def test_lock_child_exit_before_readiness_is_reaped(self) -> None:
+        _source_payload, parts, run, identities = self._control_material()
+        state = self.external / "lock-early-exit-state"
+        state.mkdir()
+        before = {
+            int(process.pid)
+            for process in multiprocessing.active_children()
+            if process.pid is not None
+        }
+        with mock.patch.object(
+            runner, "_lock_holder", _lock_worker_exit_before_ready
+        ):
+            with self.assertRaisesRegex(RuntimeError, "before readiness"):
+                runner._run_lock_control(
+                    state, run, identities[0], parts[0][2]
+                )
+        self._assert_no_new_multiprocessing_children(before)
+
+    def test_lock_contender_exception_releases_and_reaps_child(self) -> None:
+        _source_payload, parts, run, identities = self._control_material()
+        state = self.external / "lock-contender-error-state"
+        state.mkdir()
+        before = {
+            int(process.pid)
+            for process in multiprocessing.active_children()
+            if process.pid is not None
+        }
+        with mock.patch.object(
+            runner,
+            "_probe_contender_lock",
+            side_effect=RuntimeError("contender probe failed"),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "contender probe failed"):
+                runner._run_lock_control(
+                    state, run, identities[0], parts[0][2]
+                )
+        self._assert_no_new_multiprocessing_children(before)
+        store = runner.EvaluationResumeStore(state, run)
+        with store.writer_lock():
+            self.assertIsNotNone(store.load_completed_shard(identities[0]))
+
+    def test_lock_release_failure_still_reaps_child(self) -> None:
+        _source_payload, parts, run, identities = self._control_material()
+        state = self.external / "lock-release-error-state"
+        state.mkdir()
+        before = {
+            int(process.pid)
+            for process in multiprocessing.active_children()
+            if process.pid is not None
+        }
+        with mock.patch.object(
+            runner,
+            "_send_lock_release",
+            side_effect=BrokenPipeError("release failed"),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "cleanup failed"):
+                runner._run_lock_control(
+                    state, run, identities[0], parts[0][2]
+                )
+        self._assert_no_new_multiprocessing_children(before)
+        store = runner.EvaluationResumeStore(state, run)
+        with store.writer_lock():
+            self.assertIsNotNone(store.load_completed_shard(identities[0]))
+
+    def test_lock_start_failure_closes_every_parent_pipe_endpoint(self) -> None:
+        _source_payload, parts, run, identities = self._control_material()
+        state = self.external / "lock-start-error-state"
+        state.mkdir()
+        connections = [mock.Mock() for _index in range(4)]
+        process = mock.Mock()
+        process.start.side_effect = RuntimeError("spawn failed")
+        context = mock.Mock()
+        context.Pipe.side_effect = [
+            (connections[0], connections[1]),
+            (connections[2], connections[3]),
+        ]
+        context.Process.return_value = process
+        with mock.patch.object(
+            runner, "_control_process_context", return_value=context
+        ):
+            with self.assertRaisesRegex(RuntimeError, "spawn failed"):
+                runner._run_lock_control(
+                    state, run, identities[0], parts[0][2]
+                )
+        for connection in connections:
+            connection.close.assert_called_once_with()
+        process.terminate.assert_not_called()
+        process.kill.assert_not_called()
+
+    def test_lock_second_pipe_failure_closes_first_pipe_endpoints(self) -> None:
+        _source_payload, parts, run, identities = self._control_material()
+        state = self.external / "lock-pipe-error-state"
+        state.mkdir()
+        connections = [mock.Mock(), mock.Mock()]
+        context = mock.Mock()
+        context.Pipe.side_effect = [
+            (connections[0], connections[1]),
+            OSError("second pipe failed"),
+        ]
+        with mock.patch.object(
+            runner, "_control_process_context", return_value=context
+        ):
+            with self.assertRaisesRegex(OSError, "second pipe failed"):
+                runner._run_lock_control(
+                    state, run, identities[0], parts[0][2]
+                )
+        for connection in connections:
+            connection.close.assert_called_once_with()
+        context.Process.assert_not_called()
+
+    def test_lock_success_closes_all_parent_pipe_endpoints(self) -> None:
+        _source_payload, parts, run, identities = self._control_material()
+        state = self.external / "lock-fd-success-state"
+        state.mkdir()
+        real_context = multiprocessing.get_context("spawn")
+        connections = []
+        context = mock.Mock()
+
+        def make_pipe(*, duplex):
+            endpoints = real_context.Pipe(duplex=duplex)
+            connections.extend(endpoints)
+            return endpoints
+
+        context.Pipe.side_effect = make_pipe
+        context.Process.side_effect = real_context.Process
+        with mock.patch.object(
+            runner, "_control_process_context", return_value=context
+        ):
+            results, details = runner._run_lock_control(
+                state, run, identities[0], parts[0][2]
+            )
+        self.assertTrue(results["second_writer_rejected"])
+        self.assertEqual(details["first_writer_exit_code"], 0)
+        self.assertTrue(all(connection.closed for connection in connections))
+
+    def test_exact_control_child_that_ignores_terminate_is_killed(self) -> None:
+        context = multiprocessing.get_context("spawn")
+        ready_receiver, ready_sender = context.Pipe(duplex=False)
+        process = context.Process(
+            name="csi-pairs-kill-fallback-test",
+            target=_ignore_sigterm_worker,
+            args=(ready_sender,),
+        )
+        process.start()
+        finished = False
+        try:
+            ready_sender.close()
+            self.assertTrue(ready_receiver.poll(120.0))
+            self.assertEqual(ready_receiver.recv_bytes(), b"1")
+            ready_receiver.close()
+            with mock.patch.object(
+                runner, "CONTROL_CHILD_JOIN_TIMEOUT_SECONDS", 0.1
+            ):
+                exit_code = runner._finish_exact_control_child(
+                    process, initial_timeout=0.1
+                )
+            finished = True
+        finally:
+            ready_receiver.close()
+            ready_sender.close()
+            if not finished:
+                try:
+                    runner._finish_exact_control_child(
+                        process, initial_timeout=0.0
+                    )
+                except BaseException:
+                    pass
+        self.assertEqual(exit_code, -signal.SIGKILL)
 
     def test_real_output_controls_exercise_resume_integrity_primitives(self) -> None:
         source_payload = (
