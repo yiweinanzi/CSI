@@ -8,6 +8,7 @@ Authoritative paths:
 - Legacy source/run: /root/xunlian/Futaoran/CSI_FACTORIAL_PILOT_FIX_20260825/code/CSI-PAIRS-v2.0-server and its runs/formal-v6-gpu-9850fff-20260825T071800Z
 - Protocol: /root/xunlian/Futaoran/CSI_FACTORIAL_PILOT_FIX_20260825/Idea1-CSI-PAIRS-冻结版-零基础阅读稿-v6_VSCode兼容版.md
 - Evidence root: /root/xunlian/Futaoran/formal_external_inputs/evaluation_migration_8d489b2_20260831
+- Wi-GATr runtime preflight: /root/xunlian/Futaoran/formal_external_inputs/evaluation_migration_8d489b2_20260831/wigatr_runtime_preflight.json
 - Approval output: /root/xunlian/Futaoran/formal_external_inputs/migration_approvals/formal-v6-streaming-8d489b2-d7d0b8affcd40f05/LLM_JUDGE_MIGRATION_APPROVAL.json
 
 Constraints:
@@ -35,6 +36,16 @@ Constraints:
 8. Confirm the migration authorizes only immutable qualification/factorial/checkpoint
    reuse, creates a new source/run identity, and does not authorize legacy
    evaluation output or provenance rewriting.
+9. Independently validate the Wi-GATr runtime preflight. The only permitted
+   untracked formal_v2 entry is
+   formal_v2/external_adapters/.venv-wigatr, which must be a symbolic link to
+   /root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/formal_v2/external_adapters/.venv-wigatr.
+   Confirm this excluded runtime does not change the tracked commit or source-tree
+   digest. Reprobe it with PYTHONDONTWRITEBYTECODE=1 and Python -B, compare the
+   complete distribution, RECORD, lock-file, Torch, CUDA and deterministic-runtime
+   fields with the legacy approved Wi-GATr provenance, and require identical
+   interpreter/environment realpaths. Only the worktree-visible executable and
+   prefix paths, and therefore their canonical environment digest, may differ.
 
 If any required evidence is missing, malformed, inconsistent, non-equivalent,
 expired, or insufficient, do not create the approval file. Report REJECT with exact

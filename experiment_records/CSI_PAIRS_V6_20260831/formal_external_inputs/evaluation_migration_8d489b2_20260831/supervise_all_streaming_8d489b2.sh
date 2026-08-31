@@ -9,9 +9,15 @@ SUPERVISION_ROOT=/root/xunlian/Futaoran/formal_external_inputs/supervision/forma
 EXPECTED_COMMIT=8d489b2387e7bb6c988a41d9e0d57b8a6cffc4d4
 EXPECTED_SOURCE_SHA256=aa5b1d6a1062d68bb5de045b40f042e1a453d14a8d73632ad0be86dc7b07caff
 EXPECTED_LAUNCHER_SHA256=399a848fc5bb31cbb7c71a857f10584655164fdb6ae2b9321c765f7a459e6e1b
+WIGATR_LINK="$RUNTIME_ROOT/formal_v2/external_adapters/.venv-wigatr"
+WIGATR_TARGET=/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/formal_v2/external_adapters/.venv-wigatr
+RUNTIME_PROBE=/root/xunlian/Futaoran/formal_external_inputs/evaluation_migration_8d489b2_20260831/probe_wigatr_runtime_8d489b2.sh
+EXPECTED_RUNTIME_PROBE_SHA256=0fd56ff2fb391d133861eb5986f01aa2ac3daba0ab719f6e41cbd5ebd1283d69
 POLL_SECONDS=300
 
 export PYTHONDONTWRITEBYTECODE=1
+export CUDA_VISIBLE_DEVICES=0,1
+export CUBLAS_WORKSPACE_CONFIG=:4096:8
 
 mkdir -p "$SUPERVISION_ROOT"
 exec 9>"$SUPERVISION_ROOT/supervisor.lock"
@@ -40,14 +46,26 @@ preflight() {
     || refuse LAUNCHER_SHA_MISMATCH || return 1
   [[ "$(git -C "$RUNTIME_ROOT" rev-parse HEAD)" == "$EXPECTED_COMMIT" ]] \
     || refuse COMMIT_MISMATCH || return 1
-  [[ -z "$(git -C "$RUNTIME_ROOT" status --porcelain)" ]] \
-    || refuse DIRTY_WORKTREE || return 1
+  [[ -z "$(git -C "$RUNTIME_ROOT" status --porcelain --untracked-files=no)" ]] \
+    || refuse TRACKED_WORKTREE_DIRTY || return 1
+  [[ "$(git -C "$RUNTIME_ROOT" ls-files --others --exclude-standard -- formal_v2)" == "formal_v2/external_adapters/.venv-wigatr" ]] \
+    || refuse UNREVIEWED_UNTRACKED_FORMAL_SOURCE || return 1
+  [[ -L "$WIGATR_LINK" && "$(readlink "$WIGATR_LINK")" == "$WIGATR_TARGET" ]] \
+    || refuse WIGATR_RUNTIME_LINK_MISMATCH || return 1
+  [[ -x "$WIGATR_LINK/bin/python" ]] \
+    || refuse WIGATR_RUNTIME_EXECUTABLE_MISSING || return 1
+  [[ -f "$RUNTIME_PROBE" && ! -L "$RUNTIME_PROBE" && -x "$RUNTIME_PROBE" ]] \
+    || refuse WIGATR_RUNTIME_PROBE_MISSING || return 1
+  [[ "$(sha256sum "$RUNTIME_PROBE" | awk '{print $1}')" == "$EXPECTED_RUNTIME_PROBE_SHA256" ]] \
+    || refuse WIGATR_RUNTIME_PROBE_SHA_MISMATCH || return 1
   (
     cd "$RUNTIME_ROOT" || exit 1
     "$RUNTIME_PYTHON" -B -c \
       'from formal_v2.formal_migration import _source_identity; import sys; value=_source_identity("formal_v2"); sys.exit(0 if value["git_commit"]==sys.argv[1] and value["source_tree_sha256"]==sys.argv[2] else 1)' \
       "$EXPECTED_COMMIT" "$EXPECTED_SOURCE_SHA256"
   ) || refuse SOURCE_IDENTITY_MISMATCH || return 1
+  "$RUNTIME_PROBE" validate >>"$SUPERVISOR_LOG" 2>&1 \
+    || refuse WIGATR_RUNTIME_PROVENANCE_MISMATCH || return 1
 }
 
 refuse_duplicate_child() {

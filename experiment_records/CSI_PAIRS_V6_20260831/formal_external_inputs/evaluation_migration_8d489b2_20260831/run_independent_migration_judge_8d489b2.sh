@@ -22,6 +22,7 @@ required=(
   "$EVIDENCE_ROOT/controls/lock.json"
   "$EVIDENCE_ROOT/controls/progress.json"
   "$EVIDENCE_ROOT/base_to_new_diff.json"
+  "$EVIDENCE_ROOT/wigatr_runtime_preflight.json"
   "$EVIDENCE_ROOT/post_exit_freeze/legacy_evaluation_inventory.json"
   "$EVIDENCE_ROOT/post_exit_freeze/legacy_evaluation_post_exit_freeze.json"
 )

@@ -4,6 +4,8 @@ set -euo pipefail
 evidence_root=/root/xunlian/Futaoran/formal_external_inputs/evaluation_migration_8d489b2_20260831
 runtime_root=/root/xunlian/Futaoran/CSI_EVALUATION_RUNTIME_FINAL_20260831/code/CSI-PAIRS-v2.0-server
 runtime_python=/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/bin/python
+runtime_probe="$evidence_root/probe_wigatr_runtime_8d489b2.sh"
+runtime_report="$evidence_root/wigatr_runtime_preflight.json"
 
 required_evidence=(
   "$evidence_root/performance/performance.json"
@@ -23,6 +25,16 @@ for artifact in "${required_evidence[@]}"; do
     exit 93
   fi
 done
+
+if [[ ! -f "$runtime_probe" || -L "$runtime_probe" || ! -x "$runtime_probe" ]]; then
+  printf 'REFUSAL=Wi-GATr runtime preflight is missing or unsafe: %s\n' "$runtime_probe" >&2
+  exit 94
+fi
+"$runtime_probe" write
+if [[ ! -f "$runtime_report" || -L "$runtime_report" ]]; then
+  printf 'REFUSAL=Wi-GATr runtime preflight report is missing or unsafe: %s\n' "$runtime_report" >&2
+  exit 95
+fi
 
 cd "$runtime_root"
 export PYTHONDONTWRITEBYTECODE=1
