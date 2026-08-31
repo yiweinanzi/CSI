@@ -19,6 +19,7 @@ RUN_ALL="$EVIDENCE_ROOT/run_all_streaming_8d489b2.sh"
 SUPERVISOR="$EVIDENCE_ROOT/supervise_all_streaming_8d489b2.sh"
 WIGATR_PROBE="$EVIDENCE_ROOT/probe_wigatr_runtime_8d489b2.sh"
 REQUEST_CREATOR="$EVIDENCE_ROOT/create_migration_request_8d489b2.sh"
+GATE_VALIDATOR="$EVIDENCE_ROOT/validate_migration_gates_8d489b2.sh"
 CONFIG="$RUNTIME_ROOT/formal_v2/configs/formal_v2.json"
 DATASET=/root/xunlian/Futaoran/正式开始训练/CSI-PAIRS-V6-WIDEBAND-FORMAL-227-20260819T105509Z/dataset.npz
 PROTOCOL=/root/xunlian/Futaoran/CSI_FACTORIAL_PILOT_FIX_20260825/Idea1-CSI-PAIRS-冻结版-零基础阅读稿-v6_VSCode兼容版.md
@@ -30,12 +31,13 @@ LAUNCH_RECEIPT="$COORDINATION_ROOT/supervisor_launch_receipt.json"
 SUPERVISOR_IDENTITY="$SUPERVISION_ROOT/state/supervisor_identity.env"
 SUPERVISOR_EXIT="$SUPERVISION_ROOT/state/supervisor_exit.env"
 EXPECTED_JUDGE=codex:gpt-5.6-sol-ultra-independent-migration-review-8d489b2
-EXPECTED_PROMPT_SHA256=1d70d5452615709edd527b9fd8c7d52bc85c099d52e576fcd00a6271c1e91b8c
-EXPECTED_JUDGE_RUNNER_SHA256=bf167aedfbce1d767e6f97b2dbf01a582282ebc0ccc1834b46cb186a7549a2bb
+EXPECTED_PROMPT_SHA256=6902850bd4ec66aa85cd429bb3ab5ccc38d6719f0496bae99bd44a7afbef5621
+EXPECTED_JUDGE_RUNNER_SHA256=554624e8eadd8b3e75c5f1a6ece3deacf7921d3282397f1c66e4814dc2cd4a06
 EXPECTED_RUN_ALL_SHA256=399a848fc5bb31cbb7c71a857f10584655164fdb6ae2b9321c765f7a459e6e1b
 EXPECTED_SUPERVISOR_SHA256=22cb80762e7e11a4f728fc0746459b69880be43aa52d770b00ee9de77c9ed3ad
 EXPECTED_WIGATR_PROBE_SHA256=099901cc3b68a7021728ce37c74a037e77f3047a24200da966e899b6f7debf0f
-EXPECTED_REQUEST_CREATOR_SHA256=c2f6e76609758de033a9d25d4bccd04d0518cc3767c081174d4ad6cfdcb12914
+EXPECTED_REQUEST_CREATOR_SHA256=c03d756401d35260077b474aef1d7ff94718d0e9ab7732dcd964923c7a185b9c
+EXPECTED_GATE_VALIDATOR_SHA256=ba823dca6255daab3daffb416cca8a5c914a6c892e2c8407d53cf50196aba823
 EXPECTED_RUNTIME_COMMIT=8d489b2387e7bb6c988a41d9e0d57b8a6cffc4d4
 EXPECTED_SOURCE_SHA256=aa5b1d6a1062d68bb5de045b40f042e1a453d14a8d73632ad0be86dc7b07caff
 
@@ -109,6 +111,7 @@ static_preflight() {
   require_file_sha "$SUPERVISOR" "$EXPECTED_SUPERVISOR_SHA256"
   require_file_sha "$WIGATR_PROBE" "$EXPECTED_WIGATR_PROBE_SHA256"
   require_file_sha "$REQUEST_CREATOR" "$EXPECTED_REQUEST_CREATOR_SHA256"
+  require_file_sha "$GATE_VALIDATOR" "$EXPECTED_GATE_VALIDATOR_SHA256"
   [[ "$(git -C "$RUNTIME_ROOT" rev-parse HEAD)" == "$EXPECTED_RUNTIME_COMMIT" ]] \
     || refuse RUNTIME_COMMIT_MISMATCH
   [[ -z "$(git -C "$RUNTIME_ROOT" status --porcelain --untracked-files=no)" ]] \
@@ -129,7 +132,7 @@ write_or_validate_transport_receipt() {
   "$RUNTIME_PYTHON" -B - \
     "$REQUEST" "$APPROVAL" "$APPROVAL_ROOT" "$TRANSPORT_RECEIPT" \
     "$EXPECTED_JUDGE" "$PROMPT" "$JUDGE_RUNNER" "$RUN_ALL" \
-    "$SUPERVISOR" "$WIGATR_PROBE" "$REQUEST_CREATOR" <<'PY'
+    "$SUPERVISOR" "$WIGATR_PROBE" "$REQUEST_CREATOR" "$GATE_VALIDATOR" <<'PY'
 from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
@@ -157,8 +160,8 @@ approval_path = Path(sys.argv[2])
 approval_root = Path(sys.argv[3])
 receipt_path = Path(sys.argv[4])
 expected_judge = sys.argv[5]
-prompt_path, runner_path, run_all_path, supervisor_path, probe_path, creator_path = (
-    Path(value) for value in sys.argv[6:12]
+prompt_path, runner_path, run_all_path, supervisor_path, probe_path, creator_path, validator_path = (
+    Path(value) for value in sys.argv[6:13]
 )
 if approval_root.is_symlink() or not approval_root.is_dir():
     raise RuntimeError("approval root is missing or unsafe")
@@ -234,6 +237,7 @@ core = {
         "supervisor": binding(supervisor_path),
         "wigatr_probe": binding(probe_path),
         "request_creator": binding(creator_path),
+        "gate_validator": binding(validator_path),
     },
     "python_dont_write_bytecode": True,
 }

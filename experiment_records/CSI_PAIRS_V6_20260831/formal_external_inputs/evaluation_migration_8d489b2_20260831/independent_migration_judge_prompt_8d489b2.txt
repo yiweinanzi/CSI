@@ -9,6 +9,7 @@ Authoritative paths:
 - Protocol: /root/xunlian/Futaoran/CSI_FACTORIAL_PILOT_FIX_20260825/Idea1-CSI-PAIRS-冻结版-零基础阅读稿-v6_VSCode兼容版.md
 - Evidence root: /root/xunlian/Futaoran/formal_external_inputs/evaluation_migration_8d489b2_20260831
 - Wi-GATr runtime preflight: /root/xunlian/Futaoran/formal_external_inputs/evaluation_migration_8d489b2_20260831/wigatr_runtime_preflight.json
+- Strict migration gate validator: /root/xunlian/Futaoran/formal_external_inputs/evaluation_migration_8d489b2_20260831/validate_migration_gates_8d489b2.sh
 - Runner-controlled approval output: /root/xunlian/Futaoran/formal_external_inputs/migration_approvals/formal-v6-streaming-8d489b2-d7d0b8affcd40f05/LLM_JUDGE_MIGRATION_APPROVAL.json
 
 Constraints:
@@ -53,7 +54,10 @@ Constraints:
    the runtime provenance distribution map.
 10. Review run_all_streaming_8d489b2.sh,
     supervise_all_streaming_8d489b2.sh and
-    probe_wigatr_runtime_8d489b2.sh. Confirm their fixed source, launcher,
+    probe_wigatr_runtime_8d489b2.sh. Run
+    validate_migration_gates_8d489b2.sh all and independently inspect the
+    reports it validates; the helper is an additional check, not a substitute
+    for independent review. Confirm the helpers' fixed source, launcher,
     runtime-link and runtime-probe identities; confirm automatic retry is limited
     to at most three attempts before any downstream stage starts; and confirm the
     supervisor refuses to rerun all after risk, path, external baselines,

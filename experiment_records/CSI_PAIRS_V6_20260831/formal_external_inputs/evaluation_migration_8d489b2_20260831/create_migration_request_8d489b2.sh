@@ -7,6 +7,8 @@ runtime_python=/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2
 runtime_probe="$evidence_root/probe_wigatr_runtime_8d489b2.sh"
 runtime_report="$evidence_root/wigatr_runtime_preflight.json"
 runtime_probe_sha256=099901cc3b68a7021728ce37c74a037e77f3047a24200da966e899b6f7debf0f
+gate_validator="$evidence_root/validate_migration_gates_8d489b2.sh"
+gate_validator_sha256=ba823dca6255daab3daffb416cca8a5c914a6c892e2c8407d53cf50196aba823
 
 required_evidence=(
   "$evidence_root/performance/performance.json"
@@ -27,18 +29,28 @@ for artifact in "${required_evidence[@]}"; do
   fi
 done
 
+if [[ ! -f "$gate_validator" || -L "$gate_validator" || ! -x "$gate_validator" ]]; then
+  printf 'REFUSAL=migration gate validator is missing or unsafe: %s\n' "$gate_validator" >&2
+  exit 94
+fi
+if [[ "$(sha256sum "$gate_validator" | awk '{print $1}')" != "$gate_validator_sha256" ]]; then
+  printf 'REFUSAL=migration gate validator SHA-256 mismatch: %s\n' "$gate_validator" >&2
+  exit 95
+fi
+"$gate_validator" all
+
 if [[ ! -f "$runtime_probe" || -L "$runtime_probe" || ! -x "$runtime_probe" ]]; then
   printf 'REFUSAL=Wi-GATr runtime preflight is missing or unsafe: %s\n' "$runtime_probe" >&2
-  exit 94
+  exit 96
 fi
 if [[ "$(sha256sum "$runtime_probe" | awk '{print $1}')" != "$runtime_probe_sha256" ]]; then
   printf 'REFUSAL=Wi-GATr runtime preflight SHA-256 mismatch: %s\n' "$runtime_probe" >&2
-  exit 95
+  exit 97
 fi
 "$runtime_probe" write
 if [[ ! -f "$runtime_report" || -L "$runtime_report" ]]; then
   printf 'REFUSAL=Wi-GATr runtime preflight report is missing or unsafe: %s\n' "$runtime_report" >&2
-  exit 96
+  exit 98
 fi
 
 cd "$runtime_root"
