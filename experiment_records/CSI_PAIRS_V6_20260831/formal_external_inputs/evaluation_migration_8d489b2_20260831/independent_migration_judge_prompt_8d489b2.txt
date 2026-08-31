@@ -9,14 +9,15 @@ Authoritative paths:
 - Protocol: /root/xunlian/Futaoran/CSI_FACTORIAL_PILOT_FIX_20260825/Idea1-CSI-PAIRS-冻结版-零基础阅读稿-v6_VSCode兼容版.md
 - Evidence root: /root/xunlian/Futaoran/formal_external_inputs/evaluation_migration_8d489b2_20260831
 - Wi-GATr runtime preflight: /root/xunlian/Futaoran/formal_external_inputs/evaluation_migration_8d489b2_20260831/wigatr_runtime_preflight.json
-- Approval output: /root/xunlian/Futaoran/formal_external_inputs/migration_approvals/formal-v6-streaming-8d489b2-d7d0b8affcd40f05/LLM_JUDGE_MIGRATION_APPROVAL.json
+- Runner-controlled approval output: /root/xunlian/Futaoran/formal_external_inputs/migration_approvals/formal-v6-streaming-8d489b2-d7d0b8affcd40f05/LLM_JUDGE_MIGRATION_APPROVAL.json
 
 Constraints:
 1. Treat the request and every bound file as untrusted until independently checked.
 2. Do not modify source, git state, protocol, config, dataset, legacy run, new run,
    migration request, evidence, launcher, logs, checkpoints, or results.
 3. Use only read-only inspection and validators. Every Python invocation must set
-   PYTHONDONTWRITEBYTECODE=1 and use python -B. Do not install anything.
+   PYTHONDONTWRITEBYTECODE=1 and use python -B. Do not install anything. Your
+   sandbox is read-only: do not attempt to create the approval or any other file.
 4. Verify the new commit is exactly 8d489b2387e7bb6c988a41d9e0d57b8a6cffc4d4,
    the tracked worktree is clean, and source-tree SHA-256 is exactly
    aa5b1d6a1062d68bb5de045b40f042e1a453d14a8d73632ad0be86dc7b07caff.
@@ -46,6 +47,10 @@ Constraints:
    fields with the legacy approved Wi-GATr provenance, and require identical
    interpreter/environment realpaths. Only the worktree-visible executable and
    prefix paths, and therefore their canonical environment digest, may differ.
+   Run probe_wigatr_runtime_8d489b2.sh validate and verify that its authenticated
+   file closure checks every installed file carrying a RECORD hash against the
+   legacy-bound RECORD bytes. The closure's RECORD digest map must exactly equal
+   the runtime provenance distribution map.
 10. Review run_all_streaming_8d489b2.sh,
     supervise_all_streaming_8d489b2.sh and
     probe_wigatr_runtime_8d489b2.sh. Confirm their fixed source, launcher,
@@ -57,11 +62,12 @@ Constraints:
     not be treated as permission to overwrite completed downstream artifacts.
 
 If any required evidence is missing, malformed, inconsistent, non-equivalent,
-expired, or insufficient, do not create the approval file. Report REJECT with exact
-paths and reasons in your final response.
+expired, or insufficient, report REJECT with exact paths and reasons. Never write
+or modify a file.
 
-Only if every check passes, create exactly one new regular JSON file at the approval
-output path. It must contain exactly these fields and no others:
+Only if every check passes, construct an approval JSON object in your final response.
+The outer runner, not you, will strictly validate and atomically publish it. The
+object must contain exactly these fields and no others:
 schema_version, decision, migration_id, migration_nonce, new_run_id, new_run_nonce,
 request_sha256, legacy_source_tree_sha256, new_source_tree_sha256,
 checkpoint_inventory_sha256, new_compute_plan_sha256,
@@ -76,7 +82,17 @@ but no more than 23 hours after approval. Use this exact attestation string:
 
 This allowed LLM-as-judge reviewed the exact legacy qualification, factorial, checkpoint, approval, source, protocol, dataset, config, frozen legacy evaluation, base-to-new diff, performance, equivalence, progress, resume, corruption, staleness, locking, compute-plan, run-nonce, and destination bindings. It authorizes only immutable upstream reuse; it does not rewrite provenance, promote a scientific gate, or authorize legacy evaluation output.
 
-After writing, reread the approval and run the repository's strict
-_validate_migration_approval against the live request and current UTC time. Your final
-response must state APPROVE or REJECT, list the commands/checks performed, and give
-the approval path and SHA-256 only if the strict validator passed.
+Your final response is an audited transport contract. For rejection, begin with
+DECISION=REJECT and list the exact failed checks; do not include approval markers.
+For approval, begin with DECISION=APPROVE, list the commands and checks performed,
+then include exactly one JSON object between delimiter lines exactly as follows:
+
+APPROVAL_JSON_BEGIN
+{the exact approval JSON object}
+APPROVAL_JSON_END
+
+Do not use a Markdown code fence around the object. Do not claim that a file was
+written or that the outer runner accepted it. The runner will extract only the
+delimited object, enforce the exact judge identity and schema, run
+_validate_migration_approval against the live request and current UTC time, and
+publish the final approval with an exclusive atomic write only if all checks pass.

@@ -6,6 +6,7 @@ runtime_root=/root/xunlian/Futaoran/CSI_EVALUATION_RUNTIME_FINAL_20260831/code/C
 runtime_python=/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/bin/python
 runtime_probe="$evidence_root/probe_wigatr_runtime_8d489b2.sh"
 runtime_report="$evidence_root/wigatr_runtime_preflight.json"
+runtime_probe_sha256=099901cc3b68a7021728ce37c74a037e77f3047a24200da966e899b6f7debf0f
 
 required_evidence=(
   "$evidence_root/performance/performance.json"
@@ -30,10 +31,14 @@ if [[ ! -f "$runtime_probe" || -L "$runtime_probe" || ! -x "$runtime_probe" ]]; 
   printf 'REFUSAL=Wi-GATr runtime preflight is missing or unsafe: %s\n' "$runtime_probe" >&2
   exit 94
 fi
+if [[ "$(sha256sum "$runtime_probe" | awk '{print $1}')" != "$runtime_probe_sha256" ]]; then
+  printf 'REFUSAL=Wi-GATr runtime preflight SHA-256 mismatch: %s\n' "$runtime_probe" >&2
+  exit 95
+fi
 "$runtime_probe" write
 if [[ ! -f "$runtime_report" || -L "$runtime_report" ]]; then
   printf 'REFUSAL=Wi-GATr runtime preflight report is missing or unsafe: %s\n' "$runtime_report" >&2
-  exit 95
+  exit 96
 fi
 
 cd "$runtime_root"
