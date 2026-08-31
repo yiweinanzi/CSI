@@ -1,0 +1,47 @@
+{
+  "schema_version": "csi-pairs-v6-github-runtime-preflight-update-v1",
+  "created_at": "2026-08-31T22:04:35+08:00",
+  "source_commit": "8d489b2387e7bb6c988a41d9e0d57b8a6cffc4d4",
+  "source_tree_sha256": "aa5b1d6a1062d68bb5de045b40f042e1a453d14a8d73632ad0be86dc7b07caff",
+  "scientific_use": "NOT_A_SCIENTIFIC_RESULT",
+  "tests": {
+    "claim_control_checkpoint_auth": {
+      "passed": 17,
+      "skipped": 0,
+      "failed": 0
+    },
+    "migration_streaming_resume": {
+      "passed": 66,
+      "skipped": 1,
+      "failed": 0
+    }
+  },
+  "supervisor_preapproval_negative_test": {
+    "expected_exit_code": 92,
+    "observed_exit_code": 92,
+    "formal_process_count_changed": false,
+    "reason": "ACCEPTED_RECEIPT_MISSING"
+  },
+  "artifacts": [
+    {
+      "path": "formal_external_inputs/evaluation_migration_8d489b2_20260831/claim_control_checkpoint_auth_8d489b2.xml",
+      "bytes": 3678,
+      "sha256": "70acdae379950dcd3152944b473755d573751efba1af1c0f9e96bf668c760aa5"
+    },
+    {
+      "path": "formal_external_inputs/evaluation_migration_8d489b2_20260831/migration_streaming_resume_8d489b2.xml",
+      "bytes": 11713,
+      "sha256": "96a74dc5bb01d9dae28de442fdb0ed74c58e44b5827db8cf30ed8fa644dc4767"
+    },
+    {
+      "path": "formal_external_inputs/evaluation_migration_8d489b2_20260831/supervise_all_streaming_8d489b2.sh",
+      "bytes": 4932,
+      "sha256": "fc3102fe508d56b7c407d950663a1104435f97f895e485b6a88ba7ae0814099e"
+    },
+    {
+      "path": "formal_external_inputs/supervision/formal-v6-streaming-8d489b2-d7d0b8affcd40f05/supervisor.preapproval-negative-test.log",
+      "bytes": 120,
+      "sha256": "e5a15a27b3b94680679e3a308d0d9afbd6193e10303576a9f00517a4fc0b93eb"
+    }
+  ]
+}

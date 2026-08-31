@@ -67,3 +67,9 @@
 追加文件的逐项 SHA-256、来源与远端绑定记录在 `formal_external_inputs/github_uploads/CSI_PAIRS_V6_MIGRATION_EVIDENCE_UPDATE_20260831.json`。这些材料证明迁移输入和代码变更可追踪，但在等价性、性能、resume、锁和独立 LLM 审批全部通过之前，仍不构成正式 evaluation 或科学结论。
 
 同一目录还保存了经过语法和 fail-closed 预验的 smoke、迁移请求及正式 `all` launcher；其 SHA 收据为 `formal_external_inputs/github_uploads/CSI_PAIRS_V6_MIGRATION_LAUNCHERS_UPDATE_20260831.json`。这些 launcher 尚未表示对应阶段已运行或通过。
+
+## 2026-08-31 正式续跑预检追加
+
+最终 runtime 的 checkpoint 合同定向测试为 `17 passed`；迁移与 streaming resume 定向测试为 `66 passed, 1 skipped`。本追加保存两份 JUnit XML、一个身份绑定的耐久 `all` supervisor，以及 supervisor 在缺少 migration `accepted.json` 时以退出码 `92` 拒绝启动的负向测试日志。
+
+这些测试证明当前代码具备 checkpoint 预验、finalization 恢复和 fail-closed 启动行为，但不替代仍在运行的真实子集等价性、N/2N/4N、controls、smoke 或独立 LLM 审批。逐项 SHA-256 见 `formal_external_inputs/github_uploads/CSI_PAIRS_V6_RUNTIME_PREFLIGHT_UPDATE_20260831.json`。
