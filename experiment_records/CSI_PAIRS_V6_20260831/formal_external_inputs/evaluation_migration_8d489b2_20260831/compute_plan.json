@@ -1,0 +1,37 @@
+{
+  "schema_version": "csi-pairs-v6-migration-compute-plan-v1",
+  "status": "FROZEN",
+  "created_utc": "2026-08-31T12:23:35Z",
+  "run_id": "csi-pairs-d7d0b8affcd40f05",
+  "run_nonce": "d7d0b8affcd40f0503f800f7501d7da1573cc752460cda16e772f43af159ac2a",
+  "source_commit": "8d489b2387e7bb6c988a41d9e0d57b8a6cffc4d4",
+  "source_tree_sha256": "aa5b1d6a1062d68bb5de045b40f042e1a453d14a8d73632ad0be86dc7b07caff",
+  "output_root": "/root/xunlian/Futaoran/CSI_EVALUATION_RUNTIME_FINAL_20260831/code/CSI-PAIRS-v2.0-server/runs/formal-v6-streaming-8d489b2-d7d0b8affcd40f05",
+  "dataset_sha256": "060d8671380acaf43bd0beb2c77ac5c6ec112e4ddc083451ab36a5916b7c9cac",
+  "config_sha256": "ce0d6de3d77ed6edde2c9eca5f7ce4ab92c262b63ce50b25113c1cffc8a3ca46",
+  "gpu_mapping": [
+    {
+      "logical_device": "cuda:0",
+      "physical_index": 0,
+      "uuid": "GPU-0e31845b-99e5-7784-4b0d-d37446c79176",
+      "name": "NVIDIA A100-SXM4-40GB",
+      "total_memory_bytes": 42285268992
+    },
+    {
+      "logical_device": "cuda:1",
+      "physical_index": 1,
+      "uuid": "GPU-826ef21b-33e6-41a7-7a7b-c2e15cd2b96d",
+      "name": "NVIDIA A100-SXM4-40GB",
+      "total_memory_bytes": 42285268992
+    }
+  ],
+  "batch_size": 1,
+  "shard_size": 128,
+  "estimated_output_bytes": 32212254720,
+  "minimum_free_disk_bytes": 85899345920,
+  "free_disk_bytes_at_plan": 167482908672,
+  "estimated_wall_time_seconds": 259200,
+  "authorized_wall_time_seconds": 604800,
+  "estimated_gpu_hours": 144.0,
+  "authorized_gpu_hours": 336.0
+}

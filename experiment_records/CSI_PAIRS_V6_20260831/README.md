@@ -59,3 +59,9 @@
 - 归档前扫描了 GitHub token、AWS key、私钥、Bearer/JWT 和 URL 内嵌凭据等高置信模式，未发现命中。
 - `.pyc/.pyo` 数量为 `0`。
 - 源目录仅被读取；复制过程没有移动、清理或改写正式 run、日志、锁、checkpoint 或活跃比较器产物。
+
+## 2026-08-31 最终迁移证据追加
+
+证据分支随后追加了最终 runtime `8d489b2387e7bb6c988a41d9e0d57b8a6cffc4d4` 的正式迁移身份、旧 evaluation 退出现场冻结收据，以及固定提交到新 runtime 的逐文件补丁和差异验证报告。该追加仅包含 6 个小于 `5 MiB` 的轻量文件；未包含 dataset、checkpoint、权重、shard、运行环境、私有审计或密钥。
+
+追加文件的逐项 SHA-256、来源与远端绑定记录在 `formal_external_inputs/github_uploads/CSI_PAIRS_V6_MIGRATION_EVIDENCE_UPDATE_20260831.json`。这些材料证明迁移输入和代码变更可追踪，但在等价性、性能、resume、锁和独立 LLM 审批全部通过之前，仍不构成正式 evaluation 或科学结论。

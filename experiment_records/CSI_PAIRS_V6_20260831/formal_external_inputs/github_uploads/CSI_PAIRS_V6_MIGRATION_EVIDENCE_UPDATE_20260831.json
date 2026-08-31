@@ -1,0 +1,55 @@
+{
+  "schema_version": "csi-pairs-v6-github-migration-evidence-update-v1",
+  "created_utc": "2026-08-31T12:42:25Z",
+  "remote": "https://github.com/yiweinanzi/CSI",
+  "evidence_branch": "codex/csi-pairs-v6-full-evidence-20260831",
+  "runtime_branch": "codex/csi-pairs-v6-evaluation-runtime-20260831",
+  "runtime_commit": "8d489b2387e7bb6c988a41d9e0d57b8a6cffc4d4",
+  "migration_evidence_root": "formal_external_inputs/evaluation_migration_8d489b2_20260831",
+  "files": [
+    {
+      "path": "compute_plan.json",
+      "bytes": 1500,
+      "sha256": "2e13d8f72d24f06e704128cb6abe499fa82e02ac7ac59c9f9e0fa3ebac12d63d"
+    },
+    {
+      "path": "expected_identity.json",
+      "bytes": 1223,
+      "sha256": "af8632492fd5d22432ec6d5d1f32528b7a59036ecc6892dadf5d536047582d3b"
+    },
+    {
+      "path": "post_exit_freeze/legacy_evaluation_inventory.json",
+      "bytes": 3987,
+      "sha256": "d07bd8daf30b24e8b9a516f483ef7dff97de12a1e62b62071e3869f3938450ae"
+    },
+    {
+      "path": "post_exit_freeze/legacy_evaluation_post_exit_freeze.json",
+      "bytes": 11794,
+      "sha256": "c3837c3dc7213b93553084818a6f8fd991d2d7b2ffb15dc84f7e1c055f651eb7"
+    },
+    {
+      "path": "base_to_new_formal_v2.patch",
+      "bytes": 1676011,
+      "sha256": "f2f90305977300dc61eeae57a7b51972b186bbc78ea93a1eb5868547d6ac9ef4"
+    },
+    {
+      "path": "base_to_new_diff.json",
+      "bytes": 2873,
+      "sha256": "9d85cb136d3d5d480e9a116642fb55fd2653861a1b030353d03c829e3f95aee0"
+    }
+  ],
+  "file_count": 6,
+  "total_bytes": 1697388,
+  "sensitive_pattern_scan": "PASS",
+  "dataset_included": false,
+  "checkpoint_or_weight_included": false,
+  "pyc_or_pyo_included": false,
+  "private_audit_included": false,
+  "fixed_run_contaminated": false,
+  "scientific_claims_authorized": false,
+  "notes": [
+    "This update archives lightweight migration identity and post-exit evidence generated after evidence commit 5bdc365.",
+    "The evidence does not by itself authorize cutover or a scientific PASS.",
+    "Active comparator inputs and outputs were read only and were not moved, deleted, or rewritten."
+  ]
+}

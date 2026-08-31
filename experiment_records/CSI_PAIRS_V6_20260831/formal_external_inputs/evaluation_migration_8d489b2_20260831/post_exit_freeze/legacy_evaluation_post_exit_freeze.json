@@ -1,0 +1,181 @@
+{
+  "command": "/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/bin/python -B -m formal_v2.formal_migration_postexit_runner --identity /root/xunlian/Futaoran/formal_external_inputs/evaluation_migration_8d489b2_20260831/expected_identity.json --legacy-run-root /root/xunlian/Futaoran/CSI_FACTORIAL_PILOT_FIX_20260825/code/CSI-PAIRS-v2.0-server/runs/formal-v6-gpu-9850fff-20260825T071800Z --output-dir /root/xunlian/Futaoran/formal_external_inputs/evaluation_migration_8d489b2_20260831/post_exit_freeze --operation-lock /root/xunlian/Futaoran/CSI_FACTORIAL_PILOT_FIX_20260825/code/CSI-PAIRS-v2.0-server/runs/.formal-v6-gpu-9850fff-20260825T071800Z.csi-pairs-operation.lock --archive-path /root/xunlian/Futaoran/formal_external_inputs/stale_operation_locks/formal-v6-gpu-9850fff-20260825T071800Z.lock.stale-after-oom-20260831.json --expected-lock-sha256 38914b79d1e965e346387a1d6cbb755f4e283a07c6b2146b31cb39323e4c9257 --expected-lock-pid 66858 --pid-snapshot /root/xunlian/Futaoran/formal_external_inputs/supervision/formal-v6-gpu-9850fff-20260825T071800Z/pid_identity.txt --monitor /root/xunlian/Futaoran/formal_external_inputs/supervision/formal-v6-gpu-9850fff-20260825T071800Z/monitor.tsv --kernel-oom-evidence /root/xunlian/Futaoran/formal_external_inputs/evaluation_legacy_exit_evidence_20260831/kernel_oom_pid159322_20260831T052605+0800.txt --exit-site /root/xunlian/Futaoran/formal_external_inputs/supervision/formal-v6-gpu-9850fff-20260825T071800Z/evaluation_exit_site.txt --timing /root/xunlian/Futaoran/formal_external_inputs/supervision/formal-v6-gpu-9850fff-20260825T071800Z/evaluation.timing.env --supervisor-log /root/xunlian/Futaoran/formal_external_inputs/supervision/formal-v6-gpu-9850fff-20260825T071800Z/supervisor.log --supervisor-script /root/xunlian/Futaoran/formal_external_inputs/supervision/formal-v6-gpu-9850fff-20260825T071800Z/supervise_evaluation.sh --config /root/xunlian/Futaoran/CSI_FACTORIAL_PILOT_FIX_20260825/code/CSI-PAIRS-v2.0-server/formal_v2/configs/formal_v2.json",
+  "created_utc": "2026-08-31T12:28:28.791540Z",
+  "inputs": {
+    "artifacts": [
+      {
+        "bytes": 3987,
+        "path": "/root/xunlian/Futaoran/formal_external_inputs/evaluation_migration_8d489b2_20260831/post_exit_freeze/legacy_evaluation_inventory.json",
+        "sha256": "d07bd8daf30b24e8b9a516f483ef7dff97de12a1e62b62071e3869f3938450ae"
+      },
+      {
+        "bytes": 1391,
+        "path": "/root/xunlian/Futaoran/formal_external_inputs/supervision/formal-v6-gpu-9850fff-20260825T071800Z/pid_identity.txt",
+        "sha256": "0e2ff2c8ca856caa4944843073cc1fccc1dee6e85677ede76d848b8c0f4cf74f"
+      },
+      {
+        "bytes": 8378,
+        "path": "/root/xunlian/Futaoran/formal_external_inputs/supervision/formal-v6-gpu-9850fff-20260825T071800Z/monitor.tsv",
+        "sha256": "d0e4a0982fdb41a5c5fa14d41853476fe49e5573f9a4791b3455140463b11cf5"
+      },
+      {
+        "bytes": 210,
+        "path": "/root/xunlian/Futaoran/formal_external_inputs/evaluation_legacy_exit_evidence_20260831/kernel_oom_pid159322_20260831T052605+0800.txt",
+        "sha256": "5596299a730f1b20b4a7684f6225b21a70bc36c7d51fa8f1ca698cb57615880c"
+      },
+      {
+        "bytes": 1232,
+        "path": "/root/xunlian/Futaoran/formal_external_inputs/supervision/formal-v6-gpu-9850fff-20260825T071800Z/evaluation_exit_site.txt",
+        "sha256": "d9181847490144b1a8342edb6a3d4ba92419843cd9e06a2c19ca2f0b1b1d441c"
+      },
+      {
+        "bytes": 141,
+        "path": "/root/xunlian/Futaoran/formal_external_inputs/supervision/formal-v6-gpu-9850fff-20260825T071800Z/evaluation.timing.env",
+        "sha256": "7e7da54340cd4bd8fc56636a2e81e268aafc7d3831e87297736fb32c3ba85531"
+      },
+      {
+        "bytes": 352,
+        "path": "/root/xunlian/Futaoran/formal_external_inputs/supervision/formal-v6-gpu-9850fff-20260825T071800Z/supervisor.log",
+        "sha256": "278aca2e6ff2e5f7fec0e9ac9285c2e5a6d376b849eee7a30f9719f973033f91"
+      },
+      {
+        "bytes": 7504,
+        "path": "/root/xunlian/Futaoran/formal_external_inputs/supervision/formal-v6-gpu-9850fff-20260825T071800Z/supervise_evaluation.sh",
+        "sha256": "a96459e0d137a1cf3943bbe7ed78187d72409c2dc8f3d2889e2b4e52e2930315"
+      },
+      {
+        "bytes": 5301,
+        "path": "/root/xunlian/Futaoran/CSI_FACTORIAL_PILOT_FIX_20260825/code/CSI-PAIRS-v2.0-server/formal_v2/configs/formal_v2.json",
+        "sha256": "6842a565ba733ec6e6d2d3f96e99926cba75ea29dc87d46019bdea795d6def42"
+      }
+    ],
+    "identity": {
+      "config_sha256": "ce0d6de3d77ed6edde2c9eca5f7ce4ab92c262b63ce50b25113c1cffc8a3ca46",
+      "dataset_sha256": "060d8671380acaf43bd0beb2c77ac5c6ec112e4ddc083451ab36a5916b7c9cac",
+      "legacy_commit": "9850fffe0b34f16b45066973308f18b10555ca5d",
+      "legacy_run_root": "/root/xunlian/Futaoran/CSI_FACTORIAL_PILOT_FIX_20260825/code/CSI-PAIRS-v2.0-server/runs/formal-v6-gpu-9850fff-20260825T071800Z",
+      "legacy_source_tree_sha256": "c63b699ed767134007e47157a733f68e4c31de8be4ca0c30d71ec46a08b85621",
+      "new_commit": "8d489b2387e7bb6c988a41d9e0d57b8a6cffc4d4",
+      "new_compute_plan_sha256": "2e13d8f72d24f06e704128cb6abe499fa82e02ac7ac59c9f9e0fa3ebac12d63d",
+      "new_run_id": "csi-pairs-d7d0b8affcd40f05",
+      "new_run_nonce": "d7d0b8affcd40f0503f800f7501d7da1573cc752460cda16e772f43af159ac2a",
+      "new_run_root": "/root/xunlian/Futaoran/CSI_EVALUATION_RUNTIME_FINAL_20260831/code/CSI-PAIRS-v2.0-server/runs/formal-v6-streaming-8d489b2-d7d0b8affcd40f05",
+      "new_source_tree_sha256": "aa5b1d6a1062d68bb5de045b40f042e1a453d14a8d73632ad0be86dc7b07caff",
+      "protocol_sha256": "5c31212d75fdde35074fe327cc4c6ea22abe5c7e3e8633e4f00ee267a9ef338f",
+      "requirements_lock_sha256": "9548a24a4faf5db17b5251df407b4402de033ae8648ec321c850fe6105002cf1"
+    }
+  },
+  "legacy_inventory_sha256": "d07bd8daf30b24e8b9a516f483ef7dff97de12a1e62b62071e3869f3938450ae",
+  "monitor": {
+    "all_pid_identity_matched": true,
+    "artifact": {
+      "bytes": 8378,
+      "path": "/root/xunlian/Futaoran/formal_external_inputs/supervision/formal-v6-gpu-9850fff-20260825T071800Z/monitor.tsv",
+      "sha256": "d0e4a0982fdb41a5c5fa14d41853476fe49e5573f9a4791b3455140463b11cf5"
+    },
+    "cpu_time_strictly_increased": true,
+    "evaluation_artifact_bytes_max": 0,
+    "evaluation_artifact_bytes_min": 0,
+    "evaluation_artifact_count_max": 0,
+    "evaluation_artifact_count_min": 0,
+    "first_observed_utc": "2026-08-30T07:20:32Z",
+    "last_rss_bytes": 145979613184,
+    "last_running_utc": "2026-08-30T21:23:08Z",
+    "maximum_gap_seconds": 603,
+    "maximum_rss_bytes": 145979613184,
+    "namespace_pid": 66858,
+    "pid_identity_sha256": "bcc357b38dcc6fc737a1b4a04c933663160e47713e53960831803845a96fbc09",
+    "sample_count": 87
+  },
+  "new_run_identity": {
+    "new_commit": "8d489b2387e7bb6c988a41d9e0d57b8a6cffc4d4",
+    "new_compute_plan_sha256": "2e13d8f72d24f06e704128cb6abe499fa82e02ac7ac59c9f9e0fa3ebac12d63d",
+    "new_run_id": "csi-pairs-d7d0b8affcd40f05",
+    "new_run_nonce": "d7d0b8affcd40f0503f800f7501d7da1573cc752460cda16e772f43af159ac2a",
+    "new_run_root": "/root/xunlian/Futaoran/CSI_EVALUATION_RUNTIME_FINAL_20260831/code/CSI-PAIRS-v2.0-server/runs/formal-v6-streaming-8d489b2-d7d0b8affcd40f05",
+    "new_source_tree_sha256": "aa5b1d6a1062d68bb5de045b40f042e1a453d14a8d73632ad0be86dc7b07caff"
+  },
+  "process_identity": {
+    "boot_id": "fdc6d132-f41a-46ac-a732-c969575124c4",
+    "cmd": "/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/bin/python -B -m formal_v2.formal_cli run-evaluation --config formal_v2/configs/formal_v2.json --dataset /root/xunlian/Futaoran/\u6b63\u5f0f\u5f00\u59cb\u8bad\u7ec3/CSI-PAIRS-V6-WIDEBAND-FORMAL-227-20260819T105509Z/dataset.npz --output runs/formal-v6-gpu-9850fff-20260825T071800Z",
+    "cwd": "/root/xunlian/Futaoran/CSI_FACTORIAL_PILOT_FIX_20260825/code/CSI-PAIRS-v2.0-server",
+    "exe": "/root/miniconda3/envs/csi-pairs-formal/bin/python3.12",
+    "identity_snapshot": {
+      "bytes": 1391,
+      "path": "/root/xunlian/Futaoran/formal_external_inputs/supervision/formal-v6-gpu-9850fff-20260825T071800Z/pid_identity.txt",
+      "sha256": "0e2ff2c8ca856caa4944843073cc1fccc1dee6e85677ede76d848b8c0f4cf74f"
+    },
+    "namespace_pid": 66858,
+    "pid_identity_sha256": "bcc357b38dcc6fc737a1b4a04c933663160e47713e53960831803845a96fbc09",
+    "start_ticks": 466542136,
+    "started_utc": "2026-08-29T02:52:49Z"
+  },
+  "residual_lock": {
+    "canonical_path": "/root/xunlian/Futaoran/CSI_FACTORIAL_PILOT_FIX_20260825/code/CSI-PAIRS-v2.0-server/runs/.formal-v6-gpu-9850fff-20260825T071800Z.csi-pairs-operation.lock",
+    "current_state": "ABSENT",
+    "historical_presence_observed": true,
+    "owner_authenticated": false,
+    "status": "PRESENCE_ONLY_UNVERIFIED_OWNER",
+    "used_as_safety_precondition": false
+  },
+  "results": {
+    "evaluation_inventory_empty": true,
+    "inventory_authenticated": true,
+    "lock_state": "PRESENCE_ONLY_UNVERIFIED_OWNER",
+    "lock_used_as_safety_precondition": false,
+    "monitor_window_valid": true,
+    "new_run_identity_authenticated": true,
+    "pid_relation": "CORRELATED_NOT_DIRECT",
+    "process_state": "EXITED",
+    "termination_reason": "MEMORY_CGROUP_OOM_KILL"
+  },
+  "schema_version": "csi-pairs-v6-legacy-evaluation-post-exit-freeze-receipt-v2",
+  "source_commit": "9850fffe0b34f16b45066973308f18b10555ca5d",
+  "source_tree_sha256": "c63b699ed767134007e47157a733f68e4c31de8be4ca0c30d71ec46a08b85621",
+  "status": "POST_EXIT_FROZEN",
+  "termination": {
+    "config_evidence": {
+      "bytes": 5301,
+      "path": "/root/xunlian/Futaoran/CSI_FACTORIAL_PILOT_FIX_20260825/code/CSI-PAIRS-v2.0-server/formal_v2/configs/formal_v2.json",
+      "sha256": "6842a565ba733ec6e6d2d3f96e99926cba75ea29dc87d46019bdea795d6def42"
+    },
+    "exit_code": "UNAVAILABLE_NON_SHELL_OBSERVER",
+    "exit_detected_utc": "2026-08-30T21:38:09Z",
+    "exit_site_evidence": {
+      "bytes": 1232,
+      "path": "/root/xunlian/Futaoran/formal_external_inputs/supervision/formal-v6-gpu-9850fff-20260825T071800Z/evaluation_exit_site.txt",
+      "sha256": "d9181847490144b1a8342edb6a3d4ba92419843cd9e06a2c19ca2f0b1b1d441c"
+    },
+    "exit_verified_utc": "2026-08-30T21:33:09Z",
+    "kernel_anon_rss_bytes": 145601642496,
+    "kernel_cgroup_oom_evidence": {
+      "bytes": 210,
+      "path": "/root/xunlian/Futaoran/formal_external_inputs/evaluation_legacy_exit_evidence_20260831/kernel_oom_pid159322_20260831T052605+0800.txt",
+      "sha256": "5596299a730f1b20b4a7684f6225b21a70bc36c7d51fa8f1ca698cb57615880c"
+    },
+    "kernel_comm": "python",
+    "kernel_host_pid": 159322,
+    "last_monitor_rss_bytes": 145979613184,
+    "namespace_pid": 66858,
+    "oom_event_utc": "2026-08-30T21:26:05Z",
+    "pid_relation": "CORRELATED_NOT_DIRECT",
+    "reason": "MEMORY_CGROUP_OOM_KILL",
+    "rss_relative_delta": 0.00258920187385061,
+    "rss_relative_delta_limit": 0.05,
+    "supervisor_log_evidence": {
+      "bytes": 352,
+      "path": "/root/xunlian/Futaoran/formal_external_inputs/supervision/formal-v6-gpu-9850fff-20260825T071800Z/supervisor.log",
+      "sha256": "278aca2e6ff2e5f7fec0e9ac9285c2e5a6d376b849eee7a30f9719f973033f91"
+    },
+    "supervisor_script_evidence": {
+      "bytes": 7504,
+      "path": "/root/xunlian/Futaoran/formal_external_inputs/supervision/formal-v6-gpu-9850fff-20260825T071800Z/supervise_evaluation.sh",
+      "sha256": "a96459e0d137a1cf3943bbe7ed78187d72409c2dc8f3d2889e2b4e52e2930315"
+    },
+    "timing_evidence": {
+      "bytes": 141,
+      "path": "/root/xunlian/Futaoran/formal_external_inputs/supervision/formal-v6-gpu-9850fff-20260825T071800Z/evaluation.timing.env",
+      "sha256": "7e7da54340cd4bd8fc56636a2e81e268aafc7d3831e87297736fb32c3ba85531"
+    }
+  }
+}
