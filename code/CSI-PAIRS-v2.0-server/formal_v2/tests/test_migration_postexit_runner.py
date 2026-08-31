@@ -159,6 +159,15 @@ class PostExitMigrationRunnerTests(unittest.TestCase):
         self.assertNotEqual(self.lock.stat().st_ino, self.archive.stat().st_ino)
         self.assertEqual(self._guard_identity(), self.guard_identity)
 
+    def test_rejects_nonempty_legacy_inventory_before_archiving(self) -> None:
+        late_output = self.fixture.legacy_run / "evaluation" / "late-output.json"
+        late_output.write_text("{}\n", encoding="ascii")
+        with self.assertRaisesRegex(
+            runner.PostExitMigrationError, "inventory must be empty"
+        ):
+            runner.run_post_exit_migration(**self._arguments())
+        self._assert_untouched_precondition_failure()
+
     def test_rejects_wrong_lock_sha_or_json_without_archiving(self) -> None:
         with self.assertRaisesRegex(runner.PostExitMigrationError, "SHA-256 mismatch"):
             runner.run_post_exit_migration(
