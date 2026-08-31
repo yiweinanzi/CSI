@@ -27,11 +27,13 @@ SUPERVISION_ROOT=/root/xunlian/Futaoran/formal_external_inputs/supervision/forma
 COORDINATION_ROOT="$SUPERVISION_ROOT/acceptance-coordinator"
 COORDINATION_RECEIPT="$COORDINATION_ROOT/acceptance_receipt.json"
 LAUNCH_RECEIPT="$COORDINATION_ROOT/supervisor_launch_receipt.json"
+SUPERVISOR_IDENTITY="$SUPERVISION_ROOT/state/supervisor_identity.env"
+SUPERVISOR_EXIT="$SUPERVISION_ROOT/state/supervisor_exit.env"
 EXPECTED_JUDGE=codex:gpt-5.6-sol-ultra-independent-migration-review-8d489b2
 EXPECTED_PROMPT_SHA256=1d70d5452615709edd527b9fd8c7d52bc85c099d52e576fcd00a6271c1e91b8c
-EXPECTED_JUDGE_RUNNER_SHA256=a1f1e7ae51a21849cfaba663473397aed6c30f850ec1ec31fb8e5dde977c409c
+EXPECTED_JUDGE_RUNNER_SHA256=bf167aedfbce1d767e6f97b2dbf01a582282ebc0ccc1834b46cb186a7549a2bb
 EXPECTED_RUN_ALL_SHA256=399a848fc5bb31cbb7c71a857f10584655164fdb6ae2b9321c765f7a459e6e1b
-EXPECTED_SUPERVISOR_SHA256=fee5fe65e56d738bd4056dbc693fd2a343247c8d855471f15d2b9a76ba29fa37
+EXPECTED_SUPERVISOR_SHA256=22cb80762e7e11a4f728fc0746459b69880be43aa52d770b00ee9de77c9ed3ad
 EXPECTED_WIGATR_PROBE_SHA256=099901cc3b68a7021728ce37c74a037e77f3047a24200da966e899b6f7debf0f
 EXPECTED_REQUEST_CREATOR_SHA256=c2f6e76609758de033a9d25d4bccd04d0518cc3767c081174d4ad6cfdcb12914
 EXPECTED_RUNTIME_COMMIT=8d489b2387e7bb6c988a41d9e0d57b8a6cffc4d4
@@ -56,6 +58,36 @@ require_file_sha() {
   [[ -f "$path" && ! -L "$path" ]] || refuse "MISSING_OR_UNSAFE:$path"
   [[ "$(sha256sum "$path" | awk '{print $1}')" == "$expected" ]] \
     || refuse "SHA256_MISMATCH:$path"
+}
+
+env_value() {
+  local path=$1
+  local key=$2
+  awk -F= -v expected="$key" '$1 == expected {print substr($0, length($1) + 2); found=1} END {if (!found) exit 1}' "$path"
+}
+
+supervisor_identity_matches() {
+  local expected_pid=${1:-}
+  local pid
+  local ticks
+  local cmd_sha
+  local supervisor_sha
+  local observed_ticks
+  local observed_cmd_sha
+  [[ -f "$SUPERVISOR_IDENTITY" && ! -L "$SUPERVISOR_IDENTITY" ]] || return 1
+  pid=$(env_value "$SUPERVISOR_IDENTITY" pid) || return 1
+  ticks=$(env_value "$SUPERVISOR_IDENTITY" start_ticks) || return 1
+  cmd_sha=$(env_value "$SUPERVISOR_IDENTITY" cmdline_sha256) || return 1
+  supervisor_sha=$(env_value "$SUPERVISOR_IDENTITY" supervisor_sha256) || return 1
+  [[ -z "$expected_pid" || "$pid" == "$expected_pid" ]] || return 1
+  [[ "$pid" =~ ^[1-9][0-9]*$ && "$ticks" =~ ^[1-9][0-9]*$ ]] || return 1
+  [[ "$cmd_sha" =~ ^[0-9a-f]{64}$ ]] || return 1
+  [[ "$supervisor_sha" == "$EXPECTED_SUPERVISOR_SHA256" ]] || return 1
+  [[ -r "/proc/$pid/stat" && -r "/proc/$pid/cmdline" ]] || return 1
+  observed_ticks=$(awk '{print $22}' "/proc/$pid/stat" 2>/dev/null) || return 1
+  [[ "$observed_ticks" == "$ticks" ]] || return 1
+  observed_cmd_sha=$(tr '\0' ' ' <"/proc/$pid/cmdline" 2>/dev/null | sha256sum | awk '{print $1}') || return 1
+  [[ "$observed_cmd_sha" == "$cmd_sha" ]]
 }
 
 scientific_pyc_count() {
@@ -332,31 +364,42 @@ launch_supervisor() {
   local boot_root
   local supervisor_pid
   local start_ticks
+  local loops=0
   mkdir -p "$SUPERVISION_ROOT"
   exec 8>"$SUPERVISION_ROOT/supervisor.lock"
   if ! flock -n 8; then
-    log SUPERVISOR_ALREADY_ACTIVE
+    supervisor_identity_matches \
+      || refuse SUPERVISOR_LOCK_HELD_WITHOUT_MATCHING_IDENTITY
+    log "SUPERVISOR_ALREADY_ACTIVE pid=$(env_value "$SUPERVISOR_IDENTITY" pid) start_ticks=$(env_value "$SUPERVISOR_IDENTITY" start_ticks)"
     return 0
   fi
   flock -u 8
   boot_root=$(mktemp -d "$COORDINATION_ROOT/supervisor-attempt-$(date -u +%Y%m%dT%H%M%SZ)-XXXXXX")
   nohup setsid "$SUPERVISOR" </dev/null >"$boot_root/stdout.log" 2>"$boot_root/stderr.log" &
   supervisor_pid=$!
-  sleep 5
-  [[ -r "/proc/$supervisor_pid/stat" ]] \
-    || refuse "SUPERVISOR_EXITED_DURING_BOOT:$boot_root"
-  start_ticks=$(awk '{print $22}' "/proc/$supervisor_pid/stat")
+  while ! supervisor_identity_matches "$supervisor_pid"; do
+    loops=$((loops + 1))
+    if ! kill -0 "$supervisor_pid" 2>/dev/null; then
+      refuse "SUPERVISOR_EXITED_BEFORE_IDENTITY_HANDSHAKE:$boot_root"
+    fi
+    (( loops <= 300 )) || refuse "SUPERVISOR_IDENTITY_HANDSHAKE_TIMEOUT:$boot_root"
+    sleep 0.1
+  done
+  start_ticks=$(env_value "$SUPERVISOR_IDENTITY" start_ticks)
   cd "$RUNTIME_ROOT"
   "$RUNTIME_PYTHON" -B - \
     "$LAUNCH_RECEIPT" "$supervisor_pid" "$start_ticks" "$SUPERVISOR" \
-    "$boot_root" "$ACCEPTED" <<'PY'
+    "$boot_root" "$ACCEPTED" "$SUPERVISOR_IDENTITY" <<'PY'
 from datetime import datetime, timezone
+import json
+import os
 from pathlib import Path
 import sys
 from formal_v2.formal_io import sha256_file
 from formal_v2.formal_migration_evidence import write_json_exclusive_atomic
 
-receipt, pid, ticks, supervisor, boot_root, accepted = sys.argv[1:7]
+receipt, pid, ticks, supervisor, boot_root, accepted, identity = sys.argv[1:8]
+boot_receipt = Path(boot_root) / "supervisor_launch_receipt.json"
 payload = {
     "schema_version": "csi-pairs-v6-supervisor-launch-v1",
     "status": "RUNNING",
@@ -368,8 +411,24 @@ payload = {
     "boot_root": str(Path(boot_root).resolve()),
     "accepted_path": str(Path(accepted).resolve()),
     "accepted_sha256": sha256_file(accepted),
+    "identity_path": str(Path(identity).resolve()),
+    "identity_sha256": sha256_file(identity),
 }
-write_json_exclusive_atomic(receipt, payload)
+write_json_exclusive_atomic(boot_receipt, payload)
+receipt_path = Path(receipt)
+temporary = receipt_path.with_name(receipt_path.name + f".tmp.{os.getpid()}")
+with temporary.open("x", encoding="utf-8", newline="\n") as handle:
+    json.dump(payload, handle, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+    handle.write("\n")
+    handle.flush()
+    os.fsync(handle.fileno())
+os.replace(temporary, receipt_path)
+directory_fd = os.open(receipt_path.parent, os.O_RDONLY)
+try:
+    os.fsync(directory_fd)
+finally:
+    os.close(directory_fd)
+print("SUPERVISOR_IMMUTABLE_LAUNCH_RECEIPT_SHA256=" + sha256_file(boot_receipt))
 print("SUPERVISOR_LAUNCH_RECEIPT_SHA256=" + sha256_file(receipt))
 PY
   log "SUPERVISOR_STARTED pid=$supervisor_pid start_ticks=$start_ticks"

@@ -5,6 +5,7 @@ RUNTIME_ROOT=/root/xunlian/Futaoran/CSI_EVALUATION_RUNTIME_FINAL_20260831/code/C
 RUNTIME_PYTHON=/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/bin/python
 RUN_ROOT="$RUNTIME_ROOT/runs/formal-v6-streaming-8d489b2-d7d0b8affcd40f05"
 LAUNCHER=/root/xunlian/Futaoran/formal_external_inputs/evaluation_migration_8d489b2_20260831/run_all_streaming_8d489b2.sh
+LAUNCHER_LOG=/root/xunlian/Futaoran/formal_external_inputs/logs/formal-v6-streaming-8d489b2-d7d0b8affcd40f05.all.log
 SUPERVISION_ROOT=/root/xunlian/Futaoran/formal_external_inputs/supervision/formal-v6-streaming-8d489b2-d7d0b8affcd40f05
 EXPECTED_COMMIT=8d489b2387e7bb6c988a41d9e0d57b8a6cffc4d4
 EXPECTED_SOURCE_SHA256=aa5b1d6a1062d68bb5de045b40f042e1a453d14a8d73632ad0be86dc7b07caff
@@ -14,6 +15,7 @@ WIGATR_TARGET=/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.
 RUNTIME_PROBE=/root/xunlian/Futaoran/formal_external_inputs/evaluation_migration_8d489b2_20260831/probe_wigatr_runtime_8d489b2.sh
 EXPECTED_RUNTIME_PROBE_SHA256=099901cc3b68a7021728ce37c74a037e77f3047a24200da966e899b6f7debf0f
 POLL_SECONDS=300
+CHILD_CHECK_SECONDS=5
 RETRY_SECONDS=60
 MAX_EVALUATION_ATTEMPTS=3
 
@@ -29,8 +31,13 @@ if ! flock -n 9; then
 fi
 
 SUPERVISOR_LOG="$SUPERVISION_ROOT/supervisor.log"
-CHILD_IDENTITY="$SUPERVISION_ROOT/child_identity.env"
+STATE_ROOT="$SUPERVISION_ROOT/state"
+CHILD_IDENTITY="$STATE_ROOT/child_identity.env"
+ATTEMPT_COUNT="$STATE_ROOT/attempt_count"
+SUPERVISOR_IDENTITY="$STATE_ROOT/supervisor_identity.env"
+SUPERVISOR_EXIT="$STATE_ROOT/supervisor_exit.env"
 ACCEPTED="$RUN_ROOT/migration/accepted.json"
+mkdir -p "$STATE_ROOT"
 
 log() {
   printf '%s %s\n' "$(date --iso-8601=seconds)" "$*" >>"$SUPERVISOR_LOG"
@@ -39,6 +46,70 @@ log() {
 refuse() {
   log "SUPERVISOR_REFUSAL=$1"
   return 1
+}
+
+atomic_replace() {
+  local source=$1
+  local target=$2
+  mv -f -- "$source" "$target"
+}
+
+env_value() {
+  local path=$1
+  local key=$2
+  awk -F= -v expected="$key" '$1 == expected {print substr($0, length($1) + 2); found=1} END {if (!found) exit 1}' "$path"
+}
+
+process_identity_matches() {
+  local pid=$1
+  local expected_ticks=$2
+  local expected_cmd_sha=$3
+  local observed_ticks
+  local observed_cmd_sha
+  [[ "$pid" =~ ^[1-9][0-9]*$ && "$expected_ticks" =~ ^[1-9][0-9]*$ ]] || return 1
+  [[ "$expected_cmd_sha" =~ ^[0-9a-f]{64}$ ]] || return 1
+  [[ -r "/proc/$pid/stat" && -r "/proc/$pid/cmdline" ]] || return 1
+  observed_ticks=$(awk '{print $22}' "/proc/$pid/stat" 2>/dev/null) || return 1
+  [[ "$observed_ticks" == "$expected_ticks" ]] || return 1
+  observed_cmd_sha=$(tr '\0' ' ' <"/proc/$pid/cmdline" 2>/dev/null | sha256sum | awk '{print $1}') || return 1
+  [[ "$observed_cmd_sha" == "$expected_cmd_sha" ]]
+}
+
+write_supervisor_identity() {
+  local self_ticks
+  local self_cmd_sha
+  local current_tmp
+  local immutable
+  self_ticks=$(awk '{print $22}' "/proc/$$/stat") || return 1
+  self_cmd_sha=$(tr '\0' ' ' <"/proc/$$/cmdline" | sha256sum | awk '{print $1}') || return 1
+  immutable="$STATE_ROOT/supervisor-start-$self_ticks.env"
+  current_tmp="$SUPERVISOR_IDENTITY.tmp.$$"
+  {
+    printf 'schema=csi-pairs-v6-supervisor-identity-v1\n'
+    printf 'pid=%s\n' "$$"
+    printf 'start_ticks=%s\n' "$self_ticks"
+    printf 'cmdline_sha256=%s\n' "$self_cmd_sha"
+    printf 'supervisor_sha256=%s\n' "$(sha256sum "$0" | awk '{print $1}')"
+    printf 'started_at=%s\n' "$(date --iso-8601=seconds)"
+    printf 'status=RUNNING\n'
+  } >"$current_tmp"
+  if [[ ! -e "$immutable" && ! -L "$immutable" ]]; then
+    cp -- "$current_tmp" "$immutable"
+  fi
+  atomic_replace "$current_tmp" "$SUPERVISOR_IDENTITY"
+}
+
+write_supervisor_exit() {
+  local code=$1
+  local tmp="$SUPERVISOR_EXIT.tmp.$$"
+  {
+    printf 'schema=csi-pairs-v6-supervisor-exit-v1\n'
+    printf 'pid=%s\n' "$$"
+    printf 'start_ticks=%s\n' "$(awk '{print $22}' "/proc/$$/stat" 2>/dev/null || printf UNKNOWN)"
+    printf 'exit_code=%s\n' "$code"
+    printf 'finished_at=%s\n' "$(date --iso-8601=seconds)"
+  } >"$tmp"
+  atomic_replace "$tmp" "$SUPERVISOR_EXIT"
 }
 
 preflight() {
@@ -70,36 +141,19 @@ preflight() {
     || refuse WIGATR_RUNTIME_PROVENANCE_MISMATCH || return 1
 }
 
-refuse_duplicate_child() {
-  [[ -f "$CHILD_IDENTITY" && ! -L "$CHILD_IDENTITY" ]] || return 0
-  local recorded_pid
-  local recorded_ticks
-  recorded_pid=$(awk -F= '$1 == "pid" {print $2}' "$CHILD_IDENTITY")
-  recorded_ticks=$(awk -F= '$1 == "start_ticks" {print $2}' "$CHILD_IDENTITY")
-  if (
-    [[ "$recorded_pid" =~ ^[1-9][0-9]*$ ]]
-    [[ "$recorded_ticks" =~ ^[1-9][0-9]*$ ]]
-    [[ -r "/proc/$recorded_pid/stat" ]]
-    [[ "$(awk '{print $22}' "/proc/$recorded_pid/stat")" == "$recorded_ticks" ]]
-  ); then
-    log "SUPERVISOR_ALREADY_RUNNING_CHILD pid=$recorded_pid start_ticks=$recorded_ticks"
-    return 1
-  fi
-  return 0
-}
-
 record_status() {
   local child_pid=$1
   local start_ticks=$2
-  local observed_ticks
-  if [[ -r "/proc/$child_pid/stat" ]]; then
-    observed_ticks=$(awk '{print $22}' "/proc/$child_pid/stat")
-    if [[ "$observed_ticks" != "$start_ticks" ]]; then
-      log "CHILD_IDENTITY=PID_REUSED_OR_MISMATCH pid=$child_pid"
-      return 1
-    fi
+  local cmd_sha=$3
+  if process_identity_matches "$child_pid" "$start_ticks" "$cmd_sha"; then
+    log "CHILD_IDENTITY=MATCH pid=$child_pid start_ticks=$start_ticks"
+  elif [[ -e "/proc/$child_pid" ]]; then
+    log "CHILD_IDENTITY=PID_REUSED_OR_MISMATCH pid=$child_pid"
+    return 1
+  else
+    log "CHILD_IDENTITY=EXITED pid=$child_pid start_ticks=$start_ticks"
+    return 0
   fi
-  log "CHILD_IDENTITY=MATCH pid=$child_pid start_ticks=$start_ticks"
   if [[ -d "$RUN_ROOT/evaluation_state" && ! -L "$RUN_ROOT/evaluation_state" ]]; then
     (
       cd "$RUNTIME_ROOT" || exit 1
@@ -113,7 +167,7 @@ record_status() {
     --format=csv,noheader,nounits >>"$SUPERVISOR_LOG" 2>&1 \
     || log NVIDIA_SMI_READ_FAILED
   df -PB1 "$RUNTIME_ROOT" | tail -1 >>"$SUPERVISOR_LOG"
-  log "PYC_COUNT=$(find "$RUNTIME_ROOT" -type f \( -name '*.pyc' -o -name '*.pyo' \) -print | wc -l)"
+  log "PYC_COUNT=$(find "$RUNTIME_ROOT/formal_v2" -type f \( -name '*.pyc' -o -name '*.pyo' \) -print | wc -l)"
 }
 
 downstream_started() {
@@ -136,58 +190,277 @@ downstream_started() {
   return 1
 }
 
-main() {
-  preflight || return 92
-  refuse_duplicate_child || return 0
-  log "SUPERVISOR_START accepted_sha256=$(sha256sum "$ACCEPTED" | awk '{print $1}')"
-  local attempt=0
-  local child_pid
-  local start_ticks
+launcher_child() {
+  local attempt_dir=$1
+  local go_file="$attempt_dir/go"
+  local ready="$attempt_dir/ready.env"
+  local exit_receipt="$attempt_dir/exit.env"
+  local child_pid=$BASHPID
+  local child_ticks
+  local child_cmd_sha
+  local log_offset=0
+  local log_size
   local code
-  while (( attempt < MAX_EVALUATION_ATTEMPTS )); do
-    attempt=$((attempt + 1))
-    if (( attempt > 1 )); then
-      preflight || return 92
-      refuse_duplicate_child || return 0
-    fi
-    bash "$LAUNCHER" &
-    child_pid=$!
-    start_ticks=$(awk '{print $22}' "/proc/$child_pid/stat") || return 93
-    {
-      printf 'pid=%s\n' "$child_pid"
-      printf 'start_ticks=%s\n' "$start_ticks"
-      printf 'attempt=%s\n' "$attempt"
-      printf 'launcher_sha256=%s\n' "$EXPECTED_LAUNCHER_SHA256"
-      printf 'accepted_sha256=%s\n' "$(sha256sum "$ACCEPTED" | awk '{print $1}')"
-      printf 'started_at=%s\n' "$(date --iso-8601=seconds)"
-    } >"$CHILD_IDENTITY"
-    log "CHILD_STARTED pid=$child_pid start_ticks=$start_ticks attempt=$attempt"
-
-    while kill -0 "$child_pid" 2>/dev/null; do
-      record_status "$child_pid" "$start_ticks" || return 94
-      sleep "$POLL_SECONDS"
-    done
-    wait "$child_pid"
-    code=$?
-    log "CHILD_EXIT_CODE=$code attempt=$attempt"
-    if (( code == 0 )); then
-      return 0
-    fi
-    if downstream_started; then
-      log "AUTO_RESUME=REFUSED_AFTER_DOWNSTREAM_START child_exit_code=$code"
-      return "$code"
-    fi
-    if (( attempt >= MAX_EVALUATION_ATTEMPTS )); then
-      log "AUTO_RESUME=EXHAUSTED child_exit_code=$code attempts=$attempt"
-      return "$code"
-    fi
-    log "AUTO_RESUME=EVALUATION_ONLY attempt_next=$((attempt + 1)) wait_seconds=$RETRY_SECONDS"
-    sleep "$RETRY_SECONDS"
+  local segment_exit_code
+  local segment_exit_count
+  local tmp
+  child_ticks=$(awk '{print $22}' "/proc/$child_pid/stat") || exit 98
+  child_cmd_sha=$(tr '\0' ' ' <"/proc/$child_pid/cmdline" | sha256sum | awk '{print $1}') || exit 98
+  if [[ -f "$LAUNCHER_LOG" && ! -L "$LAUNCHER_LOG" ]]; then
+    log_offset=$(stat -c '%s' "$LAUNCHER_LOG") || exit 98
+  elif [[ -e "$LAUNCHER_LOG" || -L "$LAUNCHER_LOG" ]]; then
+    exit 98
+  fi
+  tmp="$ready.tmp.$child_pid"
+  {
+    printf 'schema=csi-pairs-v6-launcher-child-ready-v1\n'
+    printf 'pid=%s\n' "$child_pid"
+    printf 'start_ticks=%s\n' "$child_ticks"
+    printf 'cmdline_sha256=%s\n' "$child_cmd_sha"
+    printf 'launcher_log_offset=%s\n' "$log_offset"
+    printf 'ready_at=%s\n' "$(date --iso-8601=seconds)"
+  } >"$tmp"
+  atomic_replace "$tmp" "$ready"
+  while [[ ! -f "$go_file" || -L "$go_file" ]]; do
+    sleep 0.1
   done
-  return 96
+  bash "$LAUNCHER"
+  code=$?
+  log_size=$log_offset
+  segment_exit_code=NONE
+  segment_exit_count=0
+  if [[ -f "$LAUNCHER_LOG" && ! -L "$LAUNCHER_LOG" ]]; then
+    log_size=$(stat -c '%s' "$LAUNCHER_LOG" 2>/dev/null || printf '%s' "$log_offset")
+    if (( log_size >= log_offset )); then
+      segment_exit_count=$(tail -c "+$((log_offset + 1))" "$LAUNCHER_LOG" 2>/dev/null | awk '/^EXIT_CODE=[0-9]+$/ {count++} END {print count+0}')
+      segment_exit_code=$(tail -c "+$((log_offset + 1))" "$LAUNCHER_LOG" 2>/dev/null | awk -F= '/^EXIT_CODE=[0-9]+$/ {value=$2} END {if (value != "") print value; else print "NONE"}')
+    fi
+  fi
+  tmp="$exit_receipt.tmp.$child_pid"
+  {
+    printf 'schema=csi-pairs-v6-launcher-child-exit-v1\n'
+    printf 'pid=%s\n' "$child_pid"
+    printf 'start_ticks=%s\n' "$child_ticks"
+    printf 'launcher_exit_code=%s\n' "$code"
+    printf 'launcher_log_offset=%s\n' "$log_offset"
+    printf 'launcher_log_size=%s\n' "$log_size"
+    printf 'segment_exit_count=%s\n' "$segment_exit_count"
+    printf 'segment_exit_code=%s\n' "$segment_exit_code"
+    printf 'finished_at=%s\n' "$(date --iso-8601=seconds)"
+  } >"$tmp"
+  atomic_replace "$tmp" "$exit_receipt"
+  exit "$code"
 }
 
+next_attempt_number() {
+  local current=0
+  local next
+  local tmp
+  if [[ -e "$ATTEMPT_COUNT" || -L "$ATTEMPT_COUNT" ]]; then
+    [[ -f "$ATTEMPT_COUNT" && ! -L "$ATTEMPT_COUNT" ]] || return 1
+    current=$(<"$ATTEMPT_COUNT")
+    [[ "$current" =~ ^[0-9]+$ ]] || return 1
+  fi
+  next=$((current + 1))
+  (( next <= MAX_EVALUATION_ATTEMPTS )) || return 2
+  tmp="$ATTEMPT_COUNT.tmp.$$"
+  printf '%s\n' "$next" >"$tmp"
+  atomic_replace "$tmp" "$ATTEMPT_COUNT"
+  printf '%s\n' "$next"
+}
+
+publish_child_identity() {
+  local attempt=$1
+  local attempt_dir=$2
+  local ready="$attempt_dir/ready.env"
+  local tmp="$CHILD_IDENTITY.tmp.$$"
+  {
+    printf 'schema=csi-pairs-v6-supervised-child-v1\n'
+    printf 'attempt=%s\n' "$attempt"
+    printf 'attempt_dir=%s\n' "$attempt_dir"
+    printf 'pid=%s\n' "$(env_value "$ready" pid)"
+    printf 'start_ticks=%s\n' "$(env_value "$ready" start_ticks)"
+    printf 'cmdline_sha256=%s\n' "$(env_value "$ready" cmdline_sha256)"
+    printf 'launcher_sha256=%s\n' "$EXPECTED_LAUNCHER_SHA256"
+    printf 'accepted_sha256=%s\n' "$(sha256sum "$ACCEPTED" | awk '{print $1}')"
+    printf 'published_at=%s\n' "$(date --iso-8601=seconds)"
+  } >"$tmp"
+  atomic_replace "$tmp" "$CHILD_IDENTITY"
+}
+
+start_child() {
+  local attempt=$1
+  local attempt_dir="$STATE_ROOT/attempt-$attempt"
+  local child_pid
+  local observed_pid
+  local loops=0
+  mkdir "$attempt_dir" || return 1
+  launcher_child "$attempt_dir" &
+  child_pid=$!
+  while [[ ! -f "$attempt_dir/ready.env" || -L "$attempt_dir/ready.env" ]]; do
+    if ! kill -0 "$child_pid" 2>/dev/null; then
+      wait "$child_pid" 2>/dev/null
+      log "CHILD_HANDSHAKE_FAILED pid=$child_pid attempt=$attempt"
+      return 1
+    fi
+    loops=$((loops + 1))
+    if (( loops > 300 )); then
+      log "CHILD_HANDSHAKE_TIMEOUT pid=$child_pid attempt=$attempt"
+      return 1
+    fi
+    sleep 0.1
+  done
+  observed_pid=$(env_value "$attempt_dir/ready.env" pid) || return 1
+  [[ "$observed_pid" == "$child_pid" ]] || return 1
+  process_identity_matches \
+    "$child_pid" \
+    "$(env_value "$attempt_dir/ready.env" start_ticks)" \
+    "$(env_value "$attempt_dir/ready.env" cmdline_sha256)" || return 1
+  publish_child_identity "$attempt" "$attempt_dir" || return 1
+  : >"$attempt_dir/go"
+  log "CHILD_STARTED pid=$child_pid start_ticks=$(env_value "$attempt_dir/ready.env" start_ticks) attempt=$attempt"
+}
+
+load_child_identity() {
+  [[ -f "$CHILD_IDENTITY" && ! -L "$CHILD_IDENTITY" ]] || return 1
+  local required
+  for required in attempt attempt_dir pid start_ticks cmdline_sha256; do
+    env_value "$CHILD_IDENTITY" "$required" >/dev/null || return 1
+  done
+}
+
+wait_for_exit_receipt() {
+  local receipt=$1
+  local loops=0
+  while [[ ! -f "$receipt" || -L "$receipt" ]]; do
+    loops=$((loops + 1))
+    (( loops <= 100 )) || return 1
+    sleep 0.1
+  done
+}
+
+monitor_current_child() {
+  local child_pid
+  local start_ticks
+  local cmd_sha
+  local attempt
+  local attempt_dir
+  local state
+  local code
+  local logged_code
+  local exit_count
+  local receipt
+  local checks=0
+  load_child_identity || return 97
+  child_pid=$(env_value "$CHILD_IDENTITY" pid)
+  start_ticks=$(env_value "$CHILD_IDENTITY" start_ticks)
+  cmd_sha=$(env_value "$CHILD_IDENTITY" cmdline_sha256)
+  attempt=$(env_value "$CHILD_IDENTITY" attempt)
+  attempt_dir=$(env_value "$CHILD_IDENTITY" attempt_dir)
+  [[ "$attempt" =~ ^[1-9][0-9]*$ ]] || return 97
+  [[ "$attempt_dir" == "$STATE_ROOT/attempt-$attempt" && -d "$attempt_dir" && ! -L "$attempt_dir" ]] || return 97
+  receipt="$attempt_dir/exit.env"
+
+  if process_identity_matches "$child_pid" "$start_ticks" "$cmd_sha"; then
+    log "CHILD_REATTACH_OR_MONITOR pid=$child_pid start_ticks=$start_ticks attempt=$attempt"
+    while process_identity_matches "$child_pid" "$start_ticks" "$cmd_sha"; do
+      state=$(awk '{print $3}' "/proc/$child_pid/stat" 2>/dev/null || printf X)
+      [[ "$state" != Z ]] || break
+      if (( checks == 0 || (checks * CHILD_CHECK_SECONDS) % POLL_SECONDS == 0 )); then
+        record_status "$child_pid" "$start_ticks" "$cmd_sha" || return 94
+      fi
+      sleep "$CHILD_CHECK_SECONDS"
+      checks=$((checks + 1))
+    done
+  elif [[ -e "/proc/$child_pid" ]]; then
+    log "CHILD_ORIGINAL_EXITED_PID_NOW_REUSED pid=$child_pid start_ticks=$start_ticks attempt=$attempt"
+  else
+    log "CHILD_ALREADY_EXITED pid=$child_pid start_ticks=$start_ticks attempt=$attempt"
+  fi
+
+  wait_for_exit_receipt "$receipt" || {
+    log "CHILD_EXIT_RECEIPT_MISSING pid=$child_pid attempt=$attempt"
+    return 97
+  }
+  code=$(env_value "$receipt" launcher_exit_code) || return 97
+  logged_code=$(env_value "$receipt" segment_exit_code) || return 97
+  exit_count=$(env_value "$receipt" segment_exit_count) || return 97
+  [[ "$code" =~ ^[0-9]+$ ]] || return 97
+  if [[ "$exit_count" != 1 || "$logged_code" != "$code" ]]; then
+    log "CHILD_EXIT_EVIDENCE_INVALID pid=$child_pid attempt=$attempt launcher_code=$code logged_code=$logged_code count=$exit_count"
+    return 97
+  fi
+  log "CHILD_EXIT_CODE=$code attempt=$attempt evidence=$receipt"
+  return "$code"
+}
+
+retire_child_identity() {
+  local attempt
+  local archived
+  load_child_identity || return 0
+  attempt=$(env_value "$CHILD_IDENTITY" attempt) || return 1
+  archived="$STATE_ROOT/child_identity.attempt-$attempt.handled.env"
+  if [[ -e "$archived" || -L "$archived" ]]; then
+    cmp -s "$CHILD_IDENTITY" "$archived" || return 1
+    mv -- "$CHILD_IDENTITY" "$STATE_ROOT/child_identity.attempt-$attempt.handled-replay-$(date -u +%Y%m%dT%H%M%SZ)-$$.env"
+  else
+    mv -- "$CHILD_IDENTITY" "$archived"
+  fi
+}
+
+main() {
+  local attempt
+  local code
+  preflight || return 92
+  log "SUPERVISOR_START accepted_sha256=$(sha256sum "$ACCEPTED" | awk '{print $1}')"
+
+  while true; do
+    if load_child_identity; then
+      monitor_current_child
+      code=$?
+      if (( code == 0 )); then
+        return 0
+      fi
+      if downstream_started; then
+        log "AUTO_RESUME=REFUSED_AFTER_DOWNSTREAM_START child_exit_code=$code"
+        return "$code"
+      fi
+      attempt=$(env_value "$CHILD_IDENTITY" attempt)
+      if (( attempt >= MAX_EVALUATION_ATTEMPTS )); then
+        log "AUTO_RESUME=EXHAUSTED child_exit_code=$code attempts=$attempt"
+        return "$code"
+      fi
+      log "AUTO_RESUME=EVALUATION_ONLY attempt_next=$((attempt + 1)) wait_seconds=$RETRY_SECONDS"
+      retire_child_identity || return 97
+      sleep "$RETRY_SECONDS"
+      preflight || return 92
+    fi
+
+    attempt=$(next_attempt_number)
+    code=$?
+    if (( code == 2 )); then
+      log "AUTO_RESUME=EXHAUSTED_PERSISTENT attempts=$MAX_EVALUATION_ATTEMPTS"
+      return 96
+    elif (( code != 0 )); then
+      return 97
+    fi
+    start_child "$attempt" || {
+      log "CHILD_START_FAILED attempt=$attempt"
+      if (( attempt >= MAX_EVALUATION_ATTEMPTS )); then
+        return 97
+      fi
+      sleep "$RETRY_SECONDS"
+      continue
+    }
+  done
+}
+
+write_supervisor_identity || {
+  log SUPERVISOR_REFUSAL=IDENTITY_WRITE_FAILED
+  exit 97
+}
 main
 code=$?
 log "SUPERVISOR_EXIT_CODE=$code"
+write_supervisor_exit "$code"
 exit "$code"
