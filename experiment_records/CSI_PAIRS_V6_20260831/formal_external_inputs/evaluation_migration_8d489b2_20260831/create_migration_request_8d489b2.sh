@@ -8,7 +8,7 @@ runtime_probe="$evidence_root/probe_wigatr_runtime_8d489b2.sh"
 runtime_report="$evidence_root/wigatr_runtime_preflight.json"
 runtime_probe_sha256=099901cc3b68a7021728ce37c74a037e77f3047a24200da966e899b6f7debf0f
 gate_validator="$evidence_root/validate_migration_gates_8d489b2.sh"
-gate_validator_sha256=ba823dca6255daab3daffb416cca8a5c914a6c892e2c8407d53cf50196aba823
+gate_validator_sha256=dbf185d225711803aeab886da1a1f56c267eb0af39c17d0912dc5c5357f65b05
 
 required_evidence=(
   "$evidence_root/performance/performance.json"
