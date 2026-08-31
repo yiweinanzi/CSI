@@ -1,0 +1,9 @@
+{
+  "database": "OpenAlex",
+  "query": "CSI map localization",
+  "receipt_path": "receipts/openalex-csi-map-localization.json",
+  "receipt_sha256": "6f6f7bf809a517d3c42ab76caf6ace2ea2892a2ac5d52be68b49a009cadc3983",
+  "result_count": 20,
+  "retrieval_url": "https://api.openalex.org/works?search=CSI+map+localization&per-page=20",
+  "searched_utc": "2026-08-23T01:44:35Z"
+}

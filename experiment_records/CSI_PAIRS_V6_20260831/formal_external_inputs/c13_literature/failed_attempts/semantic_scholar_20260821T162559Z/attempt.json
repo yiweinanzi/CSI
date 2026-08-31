@@ -1,0 +1,9 @@
+{
+  "api_key_present": false,
+  "attempted_utc": "2026-08-21T16:25:59Z",
+  "http_status": 429,
+  "query": "wireless channel foundation model",
+  "retrieval_url": "https://api.semanticscholar.org/graph/v1/paper/search?query=wireless%20channel%20foundation%20model&limit=10&fields=paperId,title,year,authors,url,externalIds,venue",
+  "schema_version": "csi-pairs-c13-semantic-scholar-failure-v1",
+  "transport": "direct_ipv4_no_proxy"
+}

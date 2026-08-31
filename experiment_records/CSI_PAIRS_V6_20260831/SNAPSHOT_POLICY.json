@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "snapshot_time": "2026-08-31T15:37:13+08:00",
+  "maximum_file_bytes_exclusive": 5242880,
+  "copied_source_regular_files": 1171,
+  "copied_source_bytes_before_snapshot_metadata": 37582252,
+  "dataset_included": false,
+  "checkpoint_or_weight_included": false,
+  "pyc_or_pyo_included": false,
+  "excluded_extensions": [
+    ".npz",
+    ".npy",
+    ".bin",
+    ".pt",
+    ".pth",
+    ".ckpt",
+    ".onnx",
+    ".zip",
+    ".tar",
+    ".tar.gz",
+    ".tgz",
+    ".pdf",
+    ".whl",
+    ".pyc",
+    ".pyo"
+  ],
+  "formal_dataset_sha256": "060d8671380acaf43bd0beb2c77ac5c6ec112e4ddc083451ab36a5916b7c9cac",
+  "fixed_formal_commit": "9850fffe0b34f16b45066973308f18b10555ca5d",
+  "optimized_comparator_base_commit": "ac83473543251f1f0b2a73b02e2ab953b84e8407",
+  "scientific_claims_authorized": false
+}

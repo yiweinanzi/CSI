@@ -1,0 +1,27 @@
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/root/xunlian/Futaoran/CSI_FACTORIAL_PILOT_FIX_20260825/code/CSI-PAIRS-v2.0-server/formal_v2/formal_cli.py", line 922, in <module>
+    raise SystemExit(main())
+                     ^^^^^^
+  File "/root/xunlian/Futaoran/CSI_FACTORIAL_PILOT_FIX_20260825/code/CSI-PAIRS-v2.0-server/formal_v2/formal_cli.py", line 327, in main
+    dataset.validate(
+  File "/root/xunlian/Futaoran/CSI_FACTORIAL_PILOT_FIX_20260825/code/CSI-PAIRS-v2.0-server/formal_v2/formal_dataset.py", line 611, in validate
+    self.validate_target_support_capacity(
+  File "/root/xunlian/Futaoran/CSI_FACTORIAL_PILOT_FIX_20260825/code/CSI-PAIRS-v2.0-server/formal_v2/formal_dataset.py", line 268, in validate_target_support_capacity
+    available = len(self.unique_target_support_positions(city))
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/xunlian/Futaoran/CSI_FACTORIAL_PILOT_FIX_20260825/code/CSI-PAIRS-v2.0-server/formal_v2/formal_dataset.py", line 247, in unique_target_support_positions
+    if identifier in identifiers or any(
+                                    ^^^^
+  File "/root/xunlian/Futaoran/CSI_FACTORIAL_PILOT_FIX_20260825/code/CSI-PAIRS-v2.0-server/formal_v2/formal_dataset.py", line 248, in <genexpr>
+    same_physical_position(coordinate, existing)
+  File "/root/xunlian/Futaoran/CSI_FACTORIAL_PILOT_FIX_20260825/code/CSI-PAIRS-v2.0-server/formal_v2/formal_dataset.py", line 74, in same_physical_position
+    np.allclose(
+  File "/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/lib/python3.12/site-packages/numpy/_core/numeric.py", line 2365, in allclose
+    res = all(isclose(a, b, rtol=rtol, atol=atol, equal_nan=equal_nan))
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/lib/python3.12/site-packages/numpy/_core/numeric.py", line 2483, in isclose
+    if not (np.all(np.isfinite(atol)) and np.all(np.isfinite(rtol))):
+                                                 ^^^^^^^^^^^^^^^^^
+KeyboardInterrupt

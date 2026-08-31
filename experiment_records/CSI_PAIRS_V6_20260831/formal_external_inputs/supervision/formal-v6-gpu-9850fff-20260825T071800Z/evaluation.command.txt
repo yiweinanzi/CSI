@@ -1,0 +1,10 @@
+recorded_at=2026-08-31T05:33:09+08:00
+cwd=/root/xunlian/Futaoran/CSI_FACTORIAL_PILOT_FIX_20260825/code/CSI-PAIRS-v2.0-server
+PYTHONDONTWRITEBYTECODE=1
+CUBLAS_WORKSPACE_CONFIG=:4096:8
+CUDA_VISIBLE_DEVICES=0,1
+CSI_PAIRS_DEVICE=cuda:1
+CSI_PAIRS_DEVICES=cuda:0,cuda:1
+OMP_NUM_THREADS=16
+MKL_NUM_THREADS=16
+argv=taskset -c 16-31 /root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/bin/python -B -m formal_v2.formal_cli run-evaluation --config formal_v2/configs/formal_v2.json --dataset /root/xunlian/Futaoran/正式开始训练/CSI-PAIRS-V6-WIDEBAND-FORMAL-227-20260819T105509Z/dataset.npz --output runs/formal-v6-gpu-9850fff-20260825T071800Z 

@@ -1,0 +1,1632 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="14" skipped="0" tests="203" time="497.436" timestamp="2026-08-23T12:00:18.895817+08:00" hostname="ubuntu05-6dc8c8fb57-sbgdz"><testcase classname="formal_v2.tests.test_run_approval.FullRunApprovalTests" name="test_accepted_approval_authenticates_resume_after_external_expiry" time="0.008" /><testcase classname="formal_v2.tests.test_run_approval.FullRunApprovalTests" name="test_authorized_chain_order_and_failure_short_circuit" time="0.020" /><testcase classname="formal_v2.tests.test_run_approval.FullRunApprovalTests" name="test_boolean_only_all_has_no_authorization_power" time="0.011" /><testcase classname="formal_v2.tests.test_run_approval.FullRunApprovalTests" name="test_compute_plan_rejects_insufficient_authorized_budget" time="0.001" /><testcase classname="formal_v2.tests.test_run_approval.FullRunApprovalTests" name="test_consumed_approval_marker_is_atomic_under_identical_race" time="0.004" /><testcase classname="formal_v2.tests.test_run_approval.FullRunApprovalTests" name="test_consumed_approval_marker_is_idempotent_only_for_exact_resume" time="0.003" /><testcase classname="formal_v2.tests.test_run_approval.FullRunApprovalTests" name="test_external_runtime_profiles_cannot_be_silently_overwritten" time="0.001" /><testcase classname="formal_v2.tests.test_run_approval.FullRunApprovalTests" name="test_formal_compute_plan_binds_exact_device_specs_and_uuids" time="0.003" /><testcase classname="formal_v2.tests.test_run_approval.FullRunApprovalTests" name="test_formal_compute_plan_requires_real_cuda_capacity" time="0.003" /><testcase classname="formal_v2.tests.test_run_approval.FullRunApprovalTests" name="test_formal_gpu_exclusivity_rejects_memory_or_compute_processes" time="0.002" /><testcase classname="formal_v2.tests.test_run_approval.FullRunApprovalTests" name="test_gpu_inventory_falls_back_when_virtualized_memory_property_is_zero" time="0.001" /><testcase classname="formal_v2.tests.test_run_approval.FullRunApprovalTests" name="test_human_approval_binds_request_nonce_compute_plan_and_every_gate" time="0.001" /><testcase classname="formal_v2.tests.test_run_approval.FullRunApprovalTests" name="test_human_approval_creation_requires_explicit_attestation_and_external_path" time="0.002" /><testcase classname="formal_v2.tests.test_run_approval.FullRunApprovalTests" name="test_human_approval_rejects_cross_run_replay_and_stale_request" time="0.001" /><testcase classname="formal_v2.tests.test_run_approval.FullRunApprovalTests" name="test_human_approval_rejects_expiry_and_partial_gate_binding" time="0.001" /><testcase classname="formal_v2.tests.test_run_approval.FullRunApprovalTests" name="test_human_approval_rejects_future_timestamp_and_excessive_lifetime" time="0.001" /><testcase classname="formal_v2.tests.test_run_approval.FullRunApprovalTests" name="test_parser_exposes_prepare_and_external_approval" time="0.007" /><testcase classname="formal_v2.tests.test_run_approval.FullRunApprovalTests" name="test_prepare_g8_failure_stops_before_approval_request" time="0.002" /><testcase classname="formal_v2.tests.test_run_approval.FullRunApprovalTests" name="test_prepare_runs_g8_after_qualification_and_before_approval" time="0.001" /><testcase classname="formal_v2.tests.test_run_approval.FullRunApprovalTests" name="test_prepared_input_mutation_changes_authenticated_inventory" time="0.002" /><testcase classname="formal_v2.tests.test_run_approval.FullRunApprovalTests" name="test_prepared_record_is_authenticated_to_its_exact_root" time="0.002" /><testcase classname="formal_v2.tests.test_run_approval.FullRunApprovalTests" name="test_request_rejects_changed_external_runtime_and_input_inventory" time="0.002" /><testcase classname="formal_v2.tests.test_run_approval.ExternalRuntimeProvenanceTests" name="test_distribution_inventory_is_scoped_to_interpreter_site_packages" time="0.002" /><testcase classname="formal_v2.tests.test_run_approval.ExternalRuntimeProvenanceTests" name="test_distribution_inventory_rejects_site_packages_outside_prefix" time="0.003" /><testcase classname="formal_v2.tests.test_run_approval.ExternalRuntimeProvenanceTests" name="test_external_runtime_digest_and_locked_versions_are_authenticated" time="0.001" /><testcase classname="formal_v2.tests.test_run_approval.ExternalRuntimeProvenanceTests" name="test_sionna_runtime_accepts_frozen_macos_arm64_torch_wheel" time="0.001" /><testcase classname="formal_v2.tests.test_run_approval.ExternalRuntimeProvenanceTests" name="test_sionna_runtime_requires_exact_python_patch_version" time="0.001" /><testcase classname="formal_v2.tests.test_run_approval.ExternalRuntimeProvenanceTests" name="test_wigatr_execution_readiness_requires_driver_and_cuda_state" time="0.001" /><testcase classname="formal_v2.tests.test_factorial_integrity.ResponsePlanMutationTests" name="test_every_repeated_source_query_reuses_the_exact_mask_index" time="0.026" /><testcase classname="formal_v2.tests.test_factorial_integrity.ResponsePlanMutationTests" name="test_target_sampler_is_unconditional_and_not_fifty_fifty_reweighted" time="0.835" /><testcase classname="formal_v2.tests.test_factorial_integrity.ArmExecutionMutationTests" name="test_alignment_corpus_excludes_natural_incident_edges" time="17.679" /><testcase classname="formal_v2.tests.test_factorial_integrity.ArmExecutionMutationTests" name="test_cached_map_and_action_batches_match_direct_model_preprocessing" time="5.002" /><testcase classname="formal_v2.tests.test_factorial_integrity.ArmExecutionMutationTests" name="test_compact_corpus_sequences_enumerate_the_original_cartesian_contract" time="0.015" /><testcase classname="formal_v2.tests.test_factorial_integrity.ArmExecutionMutationTests" name="test_disabled_branches_are_not_forwarded_or_profiled_by_proxy" time="123.281" /><testcase classname="formal_v2.tests.test_factorial_integrity.ArmExecutionMutationTests" name="test_factorial_resume_matches_uninterrupted_parameters_and_trace" time="77.544" /><testcase classname="formal_v2.tests.test_factorial_integrity.ArmExecutionMutationTests" name="test_factorial_resume_rejects_tampered_checkpoint_before_loading" time="12.186" /><testcase classname="formal_v2.tests.test_factorial_integrity.ArmExecutionMutationTests" name="test_numpy_pool_matches_torch_reference_for_nondivisible_grids" time="0.269" /><testcase classname="formal_v2.tests.test_factorial_integrity.ArmExecutionMutationTests" name="test_response_pairing_break_keeps_action_but_replaces_target" time="0.001" /><testcase classname="formal_v2.tests.test_factorial_integrity.ArmExecutionMutationTests" name="test_spatial_caches_match_independent_adaptive_pool_and_role_scope" time="0.002" /><testcase classname="formal_v2.tests.test_factorial_integrity.FactorialStatisticsMutationTests" name="test_conflicting_copied_bank_is_rejected" time="0.002" /><testcase classname="formal_v2.tests.test_factorial_integrity.FactorialStatisticsMutationTests" name="test_copied_bank_cannot_move_to_renamed_city" time="0.001" /><testcase classname="formal_v2.tests.test_factorial_integrity.FactorialStatisticsMutationTests" name="test_copied_bank_cannot_move_to_renamed_foundation" time="0.001" /><testcase classname="formal_v2.tests.test_factorial_integrity.FactorialStatisticsMutationTests" name="test_primary_g4_intervals_are_one_synchronized_family" time="0.145" /><testcase classname="formal_v2.tests.test_factorial_integrity.FactorialStatisticsMutationTests" name="test_selective_copied_bank_does_not_reweight_factorial_utility" time="0.003" /><testcase classname="formal_v2.tests.test_formal_v2.ConfigTests" name="test_cli_calls_the_overwrite_guard_before_running_a_stage" time="0.270" /><testcase classname="formal_v2.tests.test_formal_v2.ConfigTests" name="test_concurrent_fixture_writers_cannot_share_one_output" time="0.410" /><testcase classname="formal_v2.tests.test_formal_v2.ConfigTests" name="test_config_is_v6_and_has_complete_sections" time="0.001" /><testcase classname="formal_v2.tests.test_formal_v2.ConfigTests" name="test_dry_run_wrapper_accepts_only_authenticated_fixture_failure" time="6.589"><failure message="AssertionError: 1 != 0 : stdout:&#10;{&quot;status&quot;: &quot;success&quot;, &quot;fixture&quot;: &quot;/tmp/tmpml8hwtn5/dry-run.fixture.npz&quot;, &quot;scientific_use&quot;: &quot;FORBIDDEN&quot;}&#10;&#10;stderr:&#10;{&quot;elapsed_seconds&quot;: 1.7002304708585143, &quot;event&quot;: &quot;dry_run_stage_complete&quot;, &quot;stage&quot;: &quot;make_fixture&quot;, &quot;status&quot;: 0}&#10;error: main runtime contains forbidden bytecode: /root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/lib/python3.12/site-packages/__pycache__/py.cpython-312.pyc&#10;{&quot;elapsed_seconds&quot;: 4.350382960867137, &quot;event&quot;: &quot;dry_run_stage_complete&quot;, &quot;stage&quot;: &quot;verify_data&quot;, &quot;status&quot;: 2}&#10;dry-run verification failed with exit 2">self = &lt;formal_v2.tests.test_formal_v2.ConfigTests testMethod=test_dry_run_wrapper_accepts_only_authenticated_fixture_failure&gt;
+
+    def test_dry_run_wrapper_accepts_only_authenticated_fixture_failure(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary) / "dry-run"
+            environment = os.environ.copy()
+            environment.update(
+                {
+                    "CSI_PAIRS_PYTHON": sys.executable,
+                    "PYTHONDONTWRITEBYTECODE": "1",
+                }
+            )
+            completed = subprocess.run(
+                [
+                    "bash",
+                    str(ROOT / "formal_v2" / "scripts" / "run_formal_v2_dry_run.sh"),
+                    str(output),
+                ],
+                cwd=ROOT,
+                env=environment,
+                capture_output=True,
+                text=True,
+                # The wrapper performs the complete fixture qualification chain.
+                timeout=300,
+                check=False,
+            )
+&gt;           self.assertEqual(
+                completed.returncode,
+                0,
+                msg=f"stdout:\n{completed.stdout}\nstderr:\n{completed.stderr}",
+            )
+E           AssertionError: 1 != 0 : stdout:
+E           {"status": "success", "fixture": "/tmp/tmpml8hwtn5/dry-run.fixture.npz", "scientific_use": "FORBIDDEN"}
+E           
+E           stderr:
+E           {"elapsed_seconds": 1.7002304708585143, "event": "dry_run_stage_complete", "stage": "make_fixture", "status": 0}
+E           error: main runtime contains forbidden bytecode: /root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/lib/python3.12/site-packages/__pycache__/py.cpython-312.pyc
+E           {"elapsed_seconds": 4.350382960867137, "event": "dry_run_stage_complete", "stage": "verify_data", "status": 2}
+E           dry-run verification failed with exit 2
+
+formal_v2/tests/test_formal_v2.py:678: AssertionError</failure></testcase><testcase classname="formal_v2.tests.test_formal_v2.ConfigTests" name="test_failed_sionna_export_does_not_leave_partial_inputs" time="0.231" /><testcase classname="formal_v2.tests.test_formal_v2.ConfigTests" name="test_fixture_can_cover_cross_source_city_controls" time="0.455" /><testcase classname="formal_v2.tests.test_formal_v2.ConfigTests" name="test_fixture_receivers_remain_inside_common_free_cells" time="1.370" /><testcase classname="formal_v2.tests.test_formal_v2.ConfigTests" name="test_formal_power_minima_are_frozen_in_config" time="0.001" /><testcase classname="formal_v2.tests.test_formal_v2.ConfigTests" name="test_full_run_reservation_accepts_only_new_root_or_staged_inputs" time="0.001" /><testcase classname="formal_v2.tests.test_formal_v2.ConfigTests" name="test_full_run_shell_requires_an_explicit_two_phase_mode" time="0.007" /><testcase classname="formal_v2.tests.test_formal_v2.ConfigTests" name="test_individual_cli_stages_refuse_to_overwrite_evidence" time="0.004" /><testcase classname="formal_v2.tests.test_formal_v2.ConfigTests" name="test_make_fixture_normalizes_npz_suffix_before_exclusive_create" time="0.314" /><testcase classname="formal_v2.tests.test_formal_v2.ConfigTests" name="test_make_fixture_refuses_to_overwrite_an_existing_file" time="0.136" /><testcase classname="formal_v2.tests.test_formal_v2.ConfigTests" name="test_output_root_operation_lock_is_exclusive" time="0.002" /><testcase classname="formal_v2.tests.test_formal_v2.ConfigTests" name="test_output_root_operation_lock_recovers_after_owner_crash" time="0.001" /><testcase classname="formal_v2.tests.test_formal_v2.ConfigTests" name="test_rejects_disabling_clean_physical_targets" time="0.001" /><testcase classname="formal_v2.tests.test_formal_v2.ConfigTests" name="test_rejects_non_v6_teacher_mask_fraction" time="0.001" /><testcase classname="formal_v2.tests.test_formal_v2.ConfigTests" name="test_rejects_nonfactorial_order" time="0.001" /><testcase classname="formal_v2.tests.test_formal_v2.ConfigTests" name="test_rejects_single_point_path_coverage_audit" time="0.001" /><testcase classname="formal_v2.tests.test_formal_v2.ConfigTests" name="test_rejects_teacher_state_initialization_mismatch" time="0.001" /><testcase classname="formal_v2.tests.test_formal_v2.ConfigTests" name="test_rejects_two_seeds" time="0.001" /><testcase classname="formal_v2.tests.test_formal_v2.ConfigTests" name="test_rejects_zero_risk_audit_stratum" time="0.001" /><testcase classname="formal_v2.tests.test_formal_v2.ConfigTests" name="test_resource_lock_excludes_resource_and_normal_stage_concurrently" time="0.286" /><testcase classname="formal_v2.tests.test_formal_v2.ConfigTests" name="test_resource_verification_refuses_existing_output" time="0.160" /><testcase classname="formal_v2.tests.test_formal_v2.ConfigTests" name="test_resource_verification_respects_run_root_lock_and_releases_after_failure" time="0.017" /><testcase classname="formal_v2.tests.test_formal_v2.ConfigTests" name="test_sionna_export_lock_root_only_treats_inputs_as_reserved" time="0.001" /><testcase classname="formal_v2.tests.test_formal_v2.ConfigTests" name="test_sionna_export_respects_parent_run_root_lock" time="0.180" /><testcase classname="formal_v2.tests.test_formal_v2.ConfigTests" name="test_stage_output_reservation_is_atomic" time="0.002" /><testcase classname="formal_v2.tests.test_formal_v2.StrictJsonTests" name="test_duplicate_key_rejected" time="0.001" /><testcase classname="formal_v2.tests.test_formal_v2.StrictJsonTests" name="test_nan_and_infinity_rejected" time="0.001" /><testcase classname="formal_v2.tests.test_formal_v2.DatasetTests" name="test_base_map_cluster_cannot_cross_roles" time="0.303" /><testcase classname="formal_v2.tests.test_formal_v2.DatasetTests" name="test_canonical_digest_mismatch_is_rejected" time="0.293" /><testcase classname="formal_v2.tests.test_formal_v2.DatasetTests" name="test_city_level_support_pool_spans_banks_without_multiplying_k" time="0.234" /><testcase classname="formal_v2.tests.test_formal_v2.DatasetTests" name="test_common_free_space_failure_is_rejected" time="0.367" /><testcase classname="formal_v2.tests.test_formal_v2.DatasetTests" name="test_copied_sibling_noise_is_rejected" time="0.383" /><testcase classname="formal_v2.tests.test_formal_v2.DatasetTests" name="test_embedded_metadata_duplicate_is_rejected" time="0.278" /><testcase classname="formal_v2.tests.test_formal_v2.DatasetTests" name="test_every_source_role_itself_must_cover_two_source_cities" time="0.753" /><testcase classname="formal_v2.tests.test_formal_v2.DatasetTests" name="test_exact_seven_source_roles_are_present" time="0.220" /><testcase classname="formal_v2.tests.test_formal_v2.DatasetTests" name="test_fixture_is_permanently_forbidden" time="0.223" /><testcase classname="formal_v2.tests.test_formal_v2.DatasetTests" name="test_hypercube_edges_are_bidirectional_hamming_one" time="0.223" /><testcase classname="formal_v2.tests.test_formal_v2.DatasetTests" name="test_maps_radio_and_coordinates_are_typed" time="0.226" /><testcase classname="formal_v2.tests.test_formal_v2.DatasetTests" name="test_nonfixture_all_zero_clean_unit_is_rejected" time="0.298" /><testcase classname="formal_v2.tests.test_formal_v2.DatasetTests" name="test_nonfixture_pathless_clean_unit_is_rejected" time="0.298" /><testcase classname="formal_v2.tests.test_formal_v2.DatasetTests" name="test_qualification_blocking_allowlist_excludes_all_other_roles" time="0.224" /><testcase classname="formal_v2.tests.test_formal_v2.DatasetTests" name="test_support_sibling_coordinates_are_removed_even_if_id_is_relabelled" time="0.231" /><testcase classname="formal_v2.tests.test_formal_v2.DatasetTests" name="test_support_sibling_ids_are_removed_from_every_query_bank" time="0.223" /><testcase classname="formal_v2.tests.test_formal_v2.DatasetTests" name="test_target_city_cluster_minimum_uses_canonical_foundations" time="0.272" /><testcase classname="formal_v2.tests.test_formal_v2.DatasetTests" name="test_target_metric_iterator_excludes_support_pool" time="0.227" /><testcase classname="formal_v2.tests.test_formal_v2.DatasetTests" name="test_target_physical_position_cannot_be_relabelled_across_banks" time="0.307" /><testcase classname="formal_v2.tests.test_formal_v2.DatasetTests" name="test_target_position_identity_cannot_cross_support_and_query_banks" time="0.299" /><testcase classname="formal_v2.tests.test_formal_v2.DatasetTests" name="test_target_support_capacity_uses_unique_physical_positions" time="0.235" /><testcase classname="formal_v2.tests.test_formal_v2.DatasetTests" name="test_unexpected_npz_array_is_rejected" time="0.281" /><testcase classname="formal_v2.tests.test_formal_v2.ProtocolTests" name="test_action_moments_preserve_absolute_edit_coordinates" time="0.002" /><testcase classname="formal_v2.tests.test_formal_v2.ProtocolTests" name="test_action_pool_preserves_the_frozen_spatial_token_order" time="0.881" /><testcase classname="formal_v2.tests.test_formal_v2.ProtocolTests" name="test_action_response_batch_samples_are_isolated" time="3.799" /><testcase classname="formal_v2.tests.test_formal_v2.ProtocolTests" name="test_cached_context_and_action_paths_are_bit_exact" time="6.599" /><testcase classname="formal_v2.tests.test_formal_v2.ProtocolTests" name="test_delay_angle_power_is_invariant_to_shared_phase_rotation" time="0.001" /><testcase classname="formal_v2.tests.test_formal_v2.ProtocolTests" name="test_empty_conditional_mean_fails" time="0.001" /><testcase classname="formal_v2.tests.test_formal_v2.ProtocolTests" name="test_endpoint_gradient_is_isolated_from_response_residual" time="0.392" /><testcase classname="formal_v2.tests.test_formal_v2.ProtocolTests" name="test_f_inherits_complete_teacher_encoder_and_uses_context_pose" time="3.098" /><testcase classname="formal_v2.tests.test_formal_v2.ProtocolTests" name="test_full_and_prepooled_spatial_inputs_are_model_equivalent" time="6.999" /><testcase classname="formal_v2.tests.test_formal_v2.ProtocolTests" name="test_mask_bank_has_three_modes_query_hidden_and_full_coverage" time="0.089" /><testcase classname="formal_v2.tests.test_formal_v2.ProtocolTests" name="test_model_api_has_no_target_route_or_position_input_and_dual_outputs" time="3.302" /><testcase classname="formal_v2.tests.test_formal_v2.ProtocolTests" name="test_model_has_no_batchnorm_and_batch_samples_are_isolated" time="2.991" /><testcase classname="formal_v2.tests.test_formal_v2.ProtocolTests" name="test_paired_score_difference_requires_one_match_and_one_alternative" time="0.001" /><testcase classname="formal_v2.tests.test_formal_v2.ProtocolTests" name="test_patch_roundtrip" time="0.001" /><testcase classname="formal_v2.tests.test_formal_v2.ProtocolTests" name="test_patchify_uses_two_dimensional_antenna_subcarrier_tiles" time="0.001" /><testcase classname="formal_v2.tests.test_formal_v2.ProtocolTests" name="test_primary_route_is_physical_only_and_teacher_is_a_separate_stratum" time="0.000" /><testcase classname="formal_v2.tests.test_formal_v2.ProtocolTests" name="test_q_comp_random_order_and_candidate_swap_complement" time="0.001" /><testcase classname="formal_v2.tests.test_formal_v2.ProtocolTests" name="test_response_action_has_a_zero_preserving_direct_gradient_path" time="2.791" /><testcase classname="formal_v2.tests.test_formal_v2.ProtocolTests" name="test_response_conditioning_depends_on_state_for_the_same_action" time="1.701" /><testcase classname="formal_v2.tests.test_formal_v2.ProtocolTests" name="test_response_conditioning_reads_nonquery_source_state" time="1.708" /><testcase classname="formal_v2.tests.test_formal_v2.ProtocolTests" name="test_response_residual_is_sensitive_to_wrong_action_coordinates" time="1.798" /><testcase classname="formal_v2.tests.test_formal_v2.ProtocolTests" name="test_route_thresholds_are_direction_independent" time="0.000" /><testcase classname="formal_v2.tests.test_formal_v2.ProtocolTests" name="test_typed_action_has_inverse_direction_and_categorical_from_to" time="0.001" /><testcase classname="formal_v2.tests.test_formal_v2.ProtocolTests" name="test_zero_action_encoding_and_response_residual_are_bit_exact_zero" time="2.890" /><testcase classname="formal_v2.tests.test_formal_v2.StatisticsTests" name="test_exact_j_equal_weights_city_k_bank_seed_draw" time="0.004" /><testcase classname="formal_v2.tests.test_formal_v2.StatisticsTests" name="test_exact_sign_flip_does_not_use_monte_carlo_plus_one_correction" time="0.001" /><testcase classname="formal_v2.tests.test_formal_v2.StatisticsTests" name="test_hierarchical_bootstrap_declares_all_layers" time="0.015" /><testcase classname="formal_v2.tests.test_formal_v2.StatisticsTests" name="test_holm_adjustment_is_monotone_in_sorted_order" time="0.001" /><testcase classname="formal_v2.tests.test_formal_v2.StatisticsTests" name="test_holm_adjustment_rejects_invalid_families" time="0.001" /><testcase classname="formal_v2.tests.test_formal_v2.StatisticsTests" name="test_monte_carlo_sign_flip_uses_plus_one_correction" time="0.001" /><testcase classname="formal_v2.tests.test_formal_v2.StatisticsTests" name="test_scientific_gate_exit_code_is_fail_closed" time="0.000" /><testcase classname="formal_v2.tests.test_formal_v2.StatisticsTests" name="test_sign_flip_null_is_centered_on_registered_effect_margin" time="0.003" /><testcase classname="formal_v2.tests.test_formal_v2.StatisticsTests" name="test_splitting_identical_bank_rows_inside_one_cluster_does_not_reweight_j" time="0.005" /><testcase classname="formal_v2.tests.test_formal_v2.EvidenceAndPathTests" name="test_c13_cannot_be_automatically_promoted_by_a_manifest" time="0.223" /><testcase classname="formal_v2.tests.test_formal_v2.EvidenceAndPathTests" name="test_c8_stages_bind_one_qualification_factorial_evaluation_chain" time="0.223" /><testcase classname="formal_v2.tests.test_formal_v2.EvidenceAndPathTests" name="test_candidate_or_forbidden_nonfixture_cannot_start_factorial" time="4.479"><failure message="RuntimeError: main runtime contains forbidden bytecode: /root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/lib/python3.12/site-packages/__pycache__/py.cpython-312.pyc">self = &lt;formal_v2.tests.test_formal_v2.EvidenceAndPathTests testMethod=test_candidate_or_forbidden_nonfixture_cannot_start_factorial&gt;
+
+    def test_candidate_or_forbidden_nonfixture_cannot_start_factorial(self):
+        arrays = _archive_arrays(self.path)
+        arrays["maps"] = arrays["maps"].copy()
+        arrays["noop_maps"] = arrays["noop_maps"].copy()
+        arrays["canonical_map_sha256"] = arrays["canonical_map_sha256"].copy()
+        arrays["noop_map_sha256"] = arrays["noop_map_sha256"].copy()
+        for scene in range(arrays["maps"].shape[0]):
+            # The toy fixture intentionally reuses foundations. Give this synthetic
+            # non-fixture candidate a distinct invariant foundation per scene so this
+            # test reaches the evidence gate it is intended to exercise.
+            offset = 0.001 * (scene + 1)
+            arrays["maps"][scene, :, 1, 0, 0] += offset
+            arrays["noop_maps"][scene, :, 1, 0, 0] += offset
+            for world in range(arrays["maps"].shape[1]):
+                arrays["canonical_map_sha256"][scene, world] = hashlib.sha256(
+                    np.ascontiguousarray(arrays["maps"][scene, world], dtype="&lt;f8").tobytes()
+                ).hexdigest()
+                arrays["noop_map_sha256"][scene, world] = hashlib.sha256(
+                    np.ascontiguousarray(arrays["noop_maps"][scene, world], dtype="&lt;f8").tobytes()
+                ).hexdigest()
+        metadata = parse_strict_json(str(arrays["metadata_json"].item()))
+        metadata["fixture"] = False
+        metadata["scientific_use"] = "CANDIDATE"
+        arrays["metadata_json"] = np.asarray(json.dumps(metadata, sort_keys=True, separators=(",", ":")))
+        candidate_path = self.root / "candidate.npz"
+        np.savez_compressed(candidate_path, **arrays)
+        candidate = FormalDataset.load(candidate_path)
+&gt;       context = evidence_context(self.config, candidate, "FORBIDDEN")
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+formal_v2/tests/test_formal_v2.py:2024: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+formal_v2/formal_evidence.py:732: in evidence_context
+    runtime = validate_runtime_provenance(runtime_provenance())
+                                          ^^^^^^^^^^^^^^^^^^^^
+formal_v2/formal_evidence.py:403: in runtime_provenance
+    closure = validate_installed_wheel_closure(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+prefix = PosixPath('/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z')
+wheelhouse = PosixPath('/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/csi-pairs-reviewed-wheels')
+manifest_path = PosixPath('/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/csi-pairs-reviewed-wheel-manifest.json')
+expected = {'Jinja2': {'hashes': ('85ece4451f492d0c13c5dd7c13a64681a86afae63a5f347908daf103ce6d2f67',), 'version': '3.1.6'}, 'Mar...filelock': {'hashes': ('87dd94cf281e586d135fa51132b8e3d9a598b316e90377a288663c9321036c82',), 'version': '3.32.2'}, ...}
+requirements_lock_sha256 = '9548a24a4faf5db17b5251df407b4402de033ae8648ec321c850fe6105002cf1'
+
+    def validate_installed_wheel_closure(
+        prefix: Path,
+        wheelhouse: Path,
+        manifest_path: Path,
+        expected: dict[str, dict[str, object]],
+        requirements_lock_sha256: str,
+        *,
+        site_roots: dict[str, Path] | None = None,
+        observed_distribution_names: Iterable[str] | None = None,
+    ) -&gt; dict[str, object]:
+        prefix = prefix.resolve()
+        manifest = reviewed_wheel_manifest(wheelhouse, expected, requirements_lock_sha256)
+        expected_manifest = canonical_manifest_bytes(manifest)
+        if (
+            not manifest_path.is_file()
+            or manifest_path.is_symlink()
+            or manifest_path.read_bytes() != expected_manifest
+        ):
+            raise RuntimeError("reviewed wheel manifest is missing or differs from locked wheels")
+        roots = _default_site_roots(prefix) if site_roots is None else {
+            kind: path.resolve() for kind, path in site_roots.items()
+        }
+        if not {"purelib", "platlib"}.issubset(roots) or set(roots).difference(
+            {"purelib", "platlib", "data"}
+        ):
+            raise RuntimeError("main runtime site-package roots are incomplete")
+        roots.setdefault("data", prefix)
+        for root in roots.values():
+            if root != prefix and prefix not in root.parents:
+                raise RuntimeError("main runtime site-package root escapes interpreter prefix")
+    
+        expected_files: dict[Path, tuple[str, int, set[str]]] = {}
+        record_digests: dict[str, str] = {}
+        for wheel in manifest["wheels"]:
+            assert isinstance(wheel, dict)
+            normalized = str(wheel["normalized_name"])
+            for file_record in wheel["files"]:
+                assert isinstance(file_record, dict)
+                root = roots[str(file_record["root"])]
+                candidate = (root / str(file_record["path"])).resolve()
+                if candidate != root and root not in candidate.parents:
+                    raise RuntimeError("reviewed wheel installed path escapes site-packages")
+                encoded_hash = str(file_record["sha256_urlsafe"])
+                size = int(file_record["size"])
+                if candidate in expected_files:
+                    locked_hash, locked_size, owners = expected_files[candidate]
+                    if (encoded_hash, size) != (locked_hash, locked_size):
+                        raise RuntimeError(
+                            "reviewed wheels claim different content at installed path: "
+                            f"{candidate}"
+                        )
+                    owners.add(normalized)
+                else:
+                    expected_files[candidate] = (encoded_hash, size, {normalized})
+            dist_info = str(wheel["dist_info"])
+            record_path = (roots["purelib"] / dist_info / "RECORD").resolve()
+            if not record_path.exists() and roots["platlib"] != roots["purelib"]:
+                record_path = (roots["platlib"] / dist_info / "RECORD").resolve()
+            generated = {
+                record_path: None,
+                record_path.with_name("INSTALLER"): b"pip\n",
+                record_path.with_name("REQUESTED"): b"",
+            }
+            for path, exact_content in generated.items():
+                if not path.is_file() or path.is_symlink():
+                    raise RuntimeError(f"main runtime installer metadata is missing or unsafe: {path}")
+                if exact_content is not None and path.read_bytes() != exact_content:
+                    raise RuntimeError(f"main runtime installer metadata differs: {path}")
+                if path in expected_files:
+                    raise RuntimeError(f"main runtime generated metadata collides: {path}")
+                expected_files[path] = (
+                    _urlsafe_sha256(path),
+                    path.stat().st_size,
+                    {normalized},
+                )
+            record_digests[normalized] = _sha256_file(record_path)
+    
+        actual_files: set[Path] = set()
+        for root in {roots["purelib"], roots["platlib"]}:
+            for candidate in root.rglob("*"):
+                if candidate.is_symlink():
+                    raise RuntimeError(f"main runtime site-packages contains a symlink: {candidate}")
+                if not candidate.is_file():
+                    continue
+                if candidate.suffix == ".pyc" or "__pycache__" in candidate.parts:
+&gt;                   raise RuntimeError(f"main runtime contains forbidden bytecode: {candidate}")
+E                   RuntimeError: main runtime contains forbidden bytecode: /root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/lib/python3.12/site-packages/__pycache__/py.cpython-312.pyc
+
+formal_v2/formal_runtime_integrity.py:394: RuntimeError</failure></testcase><testcase classname="formal_v2.tests.test_formal_v2.EvidenceAndPathTests" name="test_claim_reauthenticates_copied_stage_input_manifest" time="0.229" /><testcase classname="formal_v2.tests.test_formal_v2.EvidenceAndPathTests" name="test_claim_semantics_recheck_g0_c2_c11_and_g8_evidence" time="0.219" /><testcase classname="formal_v2.tests.test_formal_v2.EvidenceAndPathTests" name="test_cli_exposes_all_fail_closed_stages" time="0.262" /><testcase classname="formal_v2.tests.test_formal_v2.EvidenceAndPathTests" name="test_cli_qualify_resume_refuses_a_completed_gate_without_overwrite" time="0.502" /><testcase classname="formal_v2.tests.test_formal_v2.EvidenceAndPathTests" name="test_cli_ships_first_party_claim_and_scene_id_defaults" time="0.241" /><testcase classname="formal_v2.tests.test_formal_v2.EvidenceAndPathTests" name="test_control_and_scene_id_manifests_are_fail_closed" time="0.311" /><testcase classname="formal_v2.tests.test_formal_v2.EvidenceAndPathTests" name="test_coverage_monotonicity_checks_median_and_p90" time="0.240" /><testcase classname="formal_v2.tests.test_formal_v2.EvidenceAndPathTests" name="test_direct_evidence_entrypoint_configures_deterministic_torch" time="3.327"><failure message="RuntimeError: main runtime contains forbidden bytecode: /root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/lib/python3.12/site-packages/__pycache__/py.cpython-312.pyc">self = &lt;formal_v2.tests.test_formal_v2.EvidenceAndPathTests testMethod=test_direct_evidence_entrypoint_configures_deterministic_torch&gt;
+
+    def test_direct_evidence_entrypoint_configures_deterministic_torch(self):
+        torch.use_deterministic_algorithms(False)
+        torch.backends.cudnn.deterministic = False
+&gt;       evidence = evidence_context(self.config, self.dataset, "FORBIDDEN")
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+formal_v2/tests/test_formal_v2.py:1931: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+formal_v2/formal_evidence.py:732: in evidence_context
+    runtime = validate_runtime_provenance(runtime_provenance())
+                                          ^^^^^^^^^^^^^^^^^^^^
+formal_v2/formal_evidence.py:403: in runtime_provenance
+    closure = validate_installed_wheel_closure(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+prefix = PosixPath('/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z')
+wheelhouse = PosixPath('/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/csi-pairs-reviewed-wheels')
+manifest_path = PosixPath('/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/csi-pairs-reviewed-wheel-manifest.json')
+expected = {'Jinja2': {'hashes': ('85ece4451f492d0c13c5dd7c13a64681a86afae63a5f347908daf103ce6d2f67',), 'version': '3.1.6'}, 'Mar...filelock': {'hashes': ('87dd94cf281e586d135fa51132b8e3d9a598b316e90377a288663c9321036c82',), 'version': '3.32.2'}, ...}
+requirements_lock_sha256 = '9548a24a4faf5db17b5251df407b4402de033ae8648ec321c850fe6105002cf1'
+
+    def validate_installed_wheel_closure(
+        prefix: Path,
+        wheelhouse: Path,
+        manifest_path: Path,
+        expected: dict[str, dict[str, object]],
+        requirements_lock_sha256: str,
+        *,
+        site_roots: dict[str, Path] | None = None,
+        observed_distribution_names: Iterable[str] | None = None,
+    ) -&gt; dict[str, object]:
+        prefix = prefix.resolve()
+        manifest = reviewed_wheel_manifest(wheelhouse, expected, requirements_lock_sha256)
+        expected_manifest = canonical_manifest_bytes(manifest)
+        if (
+            not manifest_path.is_file()
+            or manifest_path.is_symlink()
+            or manifest_path.read_bytes() != expected_manifest
+        ):
+            raise RuntimeError("reviewed wheel manifest is missing or differs from locked wheels")
+        roots = _default_site_roots(prefix) if site_roots is None else {
+            kind: path.resolve() for kind, path in site_roots.items()
+        }
+        if not {"purelib", "platlib"}.issubset(roots) or set(roots).difference(
+            {"purelib", "platlib", "data"}
+        ):
+            raise RuntimeError("main runtime site-package roots are incomplete")
+        roots.setdefault("data", prefix)
+        for root in roots.values():
+            if root != prefix and prefix not in root.parents:
+                raise RuntimeError("main runtime site-package root escapes interpreter prefix")
+    
+        expected_files: dict[Path, tuple[str, int, set[str]]] = {}
+        record_digests: dict[str, str] = {}
+        for wheel in manifest["wheels"]:
+            assert isinstance(wheel, dict)
+            normalized = str(wheel["normalized_name"])
+            for file_record in wheel["files"]:
+                assert isinstance(file_record, dict)
+                root = roots[str(file_record["root"])]
+                candidate = (root / str(file_record["path"])).resolve()
+                if candidate != root and root not in candidate.parents:
+                    raise RuntimeError("reviewed wheel installed path escapes site-packages")
+                encoded_hash = str(file_record["sha256_urlsafe"])
+                size = int(file_record["size"])
+                if candidate in expected_files:
+                    locked_hash, locked_size, owners = expected_files[candidate]
+                    if (encoded_hash, size) != (locked_hash, locked_size):
+                        raise RuntimeError(
+                            "reviewed wheels claim different content at installed path: "
+                            f"{candidate}"
+                        )
+                    owners.add(normalized)
+                else:
+                    expected_files[candidate] = (encoded_hash, size, {normalized})
+            dist_info = str(wheel["dist_info"])
+            record_path = (roots["purelib"] / dist_info / "RECORD").resolve()
+            if not record_path.exists() and roots["platlib"] != roots["purelib"]:
+                record_path = (roots["platlib"] / dist_info / "RECORD").resolve()
+            generated = {
+                record_path: None,
+                record_path.with_name("INSTALLER"): b"pip\n",
+                record_path.with_name("REQUESTED"): b"",
+            }
+            for path, exact_content in generated.items():
+                if not path.is_file() or path.is_symlink():
+                    raise RuntimeError(f"main runtime installer metadata is missing or unsafe: {path}")
+                if exact_content is not None and path.read_bytes() != exact_content:
+                    raise RuntimeError(f"main runtime installer metadata differs: {path}")
+                if path in expected_files:
+                    raise RuntimeError(f"main runtime generated metadata collides: {path}")
+                expected_files[path] = (
+                    _urlsafe_sha256(path),
+                    path.stat().st_size,
+                    {normalized},
+                )
+            record_digests[normalized] = _sha256_file(record_path)
+    
+        actual_files: set[Path] = set()
+        for root in {roots["purelib"], roots["platlib"]}:
+            for candidate in root.rglob("*"):
+                if candidate.is_symlink():
+                    raise RuntimeError(f"main runtime site-packages contains a symlink: {candidate}")
+                if not candidate.is_file():
+                    continue
+                if candidate.suffix == ".pyc" or "__pycache__" in candidate.parts:
+&gt;                   raise RuntimeError(f"main runtime contains forbidden bytecode: {candidate}")
+E                   RuntimeError: main runtime contains forbidden bytecode: /root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/lib/python3.12/site-packages/__pycache__/py.cpython-312.pyc
+
+formal_v2/formal_runtime_integrity.py:394: RuntimeError</failure></testcase><testcase classname="formal_v2.tests.test_formal_v2.EvidenceAndPathTests" name="test_evidence_context_propagates_fixture_forbidden" time="3.221"><failure message="RuntimeError: main runtime contains forbidden bytecode: /root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/lib/python3.12/site-packages/__pycache__/py.cpython-312.pyc">self = &lt;formal_v2.tests.test_formal_v2.EvidenceAndPathTests testMethod=test_evidence_context_propagates_fixture_forbidden&gt;
+
+    def test_evidence_context_propagates_fixture_forbidden(self):
+&gt;       evidence = evidence_context(self.config, self.dataset, "FORMAL_EXPERIMENT_ALLOWED")
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+formal_v2/tests/test_formal_v2.py:1892: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+formal_v2/formal_evidence.py:732: in evidence_context
+    runtime = validate_runtime_provenance(runtime_provenance())
+                                          ^^^^^^^^^^^^^^^^^^^^
+formal_v2/formal_evidence.py:403: in runtime_provenance
+    closure = validate_installed_wheel_closure(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+prefix = PosixPath('/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z')
+wheelhouse = PosixPath('/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/csi-pairs-reviewed-wheels')
+manifest_path = PosixPath('/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/csi-pairs-reviewed-wheel-manifest.json')
+expected = {'Jinja2': {'hashes': ('85ece4451f492d0c13c5dd7c13a64681a86afae63a5f347908daf103ce6d2f67',), 'version': '3.1.6'}, 'Mar...filelock': {'hashes': ('87dd94cf281e586d135fa51132b8e3d9a598b316e90377a288663c9321036c82',), 'version': '3.32.2'}, ...}
+requirements_lock_sha256 = '9548a24a4faf5db17b5251df407b4402de033ae8648ec321c850fe6105002cf1'
+
+    def validate_installed_wheel_closure(
+        prefix: Path,
+        wheelhouse: Path,
+        manifest_path: Path,
+        expected: dict[str, dict[str, object]],
+        requirements_lock_sha256: str,
+        *,
+        site_roots: dict[str, Path] | None = None,
+        observed_distribution_names: Iterable[str] | None = None,
+    ) -&gt; dict[str, object]:
+        prefix = prefix.resolve()
+        manifest = reviewed_wheel_manifest(wheelhouse, expected, requirements_lock_sha256)
+        expected_manifest = canonical_manifest_bytes(manifest)
+        if (
+            not manifest_path.is_file()
+            or manifest_path.is_symlink()
+            or manifest_path.read_bytes() != expected_manifest
+        ):
+            raise RuntimeError("reviewed wheel manifest is missing or differs from locked wheels")
+        roots = _default_site_roots(prefix) if site_roots is None else {
+            kind: path.resolve() for kind, path in site_roots.items()
+        }
+        if not {"purelib", "platlib"}.issubset(roots) or set(roots).difference(
+            {"purelib", "platlib", "data"}
+        ):
+            raise RuntimeError("main runtime site-package roots are incomplete")
+        roots.setdefault("data", prefix)
+        for root in roots.values():
+            if root != prefix and prefix not in root.parents:
+                raise RuntimeError("main runtime site-package root escapes interpreter prefix")
+    
+        expected_files: dict[Path, tuple[str, int, set[str]]] = {}
+        record_digests: dict[str, str] = {}
+        for wheel in manifest["wheels"]:
+            assert isinstance(wheel, dict)
+            normalized = str(wheel["normalized_name"])
+            for file_record in wheel["files"]:
+                assert isinstance(file_record, dict)
+                root = roots[str(file_record["root"])]
+                candidate = (root / str(file_record["path"])).resolve()
+                if candidate != root and root not in candidate.parents:
+                    raise RuntimeError("reviewed wheel installed path escapes site-packages")
+                encoded_hash = str(file_record["sha256_urlsafe"])
+                size = int(file_record["size"])
+                if candidate in expected_files:
+                    locked_hash, locked_size, owners = expected_files[candidate]
+                    if (encoded_hash, size) != (locked_hash, locked_size):
+                        raise RuntimeError(
+                            "reviewed wheels claim different content at installed path: "
+                            f"{candidate}"
+                        )
+                    owners.add(normalized)
+                else:
+                    expected_files[candidate] = (encoded_hash, size, {normalized})
+            dist_info = str(wheel["dist_info"])
+            record_path = (roots["purelib"] / dist_info / "RECORD").resolve()
+            if not record_path.exists() and roots["platlib"] != roots["purelib"]:
+                record_path = (roots["platlib"] / dist_info / "RECORD").resolve()
+            generated = {
+                record_path: None,
+                record_path.with_name("INSTALLER"): b"pip\n",
+                record_path.with_name("REQUESTED"): b"",
+            }
+            for path, exact_content in generated.items():
+                if not path.is_file() or path.is_symlink():
+                    raise RuntimeError(f"main runtime installer metadata is missing or unsafe: {path}")
+                if exact_content is not None and path.read_bytes() != exact_content:
+                    raise RuntimeError(f"main runtime installer metadata differs: {path}")
+                if path in expected_files:
+                    raise RuntimeError(f"main runtime generated metadata collides: {path}")
+                expected_files[path] = (
+                    _urlsafe_sha256(path),
+                    path.stat().st_size,
+                    {normalized},
+                )
+            record_digests[normalized] = _sha256_file(record_path)
+    
+        actual_files: set[Path] = set()
+        for root in {roots["purelib"], roots["platlib"]}:
+            for candidate in root.rglob("*"):
+                if candidate.is_symlink():
+                    raise RuntimeError(f"main runtime site-packages contains a symlink: {candidate}")
+                if not candidate.is_file():
+                    continue
+                if candidate.suffix == ".pyc" or "__pycache__" in candidate.parts:
+&gt;                   raise RuntimeError(f"main runtime contains forbidden bytecode: {candidate}")
+E                   RuntimeError: main runtime contains forbidden bytecode: /root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/lib/python3.12/site-packages/__pycache__/py.cpython-312.pyc
+
+formal_v2/formal_runtime_integrity.py:394: RuntimeError</failure></testcase><testcase classname="formal_v2.tests.test_formal_v2.EvidenceAndPathTests" name="test_evidence_context_rejects_unlocked_main_runtime" time="3.075"><failure message="RuntimeError: main runtime contains forbidden bytecode: /root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/lib/python3.12/site-packages/__pycache__/py.cpython-312.pyc">self = &lt;formal_v2.tests.test_formal_v2.EvidenceAndPathTests testMethod=test_evidence_context_rejects_unlocked_main_runtime&gt;
+
+    def test_evidence_context_rejects_unlocked_main_runtime(self):
+        configure_reproducible_runtime()
+&gt;       original = runtime_provenance()
+                   ^^^^^^^^^^^^^^^^^^^^
+
+formal_v2/tests/test_formal_v2.py:1939: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+formal_v2/formal_evidence.py:403: in runtime_provenance
+    closure = validate_installed_wheel_closure(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+prefix = PosixPath('/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z')
+wheelhouse = PosixPath('/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/csi-pairs-reviewed-wheels')
+manifest_path = PosixPath('/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/csi-pairs-reviewed-wheel-manifest.json')
+expected = {'Jinja2': {'hashes': ('85ece4451f492d0c13c5dd7c13a64681a86afae63a5f347908daf103ce6d2f67',), 'version': '3.1.6'}, 'Mar...filelock': {'hashes': ('87dd94cf281e586d135fa51132b8e3d9a598b316e90377a288663c9321036c82',), 'version': '3.32.2'}, ...}
+requirements_lock_sha256 = '9548a24a4faf5db17b5251df407b4402de033ae8648ec321c850fe6105002cf1'
+
+    def validate_installed_wheel_closure(
+        prefix: Path,
+        wheelhouse: Path,
+        manifest_path: Path,
+        expected: dict[str, dict[str, object]],
+        requirements_lock_sha256: str,
+        *,
+        site_roots: dict[str, Path] | None = None,
+        observed_distribution_names: Iterable[str] | None = None,
+    ) -&gt; dict[str, object]:
+        prefix = prefix.resolve()
+        manifest = reviewed_wheel_manifest(wheelhouse, expected, requirements_lock_sha256)
+        expected_manifest = canonical_manifest_bytes(manifest)
+        if (
+            not manifest_path.is_file()
+            or manifest_path.is_symlink()
+            or manifest_path.read_bytes() != expected_manifest
+        ):
+            raise RuntimeError("reviewed wheel manifest is missing or differs from locked wheels")
+        roots = _default_site_roots(prefix) if site_roots is None else {
+            kind: path.resolve() for kind, path in site_roots.items()
+        }
+        if not {"purelib", "platlib"}.issubset(roots) or set(roots).difference(
+            {"purelib", "platlib", "data"}
+        ):
+            raise RuntimeError("main runtime site-package roots are incomplete")
+        roots.setdefault("data", prefix)
+        for root in roots.values():
+            if root != prefix and prefix not in root.parents:
+                raise RuntimeError("main runtime site-package root escapes interpreter prefix")
+    
+        expected_files: dict[Path, tuple[str, int, set[str]]] = {}
+        record_digests: dict[str, str] = {}
+        for wheel in manifest["wheels"]:
+            assert isinstance(wheel, dict)
+            normalized = str(wheel["normalized_name"])
+            for file_record in wheel["files"]:
+                assert isinstance(file_record, dict)
+                root = roots[str(file_record["root"])]
+                candidate = (root / str(file_record["path"])).resolve()
+                if candidate != root and root not in candidate.parents:
+                    raise RuntimeError("reviewed wheel installed path escapes site-packages")
+                encoded_hash = str(file_record["sha256_urlsafe"])
+                size = int(file_record["size"])
+                if candidate in expected_files:
+                    locked_hash, locked_size, owners = expected_files[candidate]
+                    if (encoded_hash, size) != (locked_hash, locked_size):
+                        raise RuntimeError(
+                            "reviewed wheels claim different content at installed path: "
+                            f"{candidate}"
+                        )
+                    owners.add(normalized)
+                else:
+                    expected_files[candidate] = (encoded_hash, size, {normalized})
+            dist_info = str(wheel["dist_info"])
+            record_path = (roots["purelib"] / dist_info / "RECORD").resolve()
+            if not record_path.exists() and roots["platlib"] != roots["purelib"]:
+                record_path = (roots["platlib"] / dist_info / "RECORD").resolve()
+            generated = {
+                record_path: None,
+                record_path.with_name("INSTALLER"): b"pip\n",
+                record_path.with_name("REQUESTED"): b"",
+            }
+            for path, exact_content in generated.items():
+                if not path.is_file() or path.is_symlink():
+                    raise RuntimeError(f"main runtime installer metadata is missing or unsafe: {path}")
+                if exact_content is not None and path.read_bytes() != exact_content:
+                    raise RuntimeError(f"main runtime installer metadata differs: {path}")
+                if path in expected_files:
+                    raise RuntimeError(f"main runtime generated metadata collides: {path}")
+                expected_files[path] = (
+                    _urlsafe_sha256(path),
+                    path.stat().st_size,
+                    {normalized},
+                )
+            record_digests[normalized] = _sha256_file(record_path)
+    
+        actual_files: set[Path] = set()
+        for root in {roots["purelib"], roots["platlib"]}:
+            for candidate in root.rglob("*"):
+                if candidate.is_symlink():
+                    raise RuntimeError(f"main runtime site-packages contains a symlink: {candidate}")
+                if not candidate.is_file():
+                    continue
+                if candidate.suffix == ".pyc" or "__pycache__" in candidate.parts:
+&gt;                   raise RuntimeError(f"main runtime contains forbidden bytecode: {candidate}")
+E                   RuntimeError: main runtime contains forbidden bytecode: /root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/lib/python3.12/site-packages/__pycache__/py.cpython-312.pyc
+
+formal_v2/formal_runtime_integrity.py:394: RuntimeError</failure></testcase><testcase classname="formal_v2.tests.test_formal_v2.EvidenceAndPathTests" name="test_external_direction_gate_cannot_be_inflated_by_duplicate_rows" time="0.229" /><testcase classname="formal_v2.tests.test_formal_v2.EvidenceAndPathTests" name="test_failed_fixture_qualification_only_allows_explicit_software_execution" time="3.136"><failure message="RuntimeError: main runtime contains forbidden bytecode: /root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/lib/python3.12/site-packages/__pycache__/py.cpython-312.pyc">self = &lt;formal_v2.tests.test_formal_v2.EvidenceAndPathTests testMethod=test_failed_fixture_qualification_only_allows_explicit_software_execution&gt;
+
+    def test_failed_fixture_qualification_only_allows_explicit_software_execution(self):
+        checkpoint = self.root / "software-teacher.pt"
+        checkpoint.write_bytes(b"software-only-teacher")
+&gt;       context = evidence_context(self.config, self.dataset, "FORBIDDEN")
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+formal_v2/tests/test_formal_v2.py:2156: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+formal_v2/formal_evidence.py:732: in evidence_context
+    runtime = validate_runtime_provenance(runtime_provenance())
+                                          ^^^^^^^^^^^^^^^^^^^^
+formal_v2/formal_evidence.py:403: in runtime_provenance
+    closure = validate_installed_wheel_closure(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+prefix = PosixPath('/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z')
+wheelhouse = PosixPath('/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/csi-pairs-reviewed-wheels')
+manifest_path = PosixPath('/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/csi-pairs-reviewed-wheel-manifest.json')
+expected = {'Jinja2': {'hashes': ('85ece4451f492d0c13c5dd7c13a64681a86afae63a5f347908daf103ce6d2f67',), 'version': '3.1.6'}, 'Mar...filelock': {'hashes': ('87dd94cf281e586d135fa51132b8e3d9a598b316e90377a288663c9321036c82',), 'version': '3.32.2'}, ...}
+requirements_lock_sha256 = '9548a24a4faf5db17b5251df407b4402de033ae8648ec321c850fe6105002cf1'
+
+    def validate_installed_wheel_closure(
+        prefix: Path,
+        wheelhouse: Path,
+        manifest_path: Path,
+        expected: dict[str, dict[str, object]],
+        requirements_lock_sha256: str,
+        *,
+        site_roots: dict[str, Path] | None = None,
+        observed_distribution_names: Iterable[str] | None = None,
+    ) -&gt; dict[str, object]:
+        prefix = prefix.resolve()
+        manifest = reviewed_wheel_manifest(wheelhouse, expected, requirements_lock_sha256)
+        expected_manifest = canonical_manifest_bytes(manifest)
+        if (
+            not manifest_path.is_file()
+            or manifest_path.is_symlink()
+            or manifest_path.read_bytes() != expected_manifest
+        ):
+            raise RuntimeError("reviewed wheel manifest is missing or differs from locked wheels")
+        roots = _default_site_roots(prefix) if site_roots is None else {
+            kind: path.resolve() for kind, path in site_roots.items()
+        }
+        if not {"purelib", "platlib"}.issubset(roots) or set(roots).difference(
+            {"purelib", "platlib", "data"}
+        ):
+            raise RuntimeError("main runtime site-package roots are incomplete")
+        roots.setdefault("data", prefix)
+        for root in roots.values():
+            if root != prefix and prefix not in root.parents:
+                raise RuntimeError("main runtime site-package root escapes interpreter prefix")
+    
+        expected_files: dict[Path, tuple[str, int, set[str]]] = {}
+        record_digests: dict[str, str] = {}
+        for wheel in manifest["wheels"]:
+            assert isinstance(wheel, dict)
+            normalized = str(wheel["normalized_name"])
+            for file_record in wheel["files"]:
+                assert isinstance(file_record, dict)
+                root = roots[str(file_record["root"])]
+                candidate = (root / str(file_record["path"])).resolve()
+                if candidate != root and root not in candidate.parents:
+                    raise RuntimeError("reviewed wheel installed path escapes site-packages")
+                encoded_hash = str(file_record["sha256_urlsafe"])
+                size = int(file_record["size"])
+                if candidate in expected_files:
+                    locked_hash, locked_size, owners = expected_files[candidate]
+                    if (encoded_hash, size) != (locked_hash, locked_size):
+                        raise RuntimeError(
+                            "reviewed wheels claim different content at installed path: "
+                            f"{candidate}"
+                        )
+                    owners.add(normalized)
+                else:
+                    expected_files[candidate] = (encoded_hash, size, {normalized})
+            dist_info = str(wheel["dist_info"])
+            record_path = (roots["purelib"] / dist_info / "RECORD").resolve()
+            if not record_path.exists() and roots["platlib"] != roots["purelib"]:
+                record_path = (roots["platlib"] / dist_info / "RECORD").resolve()
+            generated = {
+                record_path: None,
+                record_path.with_name("INSTALLER"): b"pip\n",
+                record_path.with_name("REQUESTED"): b"",
+            }
+            for path, exact_content in generated.items():
+                if not path.is_file() or path.is_symlink():
+                    raise RuntimeError(f"main runtime installer metadata is missing or unsafe: {path}")
+                if exact_content is not None and path.read_bytes() != exact_content:
+                    raise RuntimeError(f"main runtime installer metadata differs: {path}")
+                if path in expected_files:
+                    raise RuntimeError(f"main runtime generated metadata collides: {path}")
+                expected_files[path] = (
+                    _urlsafe_sha256(path),
+                    path.stat().st_size,
+                    {normalized},
+                )
+            record_digests[normalized] = _sha256_file(record_path)
+    
+        actual_files: set[Path] = set()
+        for root in {roots["purelib"], roots["platlib"]}:
+            for candidate in root.rglob("*"):
+                if candidate.is_symlink():
+                    raise RuntimeError(f"main runtime site-packages contains a symlink: {candidate}")
+                if not candidate.is_file():
+                    continue
+                if candidate.suffix == ".pyc" or "__pycache__" in candidate.parts:
+&gt;                   raise RuntimeError(f"main runtime contains forbidden bytecode: {candidate}")
+E                   RuntimeError: main runtime contains forbidden bytecode: /root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/lib/python3.12/site-packages/__pycache__/py.cpython-312.pyc
+
+formal_v2/formal_runtime_integrity.py:394: RuntimeError</failure></testcase><testcase classname="formal_v2.tests.test_formal_v2.EvidenceAndPathTests" name="test_fixture_runtime_cache_never_applies_to_nonfixture_data" time="0.243" /><testcase classname="formal_v2.tests.test_formal_v2.EvidenceAndPathTests" name="test_frozen_map_proposal_is_deterministic_and_uses_typed_actions" time="0.232" /><testcase classname="formal_v2.tests.test_formal_v2.EvidenceAndPathTests" name="test_gate_and_claim_identifiers_are_fixed" time="0.226" /><testcase classname="formal_v2.tests.test_formal_v2.EvidenceAndPathTests" name="test_literature_gate_rejects_unbound_or_contradictory_novelty_records" time="0.318" /><testcase classname="formal_v2.tests.test_formal_v2.EvidenceAndPathTests" name="test_manifested_gate_authenticates_complete_stage_inventory" time="3.215"><failure message="RuntimeError: main runtime contains forbidden bytecode: /root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/lib/python3.12/site-packages/__pycache__/py.cpython-312.pyc">self = &lt;formal_v2.tests.test_formal_v2.EvidenceAndPathTests testMethod=test_manifested_gate_authenticates_complete_stage_inventory&gt;
+
+    def test_manifested_gate_authenticates_complete_stage_inventory(self):
+        stage = self.root / "complete-stage"
+        stage.mkdir()
+&gt;       context = evidence_context(self.config, self.dataset, "FORBIDDEN")
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+formal_v2/tests/test_formal_v2.py:2221: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+formal_v2/formal_evidence.py:732: in evidence_context
+    runtime = validate_runtime_provenance(runtime_provenance())
+                                          ^^^^^^^^^^^^^^^^^^^^
+formal_v2/formal_evidence.py:403: in runtime_provenance
+    closure = validate_installed_wheel_closure(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+prefix = PosixPath('/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z')
+wheelhouse = PosixPath('/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/csi-pairs-reviewed-wheels')
+manifest_path = PosixPath('/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/csi-pairs-reviewed-wheel-manifest.json')
+expected = {'Jinja2': {'hashes': ('85ece4451f492d0c13c5dd7c13a64681a86afae63a5f347908daf103ce6d2f67',), 'version': '3.1.6'}, 'Mar...filelock': {'hashes': ('87dd94cf281e586d135fa51132b8e3d9a598b316e90377a288663c9321036c82',), 'version': '3.32.2'}, ...}
+requirements_lock_sha256 = '9548a24a4faf5db17b5251df407b4402de033ae8648ec321c850fe6105002cf1'
+
+    def validate_installed_wheel_closure(
+        prefix: Path,
+        wheelhouse: Path,
+        manifest_path: Path,
+        expected: dict[str, dict[str, object]],
+        requirements_lock_sha256: str,
+        *,
+        site_roots: dict[str, Path] | None = None,
+        observed_distribution_names: Iterable[str] | None = None,
+    ) -&gt; dict[str, object]:
+        prefix = prefix.resolve()
+        manifest = reviewed_wheel_manifest(wheelhouse, expected, requirements_lock_sha256)
+        expected_manifest = canonical_manifest_bytes(manifest)
+        if (
+            not manifest_path.is_file()
+            or manifest_path.is_symlink()
+            or manifest_path.read_bytes() != expected_manifest
+        ):
+            raise RuntimeError("reviewed wheel manifest is missing or differs from locked wheels")
+        roots = _default_site_roots(prefix) if site_roots is None else {
+            kind: path.resolve() for kind, path in site_roots.items()
+        }
+        if not {"purelib", "platlib"}.issubset(roots) or set(roots).difference(
+            {"purelib", "platlib", "data"}
+        ):
+            raise RuntimeError("main runtime site-package roots are incomplete")
+        roots.setdefault("data", prefix)
+        for root in roots.values():
+            if root != prefix and prefix not in root.parents:
+                raise RuntimeError("main runtime site-package root escapes interpreter prefix")
+    
+        expected_files: dict[Path, tuple[str, int, set[str]]] = {}
+        record_digests: dict[str, str] = {}
+        for wheel in manifest["wheels"]:
+            assert isinstance(wheel, dict)
+            normalized = str(wheel["normalized_name"])
+            for file_record in wheel["files"]:
+                assert isinstance(file_record, dict)
+                root = roots[str(file_record["root"])]
+                candidate = (root / str(file_record["path"])).resolve()
+                if candidate != root and root not in candidate.parents:
+                    raise RuntimeError("reviewed wheel installed path escapes site-packages")
+                encoded_hash = str(file_record["sha256_urlsafe"])
+                size = int(file_record["size"])
+                if candidate in expected_files:
+                    locked_hash, locked_size, owners = expected_files[candidate]
+                    if (encoded_hash, size) != (locked_hash, locked_size):
+                        raise RuntimeError(
+                            "reviewed wheels claim different content at installed path: "
+                            f"{candidate}"
+                        )
+                    owners.add(normalized)
+                else:
+                    expected_files[candidate] = (encoded_hash, size, {normalized})
+            dist_info = str(wheel["dist_info"])
+            record_path = (roots["purelib"] / dist_info / "RECORD").resolve()
+            if not record_path.exists() and roots["platlib"] != roots["purelib"]:
+                record_path = (roots["platlib"] / dist_info / "RECORD").resolve()
+            generated = {
+                record_path: None,
+                record_path.with_name("INSTALLER"): b"pip\n",
+                record_path.with_name("REQUESTED"): b"",
+            }
+            for path, exact_content in generated.items():
+                if not path.is_file() or path.is_symlink():
+                    raise RuntimeError(f"main runtime installer metadata is missing or unsafe: {path}")
+                if exact_content is not None and path.read_bytes() != exact_content:
+                    raise RuntimeError(f"main runtime installer metadata differs: {path}")
+                if path in expected_files:
+                    raise RuntimeError(f"main runtime generated metadata collides: {path}")
+                expected_files[path] = (
+                    _urlsafe_sha256(path),
+                    path.stat().st_size,
+                    {normalized},
+                )
+            record_digests[normalized] = _sha256_file(record_path)
+    
+        actual_files: set[Path] = set()
+        for root in {roots["purelib"], roots["platlib"]}:
+            for candidate in root.rglob("*"):
+                if candidate.is_symlink():
+                    raise RuntimeError(f"main runtime site-packages contains a symlink: {candidate}")
+                if not candidate.is_file():
+                    continue
+                if candidate.suffix == ".pyc" or "__pycache__" in candidate.parts:
+&gt;                   raise RuntimeError(f"main runtime contains forbidden bytecode: {candidate}")
+E                   RuntimeError: main runtime contains forbidden bytecode: /root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/lib/python3.12/site-packages/__pycache__/py.cpython-312.pyc
+
+formal_v2/formal_runtime_integrity.py:394: RuntimeError</failure></testcase><testcase classname="formal_v2.tests.test_formal_v2.EvidenceAndPathTests" name="test_manifested_gate_rejects_payload_or_file_mutation" time="3.043"><failure message="RuntimeError: main runtime contains forbidden bytecode: /root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/lib/python3.12/site-packages/__pycache__/py.cpython-312.pyc">self = &lt;formal_v2.tests.test_formal_v2.EvidenceAndPathTests testMethod=test_manifested_gate_rejects_payload_or_file_mutation&gt;
+
+    def test_manifested_gate_rejects_payload_or_file_mutation(self):
+        stage = self.root / "authenticated-stage"
+        stage.mkdir()
+&gt;       context = evidence_context(self.config, self.dataset, "FORBIDDEN")
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+formal_v2/tests/test_formal_v2.py:2181: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+formal_v2/formal_evidence.py:732: in evidence_context
+    runtime = validate_runtime_provenance(runtime_provenance())
+                                          ^^^^^^^^^^^^^^^^^^^^
+formal_v2/formal_evidence.py:403: in runtime_provenance
+    closure = validate_installed_wheel_closure(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+prefix = PosixPath('/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z')
+wheelhouse = PosixPath('/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/csi-pairs-reviewed-wheels')
+manifest_path = PosixPath('/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/csi-pairs-reviewed-wheel-manifest.json')
+expected = {'Jinja2': {'hashes': ('85ece4451f492d0c13c5dd7c13a64681a86afae63a5f347908daf103ce6d2f67',), 'version': '3.1.6'}, 'Mar...filelock': {'hashes': ('87dd94cf281e586d135fa51132b8e3d9a598b316e90377a288663c9321036c82',), 'version': '3.32.2'}, ...}
+requirements_lock_sha256 = '9548a24a4faf5db17b5251df407b4402de033ae8648ec321c850fe6105002cf1'
+
+    def validate_installed_wheel_closure(
+        prefix: Path,
+        wheelhouse: Path,
+        manifest_path: Path,
+        expected: dict[str, dict[str, object]],
+        requirements_lock_sha256: str,
+        *,
+        site_roots: dict[str, Path] | None = None,
+        observed_distribution_names: Iterable[str] | None = None,
+    ) -&gt; dict[str, object]:
+        prefix = prefix.resolve()
+        manifest = reviewed_wheel_manifest(wheelhouse, expected, requirements_lock_sha256)
+        expected_manifest = canonical_manifest_bytes(manifest)
+        if (
+            not manifest_path.is_file()
+            or manifest_path.is_symlink()
+            or manifest_path.read_bytes() != expected_manifest
+        ):
+            raise RuntimeError("reviewed wheel manifest is missing or differs from locked wheels")
+        roots = _default_site_roots(prefix) if site_roots is None else {
+            kind: path.resolve() for kind, path in site_roots.items()
+        }
+        if not {"purelib", "platlib"}.issubset(roots) or set(roots).difference(
+            {"purelib", "platlib", "data"}
+        ):
+            raise RuntimeError("main runtime site-package roots are incomplete")
+        roots.setdefault("data", prefix)
+        for root in roots.values():
+            if root != prefix and prefix not in root.parents:
+                raise RuntimeError("main runtime site-package root escapes interpreter prefix")
+    
+        expected_files: dict[Path, tuple[str, int, set[str]]] = {}
+        record_digests: dict[str, str] = {}
+        for wheel in manifest["wheels"]:
+            assert isinstance(wheel, dict)
+            normalized = str(wheel["normalized_name"])
+            for file_record in wheel["files"]:
+                assert isinstance(file_record, dict)
+                root = roots[str(file_record["root"])]
+                candidate = (root / str(file_record["path"])).resolve()
+                if candidate != root and root not in candidate.parents:
+                    raise RuntimeError("reviewed wheel installed path escapes site-packages")
+                encoded_hash = str(file_record["sha256_urlsafe"])
+                size = int(file_record["size"])
+                if candidate in expected_files:
+                    locked_hash, locked_size, owners = expected_files[candidate]
+                    if (encoded_hash, size) != (locked_hash, locked_size):
+                        raise RuntimeError(
+                            "reviewed wheels claim different content at installed path: "
+                            f"{candidate}"
+                        )
+                    owners.add(normalized)
+                else:
+                    expected_files[candidate] = (encoded_hash, size, {normalized})
+            dist_info = str(wheel["dist_info"])
+            record_path = (roots["purelib"] / dist_info / "RECORD").resolve()
+            if not record_path.exists() and roots["platlib"] != roots["purelib"]:
+                record_path = (roots["platlib"] / dist_info / "RECORD").resolve()
+            generated = {
+                record_path: None,
+                record_path.with_name("INSTALLER"): b"pip\n",
+                record_path.with_name("REQUESTED"): b"",
+            }
+            for path, exact_content in generated.items():
+                if not path.is_file() or path.is_symlink():
+                    raise RuntimeError(f"main runtime installer metadata is missing or unsafe: {path}")
+                if exact_content is not None and path.read_bytes() != exact_content:
+                    raise RuntimeError(f"main runtime installer metadata differs: {path}")
+                if path in expected_files:
+                    raise RuntimeError(f"main runtime generated metadata collides: {path}")
+                expected_files[path] = (
+                    _urlsafe_sha256(path),
+                    path.stat().st_size,
+                    {normalized},
+                )
+            record_digests[normalized] = _sha256_file(record_path)
+    
+        actual_files: set[Path] = set()
+        for root in {roots["purelib"], roots["platlib"]}:
+            for candidate in root.rglob("*"):
+                if candidate.is_symlink():
+                    raise RuntimeError(f"main runtime site-packages contains a symlink: {candidate}")
+                if not candidate.is_file():
+                    continue
+                if candidate.suffix == ".pyc" or "__pycache__" in candidate.parts:
+&gt;                   raise RuntimeError(f"main runtime contains forbidden bytecode: {candidate}")
+E                   RuntimeError: main runtime contains forbidden bytecode: /root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/lib/python3.12/site-packages/__pycache__/py.cpython-312.pyc
+
+formal_v2/formal_runtime_integrity.py:394: RuntimeError</failure></testcase><testcase classname="formal_v2.tests.test_formal_v2.EvidenceAndPathTests" name="test_noop_path_threshold_comes_from_registered_retrace" time="0.266" /><testcase classname="formal_v2.tests.test_formal_v2.EvidenceAndPathTests" name="test_not_assessed_from_later_stage_cannot_erase_upstream_gate" time="3.240"><failure message="RuntimeError: main runtime contains forbidden bytecode: /root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/lib/python3.12/site-packages/__pycache__/py.cpython-312.pyc">self = &lt;formal_v2.tests.test_formal_v2.EvidenceAndPathTests testMethod=test_not_assessed_from_later_stage_cannot_erase_upstream_gate&gt;
+
+    def test_not_assessed_from_later_stage_cannot_erase_upstream_gate(self):
+        (self.root / "qualification").mkdir()
+        (self.root / "evaluation").mkdir()
+        (self.root / "controls").mkdir()
+&gt;       context = evidence_context(self.config, self.dataset, "FORBIDDEN")
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+formal_v2/tests/test_formal_v2.py:1844: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+formal_v2/formal_evidence.py:732: in evidence_context
+    runtime = validate_runtime_provenance(runtime_provenance())
+                                          ^^^^^^^^^^^^^^^^^^^^
+formal_v2/formal_evidence.py:403: in runtime_provenance
+    closure = validate_installed_wheel_closure(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+prefix = PosixPath('/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z')
+wheelhouse = PosixPath('/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/csi-pairs-reviewed-wheels')
+manifest_path = PosixPath('/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/csi-pairs-reviewed-wheel-manifest.json')
+expected = {'Jinja2': {'hashes': ('85ece4451f492d0c13c5dd7c13a64681a86afae63a5f347908daf103ce6d2f67',), 'version': '3.1.6'}, 'Mar...filelock': {'hashes': ('87dd94cf281e586d135fa51132b8e3d9a598b316e90377a288663c9321036c82',), 'version': '3.32.2'}, ...}
+requirements_lock_sha256 = '9548a24a4faf5db17b5251df407b4402de033ae8648ec321c850fe6105002cf1'
+
+    def validate_installed_wheel_closure(
+        prefix: Path,
+        wheelhouse: Path,
+        manifest_path: Path,
+        expected: dict[str, dict[str, object]],
+        requirements_lock_sha256: str,
+        *,
+        site_roots: dict[str, Path] | None = None,
+        observed_distribution_names: Iterable[str] | None = None,
+    ) -&gt; dict[str, object]:
+        prefix = prefix.resolve()
+        manifest = reviewed_wheel_manifest(wheelhouse, expected, requirements_lock_sha256)
+        expected_manifest = canonical_manifest_bytes(manifest)
+        if (
+            not manifest_path.is_file()
+            or manifest_path.is_symlink()
+            or manifest_path.read_bytes() != expected_manifest
+        ):
+            raise RuntimeError("reviewed wheel manifest is missing or differs from locked wheels")
+        roots = _default_site_roots(prefix) if site_roots is None else {
+            kind: path.resolve() for kind, path in site_roots.items()
+        }
+        if not {"purelib", "platlib"}.issubset(roots) or set(roots).difference(
+            {"purelib", "platlib", "data"}
+        ):
+            raise RuntimeError("main runtime site-package roots are incomplete")
+        roots.setdefault("data", prefix)
+        for root in roots.values():
+            if root != prefix and prefix not in root.parents:
+                raise RuntimeError("main runtime site-package root escapes interpreter prefix")
+    
+        expected_files: dict[Path, tuple[str, int, set[str]]] = {}
+        record_digests: dict[str, str] = {}
+        for wheel in manifest["wheels"]:
+            assert isinstance(wheel, dict)
+            normalized = str(wheel["normalized_name"])
+            for file_record in wheel["files"]:
+                assert isinstance(file_record, dict)
+                root = roots[str(file_record["root"])]
+                candidate = (root / str(file_record["path"])).resolve()
+                if candidate != root and root not in candidate.parents:
+                    raise RuntimeError("reviewed wheel installed path escapes site-packages")
+                encoded_hash = str(file_record["sha256_urlsafe"])
+                size = int(file_record["size"])
+                if candidate in expected_files:
+                    locked_hash, locked_size, owners = expected_files[candidate]
+                    if (encoded_hash, size) != (locked_hash, locked_size):
+                        raise RuntimeError(
+                            "reviewed wheels claim different content at installed path: "
+                            f"{candidate}"
+                        )
+                    owners.add(normalized)
+                else:
+                    expected_files[candidate] = (encoded_hash, size, {normalized})
+            dist_info = str(wheel["dist_info"])
+            record_path = (roots["purelib"] / dist_info / "RECORD").resolve()
+            if not record_path.exists() and roots["platlib"] != roots["purelib"]:
+                record_path = (roots["platlib"] / dist_info / "RECORD").resolve()
+            generated = {
+                record_path: None,
+                record_path.with_name("INSTALLER"): b"pip\n",
+                record_path.with_name("REQUESTED"): b"",
+            }
+            for path, exact_content in generated.items():
+                if not path.is_file() or path.is_symlink():
+                    raise RuntimeError(f"main runtime installer metadata is missing or unsafe: {path}")
+                if exact_content is not None and path.read_bytes() != exact_content:
+                    raise RuntimeError(f"main runtime installer metadata differs: {path}")
+                if path in expected_files:
+                    raise RuntimeError(f"main runtime generated metadata collides: {path}")
+                expected_files[path] = (
+                    _urlsafe_sha256(path),
+                    path.stat().st_size,
+                    {normalized},
+                )
+            record_digests[normalized] = _sha256_file(record_path)
+    
+        actual_files: set[Path] = set()
+        for root in {roots["purelib"], roots["platlib"]}:
+            for candidate in root.rglob("*"):
+                if candidate.is_symlink():
+                    raise RuntimeError(f"main runtime site-packages contains a symlink: {candidate}")
+                if not candidate.is_file():
+                    continue
+                if candidate.suffix == ".pyc" or "__pycache__" in candidate.parts:
+&gt;                   raise RuntimeError(f"main runtime contains forbidden bytecode: {candidate}")
+E                   RuntimeError: main runtime contains forbidden bytecode: /root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/lib/python3.12/site-packages/__pycache__/py.cpython-312.pyc
+
+formal_v2/formal_runtime_integrity.py:394: RuntimeError</failure></testcase><testcase classname="formal_v2.tests.test_formal_v2.EvidenceAndPathTests" name="test_path_incidence_and_local_aggregation_are_bounded" time="0.224" /><testcase classname="formal_v2.tests.test_formal_v2.EvidenceAndPathTests" name="test_prepare_stops_before_data_verification_when_resources_fail" time="0.324" /><testcase classname="formal_v2.tests.test_formal_v2.EvidenceAndPathTests" name="test_resource_verification_failure_returns_nonzero" time="0.229" /><testcase classname="formal_v2.tests.test_formal_v2.EvidenceAndPathTests" name="test_risk_support_threshold_is_frozen_from_selection" time="0.223" /><testcase classname="formal_v2.tests.test_formal_v2.EvidenceAndPathTests" name="test_rt_calibration_allows_equal_measurements_from_distinct_raw_units" time="0.226" /><testcase classname="formal_v2.tests.test_formal_v2.EvidenceAndPathTests" name="test_rt_calibration_manifest_requires_bound_input_and_source_paths" time="0.221" /><testcase classname="formal_v2.tests.test_formal_v2.EvidenceAndPathTests" name="test_rt_calibration_rejects_fit_validation_scene_or_unit_overlap" time="0.222" /><testcase classname="formal_v2.tests.test_formal_v2.EvidenceAndPathTests" name="test_rt_calibration_rejects_payload_not_present_in_source_asset" time="0.225" /><testcase classname="formal_v2.tests.test_formal_v2.EvidenceAndPathTests" name="test_rt_calibration_rejects_renamed_or_copied_raw_sources" time="0.226" /><testcase classname="formal_v2.tests.test_formal_v2.EvidenceAndPathTests" name="test_rt_calibration_rejects_same_logical_raw_unit_under_another_wrapper" time="0.227" /><testcase classname="formal_v2.tests.test_formal_v2.EvidenceAndPathTests" name="test_rt_calibration_rejects_unit_error_cancellation" time="0.227" /><testcase classname="formal_v2.tests.test_formal_v2.EvidenceAndPathTests" name="test_rt_calibration_stage_isolates_reference_and_binds_outputs_end_to_end" time="3.087"><failure message="RuntimeError: main runtime contains forbidden bytecode: /root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/lib/python3.12/site-packages/__pycache__/py.cpython-312.pyc">self = &lt;formal_v2.tests.test_formal_v2.EvidenceAndPathTests testMethod=test_rt_calibration_stage_isolates_reference_and_binds_outputs_end_to_end&gt;
+
+    def test_rt_calibration_stage_isolates_reference_and_binds_outputs_end_to_end(self):
+        fit = self.root / "rt-fit.json"
+        validation_inputs = self.root / "rt-validation-inputs.json"
+        validation_reference = self.root / "rt-validation-reference.csv"
+        fit_a = self._rt_unit(
+            "fit-a", "fit-scene-a", "fit-a-source.json", "fit-batch", "fit-record-a", "fit-raw-a", {"observation": 1}
+        )
+        fit_b = self._rt_unit(
+            "fit-b", "fit-scene-b", "fit-b-source.json", "fit-batch", "fit-record-b", "fit-raw-b", {"observation": 2}
+        )
+        validation_a = self._rt_unit(
+            "unit-a", "validation-scene-a", "validation-a-source.json", "validation-batch", "validation-record-a", "validation-raw-a", {"observation": 3}
+        )
+        validation_b = self._rt_unit(
+            "unit-b", "validation-scene-b", "validation-b-source.json", "validation-batch", "validation-record-b", "validation-raw-b", {"observation": 4}
+        )
+        write_json(
+            fit,
+            {
+                "schema_version": "csi-pairs-v6-rt-calibration-partition-v3",
+                "partition": "fit",
+                "units": [fit_a, fit_b],
+            },
+        )
+        write_json(
+            validation_inputs,
+            {
+                "schema_version": "csi-pairs-v6-rt-calibration-partition-v3",
+                "partition": "validation",
+                "units": [validation_a, validation_b],
+            },
+        )
+        write_csv(
+            validation_reference,
+            [
+                {
+                    "unit_id": unit_id,
+                    "path_loss": 1.0 + index,
+                    "delay_spread": 2.0 + index,
+                    "angular_spread": 3.0 + index,
+                    "visible_path_count": 4 + index,
+                }
+                for index, unit_id in enumerate(("unit-a", "unit-b"))
+            ],
+        )
+        protocol = self.root / "rt-protocol.json"
+        write_json(
+            protocol,
+            {
+                "schema_version": "csi-pairs-v6-rt-calibration-protocol-v4",
+                "frozen_utc": "2026-08-06T00:00:00Z",
+                "absolute_tolerances": {
+                    "path_loss": 0.2,
+                    "delay_spread": 0.2,
+                    "angular_spread": 0.2,
+                    "visible_path_count": 0.2,
+                },
+                "exclusion_rules": [],
+                "minimum_validation_units": 2,
+                "aggregation": "mean_absolute_error_per_unit",
+            },
+        )
+        adapter = self.root / "rt_adapter.py"
+        adapter.write_text(
+            "import argparse, hashlib, json\n"
+            "from pathlib import Path\n"
+            "p=argparse.ArgumentParser(); p.add_argument('--output'); p.add_argument('--fit'); p.add_argument('--validation-inputs'); p.add_argument('--protocol'); a=p.parse_args()\n"
+            "out=Path(a.output); fitted=out/'fitted.json'; fitted.write_text('{\"gain\":1.0}', encoding='utf-8')\n"
+            "sha=lambda p: hashlib.sha256(Path(p).read_bytes()).hexdigest()\n"
+            "sim=out/'simulated_statistics.csv'; secret=list(Path(a.validation_inputs).parent.glob('*reference*.csv'))\n"
+            "if secret: sim.write_bytes(secret[0].read_bytes())\n"
+            "else: sim.write_text('unit_id,path_loss,delay_spread,angular_spread,visible_path_count\\nunit-a,1.05,2.05,3.05,4\\nunit-b,2.05,3.05,4.05,5\\n',encoding='utf-8')\n"
+            "payload={'schema_version':'csi-pairs-v6-rt-calibration-adapter-result-v5','fit_dataset_sha256':sha(a.fit),'validation_inputs_sha256':sha(a.validation_inputs),'fitted_parameters_path':fitted.name,'fitted_parameters_sha256':sha(fitted),'simulated_statistics_path':sim.name,'simulated_statistics_sha256':sha(sim)}\n"
+            "(out/'adapter_result.json').write_text(json.dumps(payload,sort_keys=True),encoding='utf-8')\n",
+            encoding="utf-8",
+        )
+        design_record = self.root / "CALIBRATION_DESIGN.md"
+        design_record.write_text(
+            "# C11 calibration design\n\n"
+            "This design was pre-registered.\n\n"
+            "Fit units are disjoint Denver scenes. Validation units are disjoint Miami scenes.\n\n"
+            "## Frozen tolerances\n\n"
+            "All four statistic tolerances are frozen before validation.\n"
+            + "Design evidence.\n" * 40,
+            encoding="utf-8",
+        )
+        license_review = self.root / "LICENSE_REVIEW.md"
+        license_review.write_text(
+            "# C11 license review\n\n"
+            "Sionna, DiffeRT, and OpenStreetMap license records were reviewed.\n"
+            "Both engine outputs are simulations and not measurements.\n"
+            + "License evidence.\n" * 40,
+            encoding="utf-8",
+        )
+        manifest = self.root / "rt-manifest.json"
+        write_json(
+            manifest,
+            {
+                "schema_version": "csi-pairs-v6-rt-calibration-adapter-v6",
+                "protocol_path": str(protocol),
+                "protocol_sha256": sha256_file(protocol),
+                "fit_dataset_path": str(fit),
+                "fit_dataset_sha256": sha256_file(fit),
+                "validation_inputs_path": str(validation_inputs),
+                "validation_inputs_sha256": sha256_file(validation_inputs),
+                "validation_reference_path": str(validation_reference),
+                "validation_reference_sha256": sha256_file(validation_reference),
+                "adapter_source_path": str(adapter),
+                "adapter_source_sha256": sha256_file(adapter),
+                "design_record_path": str(design_record),
+                "design_record_sha256": sha256_file(design_record),
+                "license_review_path": str(license_review),
+                "license_review_sha256": sha256_file(license_review),
+                "command": [
+                    "{python}",
+                    "{adapter_source}",
+                    "--output",
+                    "{output}",
+                    "--fit",
+                    "{fit_dataset}",
+                    "--validation-inputs",
+                    "{validation_inputs}",
+                    "--protocol",
+                    "{protocol}",
+                ],
+            },
+        )
+        output = self.root / "formal-run"
+&gt;       gate = run_rt_calibration_gate(self.config, self.dataset, manifest, output)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+formal_v2/tests/test_formal_v2.py:2629: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+formal_v2/formal_rt_calibration.py:199: in run_rt_calibration_gate
+    evidence = evidence_context(
+formal_v2/formal_evidence.py:732: in evidence_context
+    runtime = validate_runtime_provenance(runtime_provenance())
+                                          ^^^^^^^^^^^^^^^^^^^^
+formal_v2/formal_evidence.py:403: in runtime_provenance
+    closure = validate_installed_wheel_closure(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+prefix = PosixPath('/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z')
+wheelhouse = PosixPath('/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/csi-pairs-reviewed-wheels')
+manifest_path = PosixPath('/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/csi-pairs-reviewed-wheel-manifest.json')
+expected = {'Jinja2': {'hashes': ('85ece4451f492d0c13c5dd7c13a64681a86afae63a5f347908daf103ce6d2f67',), 'version': '3.1.6'}, 'Mar...filelock': {'hashes': ('87dd94cf281e586d135fa51132b8e3d9a598b316e90377a288663c9321036c82',), 'version': '3.32.2'}, ...}
+requirements_lock_sha256 = '9548a24a4faf5db17b5251df407b4402de033ae8648ec321c850fe6105002cf1'
+
+    def validate_installed_wheel_closure(
+        prefix: Path,
+        wheelhouse: Path,
+        manifest_path: Path,
+        expected: dict[str, dict[str, object]],
+        requirements_lock_sha256: str,
+        *,
+        site_roots: dict[str, Path] | None = None,
+        observed_distribution_names: Iterable[str] | None = None,
+    ) -&gt; dict[str, object]:
+        prefix = prefix.resolve()
+        manifest = reviewed_wheel_manifest(wheelhouse, expected, requirements_lock_sha256)
+        expected_manifest = canonical_manifest_bytes(manifest)
+        if (
+            not manifest_path.is_file()
+            or manifest_path.is_symlink()
+            or manifest_path.read_bytes() != expected_manifest
+        ):
+            raise RuntimeError("reviewed wheel manifest is missing or differs from locked wheels")
+        roots = _default_site_roots(prefix) if site_roots is None else {
+            kind: path.resolve() for kind, path in site_roots.items()
+        }
+        if not {"purelib", "platlib"}.issubset(roots) or set(roots).difference(
+            {"purelib", "platlib", "data"}
+        ):
+            raise RuntimeError("main runtime site-package roots are incomplete")
+        roots.setdefault("data", prefix)
+        for root in roots.values():
+            if root != prefix and prefix not in root.parents:
+                raise RuntimeError("main runtime site-package root escapes interpreter prefix")
+    
+        expected_files: dict[Path, tuple[str, int, set[str]]] = {}
+        record_digests: dict[str, str] = {}
+        for wheel in manifest["wheels"]:
+            assert isinstance(wheel, dict)
+            normalized = str(wheel["normalized_name"])
+            for file_record in wheel["files"]:
+                assert isinstance(file_record, dict)
+                root = roots[str(file_record["root"])]
+                candidate = (root / str(file_record["path"])).resolve()
+                if candidate != root and root not in candidate.parents:
+                    raise RuntimeError("reviewed wheel installed path escapes site-packages")
+                encoded_hash = str(file_record["sha256_urlsafe"])
+                size = int(file_record["size"])
+                if candidate in expected_files:
+                    locked_hash, locked_size, owners = expected_files[candidate]
+                    if (encoded_hash, size) != (locked_hash, locked_size):
+                        raise RuntimeError(
+                            "reviewed wheels claim different content at installed path: "
+                            f"{candidate}"
+                        )
+                    owners.add(normalized)
+                else:
+                    expected_files[candidate] = (encoded_hash, size, {normalized})
+            dist_info = str(wheel["dist_info"])
+            record_path = (roots["purelib"] / dist_info / "RECORD").resolve()
+            if not record_path.exists() and roots["platlib"] != roots["purelib"]:
+                record_path = (roots["platlib"] / dist_info / "RECORD").resolve()
+            generated = {
+                record_path: None,
+                record_path.with_name("INSTALLER"): b"pip\n",
+                record_path.with_name("REQUESTED"): b"",
+            }
+            for path, exact_content in generated.items():
+                if not path.is_file() or path.is_symlink():
+                    raise RuntimeError(f"main runtime installer metadata is missing or unsafe: {path}")
+                if exact_content is not None and path.read_bytes() != exact_content:
+                    raise RuntimeError(f"main runtime installer metadata differs: {path}")
+                if path in expected_files:
+                    raise RuntimeError(f"main runtime generated metadata collides: {path}")
+                expected_files[path] = (
+                    _urlsafe_sha256(path),
+                    path.stat().st_size,
+                    {normalized},
+                )
+            record_digests[normalized] = _sha256_file(record_path)
+    
+        actual_files: set[Path] = set()
+        for root in {roots["purelib"], roots["platlib"]}:
+            for candidate in root.rglob("*"):
+                if candidate.is_symlink():
+                    raise RuntimeError(f"main runtime site-packages contains a symlink: {candidate}")
+                if not candidate.is_file():
+                    continue
+                if candidate.suffix == ".pyc" or "__pycache__" in candidate.parts:
+&gt;                   raise RuntimeError(f"main runtime contains forbidden bytecode: {candidate}")
+E                   RuntimeError: main runtime contains forbidden bytecode: /root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/lib/python3.12/site-packages/__pycache__/py.cpython-312.pyc
+
+formal_v2/formal_runtime_integrity.py:394: RuntimeError</failure></testcase><testcase classname="formal_v2.tests.test_formal_v2.EvidenceAndPathTests" name="test_scene_id_gate_uses_cluster_macro_confidence_intervals" time="0.228" /><testcase classname="formal_v2.tests.test_formal_v2.EvidenceAndPathTests" name="test_scene_id_rows_are_exactly_paired_to_held_out_positions" time="3.173"><failure message="RuntimeError: main runtime contains forbidden bytecode: /root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/lib/python3.12/site-packages/__pycache__/py.cpython-312.pyc">self = &lt;formal_v2.tests.test_formal_v2.EvidenceAndPathTests testMethod=test_scene_id_rows_are_exactly_paired_to_held_out_positions&gt;
+
+    def test_scene_id_rows_are_exactly_paired_to_held_out_positions(self):
+&gt;       evidence = evidence_context(self.config, self.dataset, "FORBIDDEN")
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+formal_v2/tests/test_formal_v2.py:2322: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+formal_v2/formal_evidence.py:732: in evidence_context
+    runtime = validate_runtime_provenance(runtime_provenance())
+                                          ^^^^^^^^^^^^^^^^^^^^
+formal_v2/formal_evidence.py:403: in runtime_provenance
+    closure = validate_installed_wheel_closure(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+prefix = PosixPath('/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z')
+wheelhouse = PosixPath('/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/csi-pairs-reviewed-wheels')
+manifest_path = PosixPath('/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/csi-pairs-reviewed-wheel-manifest.json')
+expected = {'Jinja2': {'hashes': ('85ece4451f492d0c13c5dd7c13a64681a86afae63a5f347908daf103ce6d2f67',), 'version': '3.1.6'}, 'Mar...filelock': {'hashes': ('87dd94cf281e586d135fa51132b8e3d9a598b316e90377a288663c9321036c82',), 'version': '3.32.2'}, ...}
+requirements_lock_sha256 = '9548a24a4faf5db17b5251df407b4402de033ae8648ec321c850fe6105002cf1'
+
+    def validate_installed_wheel_closure(
+        prefix: Path,
+        wheelhouse: Path,
+        manifest_path: Path,
+        expected: dict[str, dict[str, object]],
+        requirements_lock_sha256: str,
+        *,
+        site_roots: dict[str, Path] | None = None,
+        observed_distribution_names: Iterable[str] | None = None,
+    ) -&gt; dict[str, object]:
+        prefix = prefix.resolve()
+        manifest = reviewed_wheel_manifest(wheelhouse, expected, requirements_lock_sha256)
+        expected_manifest = canonical_manifest_bytes(manifest)
+        if (
+            not manifest_path.is_file()
+            or manifest_path.is_symlink()
+            or manifest_path.read_bytes() != expected_manifest
+        ):
+            raise RuntimeError("reviewed wheel manifest is missing or differs from locked wheels")
+        roots = _default_site_roots(prefix) if site_roots is None else {
+            kind: path.resolve() for kind, path in site_roots.items()
+        }
+        if not {"purelib", "platlib"}.issubset(roots) or set(roots).difference(
+            {"purelib", "platlib", "data"}
+        ):
+            raise RuntimeError("main runtime site-package roots are incomplete")
+        roots.setdefault("data", prefix)
+        for root in roots.values():
+            if root != prefix and prefix not in root.parents:
+                raise RuntimeError("main runtime site-package root escapes interpreter prefix")
+    
+        expected_files: dict[Path, tuple[str, int, set[str]]] = {}
+        record_digests: dict[str, str] = {}
+        for wheel in manifest["wheels"]:
+            assert isinstance(wheel, dict)
+            normalized = str(wheel["normalized_name"])
+            for file_record in wheel["files"]:
+                assert isinstance(file_record, dict)
+                root = roots[str(file_record["root"])]
+                candidate = (root / str(file_record["path"])).resolve()
+                if candidate != root and root not in candidate.parents:
+                    raise RuntimeError("reviewed wheel installed path escapes site-packages")
+                encoded_hash = str(file_record["sha256_urlsafe"])
+                size = int(file_record["size"])
+                if candidate in expected_files:
+                    locked_hash, locked_size, owners = expected_files[candidate]
+                    if (encoded_hash, size) != (locked_hash, locked_size):
+                        raise RuntimeError(
+                            "reviewed wheels claim different content at installed path: "
+                            f"{candidate}"
+                        )
+                    owners.add(normalized)
+                else:
+                    expected_files[candidate] = (encoded_hash, size, {normalized})
+            dist_info = str(wheel["dist_info"])
+            record_path = (roots["purelib"] / dist_info / "RECORD").resolve()
+            if not record_path.exists() and roots["platlib"] != roots["purelib"]:
+                record_path = (roots["platlib"] / dist_info / "RECORD").resolve()
+            generated = {
+                record_path: None,
+                record_path.with_name("INSTALLER"): b"pip\n",
+                record_path.with_name("REQUESTED"): b"",
+            }
+            for path, exact_content in generated.items():
+                if not path.is_file() or path.is_symlink():
+                    raise RuntimeError(f"main runtime installer metadata is missing or unsafe: {path}")
+                if exact_content is not None and path.read_bytes() != exact_content:
+                    raise RuntimeError(f"main runtime installer metadata differs: {path}")
+                if path in expected_files:
+                    raise RuntimeError(f"main runtime generated metadata collides: {path}")
+                expected_files[path] = (
+                    _urlsafe_sha256(path),
+                    path.stat().st_size,
+                    {normalized},
+                )
+            record_digests[normalized] = _sha256_file(record_path)
+    
+        actual_files: set[Path] = set()
+        for root in {roots["purelib"], roots["platlib"]}:
+            for candidate in root.rglob("*"):
+                if candidate.is_symlink():
+                    raise RuntimeError(f"main runtime site-packages contains a symlink: {candidate}")
+                if not candidate.is_file():
+                    continue
+                if candidate.suffix == ".pyc" or "__pycache__" in candidate.parts:
+&gt;                   raise RuntimeError(f"main runtime contains forbidden bytecode: {candidate}")
+E                   RuntimeError: main runtime contains forbidden bytecode: /root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/lib/python3.12/site-packages/__pycache__/py.cpython-312.pyc
+
+formal_v2/formal_runtime_integrity.py:394: RuntimeError</failure></testcase><testcase classname="formal_v2.tests.test_formal_v2.EvidenceAndPathTests" name="test_scene_id_training_provenance_must_bind_training_artifacts" time="2.995"><failure message="RuntimeError: main runtime contains forbidden bytecode: /root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/lib/python3.12/site-packages/__pycache__/py.cpython-312.pyc">self = &lt;formal_v2.tests.test_formal_v2.EvidenceAndPathTests testMethod=test_scene_id_training_provenance_must_bind_training_artifacts&gt;
+
+    def test_scene_id_training_provenance_must_bind_training_artifacts(self):
+&gt;       evidence = evidence_context(self.config, self.dataset, "FORBIDDEN")
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+formal_v2/tests/test_formal_v2.py:2370: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+formal_v2/formal_evidence.py:732: in evidence_context
+    runtime = validate_runtime_provenance(runtime_provenance())
+                                          ^^^^^^^^^^^^^^^^^^^^
+formal_v2/formal_evidence.py:403: in runtime_provenance
+    closure = validate_installed_wheel_closure(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+prefix = PosixPath('/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z')
+wheelhouse = PosixPath('/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/csi-pairs-reviewed-wheels')
+manifest_path = PosixPath('/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/csi-pairs-reviewed-wheel-manifest.json')
+expected = {'Jinja2': {'hashes': ('85ece4451f492d0c13c5dd7c13a64681a86afae63a5f347908daf103ce6d2f67',), 'version': '3.1.6'}, 'Mar...filelock': {'hashes': ('87dd94cf281e586d135fa51132b8e3d9a598b316e90377a288663c9321036c82',), 'version': '3.32.2'}, ...}
+requirements_lock_sha256 = '9548a24a4faf5db17b5251df407b4402de033ae8648ec321c850fe6105002cf1'
+
+    def validate_installed_wheel_closure(
+        prefix: Path,
+        wheelhouse: Path,
+        manifest_path: Path,
+        expected: dict[str, dict[str, object]],
+        requirements_lock_sha256: str,
+        *,
+        site_roots: dict[str, Path] | None = None,
+        observed_distribution_names: Iterable[str] | None = None,
+    ) -&gt; dict[str, object]:
+        prefix = prefix.resolve()
+        manifest = reviewed_wheel_manifest(wheelhouse, expected, requirements_lock_sha256)
+        expected_manifest = canonical_manifest_bytes(manifest)
+        if (
+            not manifest_path.is_file()
+            or manifest_path.is_symlink()
+            or manifest_path.read_bytes() != expected_manifest
+        ):
+            raise RuntimeError("reviewed wheel manifest is missing or differs from locked wheels")
+        roots = _default_site_roots(prefix) if site_roots is None else {
+            kind: path.resolve() for kind, path in site_roots.items()
+        }
+        if not {"purelib", "platlib"}.issubset(roots) or set(roots).difference(
+            {"purelib", "platlib", "data"}
+        ):
+            raise RuntimeError("main runtime site-package roots are incomplete")
+        roots.setdefault("data", prefix)
+        for root in roots.values():
+            if root != prefix and prefix not in root.parents:
+                raise RuntimeError("main runtime site-package root escapes interpreter prefix")
+    
+        expected_files: dict[Path, tuple[str, int, set[str]]] = {}
+        record_digests: dict[str, str] = {}
+        for wheel in manifest["wheels"]:
+            assert isinstance(wheel, dict)
+            normalized = str(wheel["normalized_name"])
+            for file_record in wheel["files"]:
+                assert isinstance(file_record, dict)
+                root = roots[str(file_record["root"])]
+                candidate = (root / str(file_record["path"])).resolve()
+                if candidate != root and root not in candidate.parents:
+                    raise RuntimeError("reviewed wheel installed path escapes site-packages")
+                encoded_hash = str(file_record["sha256_urlsafe"])
+                size = int(file_record["size"])
+                if candidate in expected_files:
+                    locked_hash, locked_size, owners = expected_files[candidate]
+                    if (encoded_hash, size) != (locked_hash, locked_size):
+                        raise RuntimeError(
+                            "reviewed wheels claim different content at installed path: "
+                            f"{candidate}"
+                        )
+                    owners.add(normalized)
+                else:
+                    expected_files[candidate] = (encoded_hash, size, {normalized})
+            dist_info = str(wheel["dist_info"])
+            record_path = (roots["purelib"] / dist_info / "RECORD").resolve()
+            if not record_path.exists() and roots["platlib"] != roots["purelib"]:
+                record_path = (roots["platlib"] / dist_info / "RECORD").resolve()
+            generated = {
+                record_path: None,
+                record_path.with_name("INSTALLER"): b"pip\n",
+                record_path.with_name("REQUESTED"): b"",
+            }
+            for path, exact_content in generated.items():
+                if not path.is_file() or path.is_symlink():
+                    raise RuntimeError(f"main runtime installer metadata is missing or unsafe: {path}")
+                if exact_content is not None and path.read_bytes() != exact_content:
+                    raise RuntimeError(f"main runtime installer metadata differs: {path}")
+                if path in expected_files:
+                    raise RuntimeError(f"main runtime generated metadata collides: {path}")
+                expected_files[path] = (
+                    _urlsafe_sha256(path),
+                    path.stat().st_size,
+                    {normalized},
+                )
+            record_digests[normalized] = _sha256_file(record_path)
+    
+        actual_files: set[Path] = set()
+        for root in {roots["purelib"], roots["platlib"]}:
+            for candidate in root.rglob("*"):
+                if candidate.is_symlink():
+                    raise RuntimeError(f"main runtime site-packages contains a symlink: {candidate}")
+                if not candidate.is_file():
+                    continue
+                if candidate.suffix == ".pyc" or "__pycache__" in candidate.parts:
+&gt;                   raise RuntimeError(f"main runtime contains forbidden bytecode: {candidate}")
+E                   RuntimeError: main runtime contains forbidden bytecode: /root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/lib/python3.12/site-packages/__pycache__/py.cpython-312.pyc
+
+formal_v2/formal_runtime_integrity.py:394: RuntimeError</failure></testcase><testcase classname="formal_v2.tests.test_formal_v2.EvidenceAndPathTests" name="test_target_verification_failure_is_explicitly_nonblocking" time="3.375"><failure message="RuntimeError: main runtime contains forbidden bytecode: /root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/lib/python3.12/site-packages/__pycache__/py.cpython-312.pyc">self = &lt;formal_v2.tests.test_formal_v2.EvidenceAndPathTests testMethod=test_target_verification_failure_is_explicitly_nonblocking&gt;
+
+    def test_target_verification_failure_is_explicitly_nonblocking(self):
+        from formal_v2.formal_data_verification import run_data_verification
+    
+&gt;       gate = run_data_verification(
+            self.config,
+            self.dataset,
+            ROOT / "formal_v2/configs/fixture_verifier.json",
+            self.root / "verified-target-contract",
+        )
+
+formal_v2/tests/test_formal_v2.py:2115: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+formal_v2/formal_data_verification.py:107: in run_data_verification
+    evidence = evidence_context(
+formal_v2/formal_evidence.py:732: in evidence_context
+    runtime = validate_runtime_provenance(runtime_provenance())
+                                          ^^^^^^^^^^^^^^^^^^^^
+formal_v2/formal_evidence.py:403: in runtime_provenance
+    closure = validate_installed_wheel_closure(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+prefix = PosixPath('/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z')
+wheelhouse = PosixPath('/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/csi-pairs-reviewed-wheels')
+manifest_path = PosixPath('/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/csi-pairs-reviewed-wheel-manifest.json')
+expected = {'Jinja2': {'hashes': ('85ece4451f492d0c13c5dd7c13a64681a86afae63a5f347908daf103ce6d2f67',), 'version': '3.1.6'}, 'Mar...filelock': {'hashes': ('87dd94cf281e586d135fa51132b8e3d9a598b316e90377a288663c9321036c82',), 'version': '3.32.2'}, ...}
+requirements_lock_sha256 = '9548a24a4faf5db17b5251df407b4402de033ae8648ec321c850fe6105002cf1'
+
+    def validate_installed_wheel_closure(
+        prefix: Path,
+        wheelhouse: Path,
+        manifest_path: Path,
+        expected: dict[str, dict[str, object]],
+        requirements_lock_sha256: str,
+        *,
+        site_roots: dict[str, Path] | None = None,
+        observed_distribution_names: Iterable[str] | None = None,
+    ) -&gt; dict[str, object]:
+        prefix = prefix.resolve()
+        manifest = reviewed_wheel_manifest(wheelhouse, expected, requirements_lock_sha256)
+        expected_manifest = canonical_manifest_bytes(manifest)
+        if (
+            not manifest_path.is_file()
+            or manifest_path.is_symlink()
+            or manifest_path.read_bytes() != expected_manifest
+        ):
+            raise RuntimeError("reviewed wheel manifest is missing or differs from locked wheels")
+        roots = _default_site_roots(prefix) if site_roots is None else {
+            kind: path.resolve() for kind, path in site_roots.items()
+        }
+        if not {"purelib", "platlib"}.issubset(roots) or set(roots).difference(
+            {"purelib", "platlib", "data"}
+        ):
+            raise RuntimeError("main runtime site-package roots are incomplete")
+        roots.setdefault("data", prefix)
+        for root in roots.values():
+            if root != prefix and prefix not in root.parents:
+                raise RuntimeError("main runtime site-package root escapes interpreter prefix")
+    
+        expected_files: dict[Path, tuple[str, int, set[str]]] = {}
+        record_digests: dict[str, str] = {}
+        for wheel in manifest["wheels"]:
+            assert isinstance(wheel, dict)
+            normalized = str(wheel["normalized_name"])
+            for file_record in wheel["files"]:
+                assert isinstance(file_record, dict)
+                root = roots[str(file_record["root"])]
+                candidate = (root / str(file_record["path"])).resolve()
+                if candidate != root and root not in candidate.parents:
+                    raise RuntimeError("reviewed wheel installed path escapes site-packages")
+                encoded_hash = str(file_record["sha256_urlsafe"])
+                size = int(file_record["size"])
+                if candidate in expected_files:
+                    locked_hash, locked_size, owners = expected_files[candidate]
+                    if (encoded_hash, size) != (locked_hash, locked_size):
+                        raise RuntimeError(
+                            "reviewed wheels claim different content at installed path: "
+                            f"{candidate}"
+                        )
+                    owners.add(normalized)
+                else:
+                    expected_files[candidate] = (encoded_hash, size, {normalized})
+            dist_info = str(wheel["dist_info"])
+            record_path = (roots["purelib"] / dist_info / "RECORD").resolve()
+            if not record_path.exists() and roots["platlib"] != roots["purelib"]:
+                record_path = (roots["platlib"] / dist_info / "RECORD").resolve()
+            generated = {
+                record_path: None,
+                record_path.with_name("INSTALLER"): b"pip\n",
+                record_path.with_name("REQUESTED"): b"",
+            }
+            for path, exact_content in generated.items():
+                if not path.is_file() or path.is_symlink():
+                    raise RuntimeError(f"main runtime installer metadata is missing or unsafe: {path}")
+                if exact_content is not None and path.read_bytes() != exact_content:
+                    raise RuntimeError(f"main runtime installer metadata differs: {path}")
+                if path in expected_files:
+                    raise RuntimeError(f"main runtime generated metadata collides: {path}")
+                expected_files[path] = (
+                    _urlsafe_sha256(path),
+                    path.stat().st_size,
+                    {normalized},
+                )
+            record_digests[normalized] = _sha256_file(record_path)
+    
+        actual_files: set[Path] = set()
+        for root in {roots["purelib"], roots["platlib"]}:
+            for candidate in root.rglob("*"):
+                if candidate.is_symlink():
+                    raise RuntimeError(f"main runtime site-packages contains a symlink: {candidate}")
+                if not candidate.is_file():
+                    continue
+                if candidate.suffix == ".pyc" or "__pycache__" in candidate.parts:
+&gt;                   raise RuntimeError(f"main runtime contains forbidden bytecode: {candidate}")
+E                   RuntimeError: main runtime contains forbidden bytecode: /root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/lib/python3.12/site-packages/__pycache__/py.cpython-312.pyc
+
+formal_v2/formal_runtime_integrity.py:394: RuntimeError</failure></testcase><testcase classname="formal_v2.tests.test_formal_v2.EvidenceAndPathTests" name="test_teacher_checkpoint_hash_is_authenticated" time="3.200"><failure message="RuntimeError: main runtime contains forbidden bytecode: /root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/lib/python3.12/site-packages/__pycache__/py.cpython-312.pyc">self = &lt;formal_v2.tests.test_formal_v2.EvidenceAndPathTests testMethod=test_teacher_checkpoint_hash_is_authenticated&gt;
+
+    def test_teacher_checkpoint_hash_is_authenticated(self):
+        checkpoint = self.root / "teacher.pt"
+        checkpoint.write_bytes(b"frozen-teacher")
+&gt;       context = evidence_context(self.config, self.dataset, "FORBIDDEN")
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+formal_v2/tests/test_formal_v2.py:2130: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+formal_v2/formal_evidence.py:732: in evidence_context
+    runtime = validate_runtime_provenance(runtime_provenance())
+                                          ^^^^^^^^^^^^^^^^^^^^
+formal_v2/formal_evidence.py:403: in runtime_provenance
+    closure = validate_installed_wheel_closure(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+prefix = PosixPath('/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z')
+wheelhouse = PosixPath('/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/csi-pairs-reviewed-wheels')
+manifest_path = PosixPath('/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/csi-pairs-reviewed-wheel-manifest.json')
+expected = {'Jinja2': {'hashes': ('85ece4451f492d0c13c5dd7c13a64681a86afae63a5f347908daf103ce6d2f67',), 'version': '3.1.6'}, 'Mar...filelock': {'hashes': ('87dd94cf281e586d135fa51132b8e3d9a598b316e90377a288663c9321036c82',), 'version': '3.32.2'}, ...}
+requirements_lock_sha256 = '9548a24a4faf5db17b5251df407b4402de033ae8648ec321c850fe6105002cf1'
+
+    def validate_installed_wheel_closure(
+        prefix: Path,
+        wheelhouse: Path,
+        manifest_path: Path,
+        expected: dict[str, dict[str, object]],
+        requirements_lock_sha256: str,
+        *,
+        site_roots: dict[str, Path] | None = None,
+        observed_distribution_names: Iterable[str] | None = None,
+    ) -&gt; dict[str, object]:
+        prefix = prefix.resolve()
+        manifest = reviewed_wheel_manifest(wheelhouse, expected, requirements_lock_sha256)
+        expected_manifest = canonical_manifest_bytes(manifest)
+        if (
+            not manifest_path.is_file()
+            or manifest_path.is_symlink()
+            or manifest_path.read_bytes() != expected_manifest
+        ):
+            raise RuntimeError("reviewed wheel manifest is missing or differs from locked wheels")
+        roots = _default_site_roots(prefix) if site_roots is None else {
+            kind: path.resolve() for kind, path in site_roots.items()
+        }
+        if not {"purelib", "platlib"}.issubset(roots) or set(roots).difference(
+            {"purelib", "platlib", "data"}
+        ):
+            raise RuntimeError("main runtime site-package roots are incomplete")
+        roots.setdefault("data", prefix)
+        for root in roots.values():
+            if root != prefix and prefix not in root.parents:
+                raise RuntimeError("main runtime site-package root escapes interpreter prefix")
+    
+        expected_files: dict[Path, tuple[str, int, set[str]]] = {}
+        record_digests: dict[str, str] = {}
+        for wheel in manifest["wheels"]:
+            assert isinstance(wheel, dict)
+            normalized = str(wheel["normalized_name"])
+            for file_record in wheel["files"]:
+                assert isinstance(file_record, dict)
+                root = roots[str(file_record["root"])]
+                candidate = (root / str(file_record["path"])).resolve()
+                if candidate != root and root not in candidate.parents:
+                    raise RuntimeError("reviewed wheel installed path escapes site-packages")
+                encoded_hash = str(file_record["sha256_urlsafe"])
+                size = int(file_record["size"])
+                if candidate in expected_files:
+                    locked_hash, locked_size, owners = expected_files[candidate]
+                    if (encoded_hash, size) != (locked_hash, locked_size):
+                        raise RuntimeError(
+                            "reviewed wheels claim different content at installed path: "
+                            f"{candidate}"
+                        )
+                    owners.add(normalized)
+                else:
+                    expected_files[candidate] = (encoded_hash, size, {normalized})
+            dist_info = str(wheel["dist_info"])
+            record_path = (roots["purelib"] / dist_info / "RECORD").resolve()
+            if not record_path.exists() and roots["platlib"] != roots["purelib"]:
+                record_path = (roots["platlib"] / dist_info / "RECORD").resolve()
+            generated = {
+                record_path: None,
+                record_path.with_name("INSTALLER"): b"pip\n",
+                record_path.with_name("REQUESTED"): b"",
+            }
+            for path, exact_content in generated.items():
+                if not path.is_file() or path.is_symlink():
+                    raise RuntimeError(f"main runtime installer metadata is missing or unsafe: {path}")
+                if exact_content is not None and path.read_bytes() != exact_content:
+                    raise RuntimeError(f"main runtime installer metadata differs: {path}")
+                if path in expected_files:
+                    raise RuntimeError(f"main runtime generated metadata collides: {path}")
+                expected_files[path] = (
+                    _urlsafe_sha256(path),
+                    path.stat().st_size,
+                    {normalized},
+                )
+            record_digests[normalized] = _sha256_file(record_path)
+    
+        actual_files: set[Path] = set()
+        for root in {roots["purelib"], roots["platlib"]}:
+            for candidate in root.rglob("*"):
+                if candidate.is_symlink():
+                    raise RuntimeError(f"main runtime site-packages contains a symlink: {candidate}")
+                if not candidate.is_file():
+                    continue
+                if candidate.suffix == ".pyc" or "__pycache__" in candidate.parts:
+&gt;                   raise RuntimeError(f"main runtime contains forbidden bytecode: {candidate}")
+E                   RuntimeError: main runtime contains forbidden bytecode: /root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/lib/python3.12/site-packages/__pycache__/py.cpython-312.pyc
+
+formal_v2/formal_runtime_integrity.py:394: RuntimeError</failure></testcase><testcase classname="formal_v2.tests.test_formal_v2.WiGATrAdapterTests" name="test_2p5d_mesh_has_top_exposed_sides_and_materials" time="0.226" /><testcase classname="formal_v2.tests.test_formal_v2.WiGATrAdapterTests" name="test_common_unit_registry_excludes_target_support" time="0.235" /><testcase classname="formal_v2.tests.test_formal_v2.WiGATrAdapterTests" name="test_compact_mesh_preserves_surface_area_and_material" time="0.230" /><testcase classname="formal_v2.tests.test_formal_v2.WiGATrAdapterTests" name="test_execution_manifest_binds_config_training_checkpoint_and_results" time="0.250" /><testcase classname="formal_v2.tests.test_formal_v2.WiGATrAdapterTests" name="test_external_rows_must_cover_the_frozen_registry" time="0.231" /><testcase classname="formal_v2.tests.test_formal_v2.WiGATrAdapterTests" name="test_geometry_destroyed_preserves_joint_cell_statistics" time="0.230" /><testcase classname="formal_v2.tests.test_formal_v2.WiGATrAdapterTests" name="test_inverse_localizer_api_has_no_true_position_argument" time="0.224" /><testcase classname="formal_v2.tests.test_formal_v2.WiGATrAdapterTests" name="test_inverse_localizer_optimizes_only_from_public_bounds_and_power" time="0.428" /><testcase classname="formal_v2.tests.test_formal_v2.WiGATrAdapterTests" name="test_official_wigatr_fails_before_training_without_cuda_attention" time="0.221" /><testcase classname="formal_v2.tests.test_formal_v2.WiGATrAdapterTests" name="test_paper_dose_config_and_vendor_snapshot_are_frozen" time="0.243" /><testcase classname="formal_v2.tests.test_formal_v2.WiGATrAdapterTests" name="test_relative_total_power_is_invariant_to_common_phase" time="0.235" /><testcase classname="formal_v2.tests.test_formal_v2.WiGATrAdapterTests" name="test_wigatr_execution_manifest_binds_independently_probed_runtime" time="0.239" /><testcase classname="formal_v2.tests.test_formal_v2.WiGATrAdapterTests" name="test_wigatr_mesh_audit_covers_the_complete_fixture_map_bank" time="0.387" /><testcase classname="formal_v2.tests.test_formal_v2.WaibuIntegrationTests" name="test_all_controlled_map_models_have_real_gradients" time="18.718" /><testcase classname="formal_v2.tests.test_formal_v2.WaibuIntegrationTests" name="test_all_representation_models_run_backward_with_real_gradients" time="117.492" /><testcase classname="formal_v2.tests.test_formal_v2.WaibuIntegrationTests" name="test_c1_claim_reauthenticates_the_adapter_manifest_copy" time="0.231" /><testcase classname="formal_v2.tests.test_formal_v2.WaibuIntegrationTests" name="test_c1_claim_requires_two_explicitly_eligible_external_models" time="0.226" /><testcase classname="formal_v2.tests.test_formal_v2.WaibuIntegrationTests" name="test_c1_model_must_pass_in_every_evaluation_city" time="0.475" /><testcase classname="formal_v2.tests.test_formal_v2.WaibuIntegrationTests" name="test_cli_exposes_resource_and_representation_stages" time="0.226" /><testcase classname="formal_v2.tests.test_formal_v2.WaibuIntegrationTests" name="test_complete_map_manifest_has_five_distinct_map_models" time="0.224" /><testcase classname="formal_v2.tests.test_formal_v2.WaibuIntegrationTests" name="test_contrawimae_executes_source_only_wimae_warm_start" time="3.424" /><testcase classname="formal_v2.tests.test_formal_v2.WaibuIntegrationTests" name="test_controlled_map_memory_and_precision_contract_is_frozen" time="0.220" /><testcase classname="formal_v2.tests.test_formal_v2.WaibuIntegrationTests" name="test_controlled_map_train_records_effective_batch_accumulation" time="0.860" /><testcase classname="formal_v2.tests.test_formal_v2.WaibuIntegrationTests" name="test_csi_mae_controlled_model_runs_masked_backward" time="2.920" /><testcase classname="formal_v2.tests.test_formal_v2.WaibuIntegrationTests" name="test_deterministic_prefix_product_matches_forward_and_gradient" time="0.318" /><testcase classname="formal_v2.tests.test_formal_v2.WaibuIntegrationTests" name="test_every_waibu_resource_has_frozen_authentication_metadata" time="0.226" /><testcase classname="formal_v2.tests.test_formal_v2.WaibuIntegrationTests" name="test_formal_contrawimae_requires_wimae_warm_start" time="0.223" /><testcase classname="formal_v2.tests.test_formal_v2.WaibuIntegrationTests" name="test_representation_registry_preserves_paper_labels_and_roles" time="0.226" /><testcase classname="formal_v2.tests.test_formal_v2.WaibuIntegrationTests" name="test_shipped_sionna_manifest_is_a_valid_g8_adapter" time="0.221" /><testcase classname="formal_v2.tests.test_formal_v2.WaibuIntegrationTests" name="test_sionna_cfr_uses_numpy_without_a_torch_runtime_dependency" time="0.222" /><testcase classname="formal_v2.tests.test_formal_v2.WaibuIntegrationTests" name="test_sionna_device_positions_cross_the_mitsuba_boundary_as_python_floats" time="0.223" /><testcase classname="formal_v2.tests.test_formal_v2.WaibuIntegrationTests" name="test_sionna_gate_rejects_runtime_record_not_matching_outer_probe" time="0.223" /><testcase classname="formal_v2.tests.test_formal_v2.WaibuIntegrationTests" name="test_sionna_scene_export_covers_and_authenticates_external_worlds" time="0.354" /><testcase classname="formal_v2.tests.test_formal_v2.WaibuIntegrationTests" name="test_sionna_uses_scalar_first_wxyz_bs_pose_quaternions" time="0.225" /></testsuite></testsuites>

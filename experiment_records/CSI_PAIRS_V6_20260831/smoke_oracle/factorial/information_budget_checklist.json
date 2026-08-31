@@ -1,0 +1,38 @@
+[
+  {
+    "allows_encoder_param_updates": false,
+    "allows_position_head_param_updates": false,
+    "label_budget": 0,
+    "schema_version": "csi-pairs-v6-information-budget-checklist-v1",
+    "uses_bs_pose": true,
+    "uses_map": true,
+    "uses_position_labels": false,
+    "uses_reference_library": false,
+    "uses_target_norm_stats": false,
+    "uses_unlabeled_target_csi": true
+  },
+  {
+    "allows_encoder_param_updates": false,
+    "allows_position_head_param_updates": true,
+    "label_budget": 2,
+    "schema_version": "csi-pairs-v6-information-budget-checklist-v1",
+    "uses_bs_pose": true,
+    "uses_map": true,
+    "uses_position_labels": true,
+    "uses_reference_library": false,
+    "uses_target_norm_stats": false,
+    "uses_unlabeled_target_csi": true
+  },
+  {
+    "allows_encoder_param_updates": false,
+    "allows_position_head_param_updates": true,
+    "label_budget": 4,
+    "schema_version": "csi-pairs-v6-information-budget-checklist-v1",
+    "uses_bs_pose": true,
+    "uses_map": true,
+    "uses_position_labels": true,
+    "uses_reference_library": false,
+    "uses_target_norm_stats": false,
+    "uses_unlabeled_target_csi": true
+  }
+]

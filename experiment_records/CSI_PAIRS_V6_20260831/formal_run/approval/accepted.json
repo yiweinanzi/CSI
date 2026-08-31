@@ -1,0 +1,11 @@
+{
+  "accepted_utc": "2026-08-25T11:52:05Z",
+  "approval_manifest_path": "/root/xunlian/Futaoran/formal_external_inputs/run_approvals/formal-v6-gpu-9850fff-20260825T071800Z/LLM_JUDGE_APPROVAL.json",
+  "approval_manifest_sha256": "b8c6c49b7442a8111b5bc1e7e2c2ca5a38bbbc7e41aa2f7ea113cbd1ca59c37d",
+  "compute_plan_sha256": "ab2933526872b4ce037d8c8dea64df7965611c96d9ccec5203f7061f590f9cc6",
+  "request_sha256": "d88233f71b795ddd5e422ac0b98924e5e67e5818ab7079995f86e94824e55e75",
+  "run_id": "csi-pairs-f73b4262b3efa2b7",
+  "run_nonce": "f73b4262b3efa2b7fd82833da03acf6d19eec308ee00b6e16afef8fc619dde3e",
+  "schema_version": "csi-pairs-full-run-approval-accepted-v2",
+  "status": "ACCEPTED"
+}

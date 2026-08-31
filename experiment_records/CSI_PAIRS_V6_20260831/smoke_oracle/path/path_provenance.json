@@ -1,0 +1,24 @@
+{
+  "engine_bound_and_deterministic": true,
+  "engine_config_sha256": "d025821f2b995e3d5fa73f2ac0318a265173fed7ba15efd73e2f8ec01161783c",
+  "engine_license_id": "GENERATED-FIXTURE-NO-EXTERNAL-ASSET",
+  "engine_name": "deterministic-fixture-generator-not-rt",
+  "engine_source_revision": "fixture-source-revision",
+  "engine_version": "2.1-v6",
+  "passed": true,
+  "persistent_path_and_surface_ids": true,
+  "power_coverage_convergence": {
+    "coverages": [
+      0.99,
+      0.995,
+      1.0
+    ],
+    "frozen_role": "source_method_selection",
+    "maximum_absolute_change": 0.0,
+    "passed": true,
+    "tolerance": 0.02,
+    "unit_count": 64
+  },
+  "registry_sha256": "1162f9b13ce38e330e475609245accadacb2bad7827222bea4d5363b5ff52144",
+  "schema_version": "csi-pairs-v6-path-provenance-v1"
+}

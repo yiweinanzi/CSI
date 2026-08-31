@@ -1,0 +1,68 @@
+{
+  "allowed_use": "asset selection, production-path reproduction, and RT diagnosis only; cannot be renamed, moved, or reclassified as a formal protocol",
+  "base_config": "/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/formal_v2/configs/sionna_osm_formal_candidate_v5.json",
+  "base_config_sha256": "582464989fda0fb2a7f17cdd60909d10871d8bada63a14f52bc7fc5fa1e32bdb",
+  "created_utc": "2026-08-15T08:47:27.804729+00:00",
+  "diagnostic_config": "/root/xunlian/Futaoran/\u6b63\u5f0f\u5f00\u59cb\u8bad\u7ec3/CSI-PAIRS-V5-WIDEBAND-EXPANDED-TRAIN32-DIAGNOSTIC-FORBIDDEN-CONFIG-20260815T101500Z.json",
+  "diagnostic_config_sha256": "8009bc1da24b277abe4bf9c169307b44daebc14aa08edaaa18db88552c959441",
+  "fixture": false,
+  "formal_dataset": false,
+  "formal_g1_g2_claim": "NOT_EVALUATED",
+  "output": "/root/xunlian/Futaoran/\u6b63\u5f0f\u5f00\u59cb\u8bad\u7ec3/CSI-PAIRS-V6-WIDEBAND-TRAIN32-POST-RT-EXCLUSION-DIAGNOSTIC-FORBIDDEN-CONFIG-20260815T084706Z.json",
+  "output_sha256": "ded5252c40ce78fa74c78c8a5c80759ee41b720f0fdaef54dfd19554f5725cbb",
+  "paper_table_eligible": false,
+  "post_rt_exclusion_manifests": [
+    {
+      "city_id": "source-chicago",
+      "excluded_bs_utm_xy_m": [
+        [
+          446326.778396,
+          4637429.248346
+        ],
+        [
+          447474.515878,
+          4635950.89619
+        ],
+        [
+          446911.471059,
+          4636286.203528
+        ],
+        [
+          445711.471059,
+          4636526.203528
+        ]
+      ],
+      "failed_gate": "minimum_active_branching_fraction",
+      "path": "/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/artifacts/formal_readiness/expanded_train32_chicago_post_rt_exclusions4_20260815T044601Z.json",
+      "sha256": "8770ce8ba7ec404ba81b2942bd315734a86868fbfc0aa4193901ad45012b2a75",
+      "threshold": 0.8
+    },
+    {
+      "city_id": "source-austin",
+      "excluded_bs_utm_xy_m": [
+        [
+          621596.537389,
+          3347031.605659
+        ],
+        [
+          622496.537389,
+          3348831.605659
+        ],
+        [
+          620076.489387,
+          3350633.205502
+        ]
+      ],
+      "failed_gate": "minimum_active_branching_fraction",
+      "path": "/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/artifacts/formal_readiness/expanded_train32_austin_post_rt_exclusions3_20260815T042044Z.json",
+      "sha256": "a24e78f73b1414b29cbd4ef15247a14f15f0e8d92af050870786b417cb9dafdf",
+      "threshold": 0.8
+    }
+  ],
+  "protocol_freeze_receipt": null,
+  "scene_count": 227,
+  "schema_version": "csi-pairs-v6-post-rt-exclusion-diagnostic-config-v1",
+  "scientific_use": "FORBIDDEN",
+  "simulation_not_measurement": true,
+  "status": "FORBIDDEN_V6_POST_RT_EXCLUSION_DIAGNOSTIC"
+}

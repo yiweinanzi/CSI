@@ -1,0 +1,30 @@
+{
+  "adapter_id": "wigatr-official-csi-pairs-v1",
+  "model_name": "Wi-GATr",
+  "implementation_status": "official-code-adaptation",
+  "license_id": "BSD-3-Clause-Clear",
+  "citation_key": "hehn2024wigatr",
+  "source_revision": "6daa5bd49d9499817d903ab335830221d01e9daa",
+  "map_conditioned": true,
+  "command": [
+    "/absolute/path/to/wigatr-env/bin/python",
+    "-m",
+    "formal_v2.external_adapters.wigatr_adapter",
+    "--config",
+    "{project_root}/formal_v2/configs/wigatr_official_v1.json",
+    "--dataset",
+    "{dataset}",
+    "--output",
+    "{output}",
+    "--run-root",
+    "{run_root}",
+    "--command-sha256",
+    "{adapter_command_sha256}",
+    "--source-revision",
+    "{source_revision}",
+    "--adapter-id",
+    "{adapter_id}",
+    "--model-name",
+    "{model_name}"
+  ]
+}

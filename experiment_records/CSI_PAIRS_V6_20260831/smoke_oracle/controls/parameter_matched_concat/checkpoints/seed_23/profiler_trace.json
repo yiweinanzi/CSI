@@ -1,0 +1,46 @@
+{
+  "events": [
+    {
+      "count": 1,
+      "flops": 57805440.0,
+      "name": "alignment_training_graph",
+      "phase": "training"
+    },
+    {
+      "count": 1,
+      "flops": 108744.0,
+      "name": "alignment_retained_inference_graph",
+      "phase": "inference"
+    },
+    {
+      "count": 1,
+      "flops": 10845648.0,
+      "name": "response_training_graph",
+      "phase": "training"
+    },
+    {
+      "count": 1,
+      "flops": 108744.0,
+      "name": "response_retained_inference_graph",
+      "phase": "inference"
+    },
+    {
+      "count": 1,
+      "flops": 18432.0,
+      "name": "concat_bottleneck_training_graph",
+      "phase": "training"
+    },
+    {
+      "count": 1,
+      "flops": 576.0,
+      "name": "concat_bottleneck_inference_graph",
+      "phase": "inference"
+    }
+  ],
+  "measured_inference_flops": 218064.0,
+  "measured_training_flops": 68669520.0,
+  "profiled_step_count": 6,
+  "profiler": "torch.utils.flop_counter.FlopCounterMode",
+  "resource_accounting_scope": "representation_training_and_retained_inference_excluding_common_localization_head",
+  "schema_version": "csi-pairs-v6-profiler-summary-v3"
+}

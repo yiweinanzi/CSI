@@ -1,0 +1,38 @@
+{
+  "api_key_used": false,
+  "formal_gate_eligible": false,
+  "receipt_count": 3,
+  "receipts": [
+    {
+      "database": "Semantic Scholar",
+      "query": "wireless channel foundation model",
+      "receipt_path": "receipts/semantic-scholar-wireless-channel-foundation-model.json",
+      "receipt_sha256": "01b6e5baba34e17c54c56ec4e17b37a2eba6528d3067777351a9208094134e63",
+      "result_count": 20,
+      "retrieval_url": "https://api.semanticscholar.org/graph/v1/paper/search?query=wireless+channel+foundation+model&limit=20&fields=paperId%2Ctitle%2Cyear%2Cauthors%2Curl%2CexternalIds%2Cvenue",
+      "searched_utc": "2026-08-23T01:37:05Z"
+    },
+    {
+      "database": "Semantic Scholar",
+      "query": "CSI map localization",
+      "receipt_path": "receipts/semantic-scholar-csi-map-localization.json",
+      "receipt_sha256": "e26d8d5ccd7ca8650d6f1d4214f3b1d6d48773e7081121b057448e54237dcc96",
+      "result_count": 20,
+      "retrieval_url": "https://api.semanticscholar.org/graph/v1/paper/search?query=CSI+map+localization&limit=20&fields=paperId%2Ctitle%2Cyear%2Cauthors%2Curl%2CexternalIds%2Cvenue",
+      "searched_utc": "2026-08-23T14:12:35Z"
+    },
+    {
+      "database": "Semantic Scholar",
+      "query": "wireless scene representation",
+      "receipt_path": "receipts/semantic-scholar-wireless-scene-representation.json",
+      "receipt_sha256": "4737cfe0d9643e981a98c20c4491fcf3cf457a0c6fd3c1bd9921ef67a0d6452e",
+      "result_count": 20,
+      "retrieval_url": "https://api.semanticscholar.org/graph/v1/paper/search?query=wireless+scene+representation&limit=20&fields=paperId%2Ctitle%2Cyear%2Cauthors%2Curl%2CexternalIds%2Cvenue",
+      "searched_utc": "2026-08-23T16:12:39Z"
+    }
+  ],
+  "required_receipt_count": 3,
+  "rule": "Each receipt is a genuine official API response. This incremental summary is not C13 and cannot replace the complete literature manifest or human review.",
+  "schema_version": "csi-pairs-c13-semantic-scholar-incremental-receipts-v1",
+  "status": "PASS"
+}

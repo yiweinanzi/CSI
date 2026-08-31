@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="7" failures="0" skipped="0" tests="7" time="4.552" timestamp="2026-08-23T12:14:20.587685+08:00" hostname="ubuntu05-6dc8c8fb57-sbgdz"><testcase classname="" name="formal_v2.tests.test_formal_data_pilot_projection" time="0.000"><error message="collection failure">ImportError while importing test module '/root/xunlian/Futaoran/formal_resume_repair_scratch_20260823T033000Z/formal_v2/tests/test_formal_data_pilot_projection.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/root/miniconda3/envs/csi-pairs-formal/lib/python3.12/importlib/__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+formal_v2/tests/test_formal_data_pilot_projection.py:5: in &lt;module&gt;
+    from artifacts.formal_readiness.tools.formal_data_pilot import (
+E   ModuleNotFoundError: No module named 'artifacts'</error></testcase><testcase classname="" name="formal_v2.tests.test_m4_scene0_exact_gate" time="0.000"><error message="collection failure">formal_v2/tests/test_m4_scene0_exact_gate.py:29: in &lt;module&gt;
+    SPEC.loader.exec_module(gate)
+&lt;frozen importlib._bootstrap_external&gt;:995: in exec_module
+    ???
+&lt;frozen importlib._bootstrap_external&gt;:1132: in get_code
+    ???
+&lt;frozen importlib._bootstrap_external&gt;:1190: in get_data
+    ???
+E   FileNotFoundError: [Errno 2] No such file or directory: '/root/xunlian/artifacts/m4_local_sim/tools/verify_scene0_exact_gate.py'</error></testcase><testcase classname="" name="formal_v2.tests.test_sionna_visibility_one_factor_diagnostic" time="0.000"><error message="collection failure">formal_v2/tests/test_sionna_visibility_one_factor_diagnostic.py:37: in &lt;module&gt;
+    SPEC.loader.exec_module(diagnostic)
+&lt;frozen importlib._bootstrap_external&gt;:995: in exec_module
+    ???
+&lt;frozen importlib._bootstrap_external&gt;:1132: in get_code
+    ???
+&lt;frozen importlib._bootstrap_external&gt;:1190: in get_data
+    ???
+E   FileNotFoundError: [Errno 2] No such file or directory: '/root/xunlian/artifacts/formal_readiness/tools/diagnose_sionna_visibility_one_factor.py'</error></testcase><testcase classname="" name="formal_v2.tests.test_v5_action_inverse_response_probe" time="0.000"><error message="collection failure">ImportError while importing test module '/root/xunlian/Futaoran/formal_resume_repair_scratch_20260823T033000Z/formal_v2/tests/test_v5_action_inverse_response_probe.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/root/miniconda3/envs/csi-pairs-formal/lib/python3.12/importlib/__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+formal_v2/tests/test_v5_action_inverse_response_probe.py:7: in &lt;module&gt;
+    from artifacts.formal_readiness.tools import v5_action_inverse_response_probe as probe
+E   ModuleNotFoundError: No module named 'artifacts'</error></testcase><testcase classname="" name="formal_v2.tests.test_v5_pilot_tools" time="0.000"><error message="collection failure">ImportError while importing test module '/root/xunlian/Futaoran/formal_resume_repair_scratch_20260823T033000Z/formal_v2/tests/test_v5_pilot_tools.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/root/miniconda3/envs/csi-pairs-formal/lib/python3.12/importlib/__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+formal_v2/tests/test_v5_pilot_tools.py:13: in &lt;module&gt;
+    from artifacts.formal_readiness.tools import v5_four_bank_rt_audit as audit
+E   ModuleNotFoundError: No module named 'artifacts'</error></testcase><testcase classname="" name="formal_v2.tests.test_v5_protocol_freeze" time="0.000"><error message="collection failure">ImportError while importing test module '/root/xunlian/Futaoran/formal_resume_repair_scratch_20260823T033000Z/formal_v2/tests/test_v5_protocol_freeze.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/root/miniconda3/envs/csi-pairs-formal/lib/python3.12/importlib/__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+formal_v2/tests/test_v5_protocol_freeze.py:9: in &lt;module&gt;
+    from artifacts.formal_readiness.tools import freeze_v5_wideband_train32_protocol as freeze
+E   ModuleNotFoundError: No module named 'artifacts'</error></testcase><testcase classname="" name="formal_v2.tests.test_v5_response_pilot_aggregate" time="0.000"><error message="collection failure">ImportError while importing test module '/root/xunlian/Futaoran/formal_resume_repair_scratch_20260823T033000Z/formal_v2/tests/test_v5_response_pilot_aggregate.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/root/miniconda3/envs/csi-pairs-formal/lib/python3.12/importlib/__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+formal_v2/tests/test_v5_response_pilot_aggregate.py:6: in &lt;module&gt;
+    from artifacts.formal_readiness.tools import v5_response_pilot_aggregate as aggregate
+E   ModuleNotFoundError: No module named 'artifacts'</error></testcase></testsuite></testsuites>

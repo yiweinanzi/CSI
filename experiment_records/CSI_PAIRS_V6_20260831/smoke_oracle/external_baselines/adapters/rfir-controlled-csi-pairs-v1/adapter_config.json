@@ -1,0 +1,14 @@
+{
+  "schema_version": "csi-pairs-v6-controlled-map-adapter-v2",
+  "profile": "software-smoke-only",
+  "method": "rfir",
+  "model_name": "RFIR",
+  "adapter_id": "rfir-controlled-csi-pairs-v1",
+  "implementation_status": "style-controlled-implementation",
+  "source_revision": "arxiv:2604.07086v1:24838f6a01eab58bf31d7fe54167dc13a245d3e6a6986da4e3023cafe2e0ff83",
+  "resource_id": "arxiv:2604.07086v1",
+  "source_roles": {"train": "source_encoder_train", "selection": "source_method_selection", "evaluation": ["source_final_unseen_bank", "target"]},
+  "model": {"hidden_dim": 16, "scene_dim": 16, "heads": 4, "layers": 1, "grid_size": 4, "corridor_tokens": 4, "tap_count": 2, "maximum_primitives": 16},
+  "training": {"seed": 20260913, "steps": 2, "batch_size": 4, "microbatch_size": 2, "precision": "float32", "learning_rate": 0.01, "weight_decay": 0.0, "selection_every_steps": 1, "clip_grad_norm": 1.0},
+  "inverse": {"candidates_per_axis": 4, "candidate_batch_size": 16, "csi_weight": 1.0, "power_weight": 1.0, "receiver_z_m": 1.5}
+}

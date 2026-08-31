@@ -1,0 +1,37 @@
+{
+  "checkpoint_sha256": "0b8905a7b74de36c719282a15cc75a52e8db4557079b3781d4072cc30cdd840c",
+  "component_loss_traces": {
+    "alignment": {
+      "path": "checkpoints/seed_17/alignment_loss_trace.csv",
+      "sha256": "8bc8e1008a4df63612cb822e7040f139cdaf2dd5959ffcd57ba8cf105ceda29d"
+    },
+    "response": {
+      "path": "checkpoints/seed_17/response_loss_trace.csv",
+      "sha256": "3c4c8b15c4043ac74a7d1db6f7bfb70ca26128ae9b9937eed416242da3b3a0b6"
+    }
+  },
+  "component_objectives": {
+    "alignment": [
+      "endpoint",
+      "alignment"
+    ],
+    "response": [
+      "endpoint",
+      "response"
+    ]
+  },
+  "component_optimizer_steps": {
+    "alignment": 2,
+    "response": 2
+  },
+  "control_id": "parameter_matched_concat",
+  "fixed_final_checkpoint": true,
+  "localization_loss_trace_path": "checkpoints/seed_17/localization_loss_trace.csv",
+  "localization_loss_trace_sha256": "917218b109623d912f4ba8ea90af635bbb1a7c2fa189401b72ceccd597357030",
+  "localizer_fit_role": "source_encoder_train",
+  "schema_version": "csi-pairs-v6-control-training-log-v3",
+  "seed": 17,
+  "selection_role": "source_method_selection",
+  "source_training_role": "source_encoder_train",
+  "target_selection_used": false
+}

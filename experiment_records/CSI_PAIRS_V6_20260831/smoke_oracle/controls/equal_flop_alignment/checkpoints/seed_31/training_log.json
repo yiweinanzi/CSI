@@ -1,0 +1,28 @@
+{
+  "checkpoint_sha256": "a37f678ab1dcc480b1de64a9f53fb74f6c4562456e8d1d2da1b372bdff28fb2b",
+  "component_loss_traces": {
+    "alignment": {
+      "path": "checkpoints/seed_31/alignment_loss_trace.csv",
+      "sha256": "56185f77c12e1e5a9176f7f3d7cc48e8ab76fc637f45a61bd0d27749a4d7d0d1"
+    }
+  },
+  "component_objectives": {
+    "alignment": [
+      "endpoint",
+      "alignment"
+    ]
+  },
+  "component_optimizer_steps": {
+    "alignment": 2
+  },
+  "control_id": "equal_flop_alignment",
+  "fixed_final_checkpoint": true,
+  "localization_loss_trace_path": "checkpoints/seed_31/localization_loss_trace.csv",
+  "localization_loss_trace_sha256": "8a604c42f1ed003ef1af7fd60725a6a4fd2f8a65ff0433d82d30931dbcd80051",
+  "localizer_fit_role": "source_encoder_train",
+  "schema_version": "csi-pairs-v6-control-training-log-v3",
+  "seed": 31,
+  "selection_role": "source_method_selection",
+  "source_training_role": "source_encoder_train",
+  "target_selection_used": false
+}

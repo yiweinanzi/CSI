@@ -1,0 +1,21 @@
+{
+  "adapter_source_path": "adapter_source.py",
+  "adapter_source_sha256": "5d3f159dc401a356195743d775aa6f49a6c07661db61a67b1da04184bfd16acf",
+  "command": [
+    "{python}",
+    "{adapter_source}",
+    "--dataset",
+    "{dataset}",
+    "--run-root",
+    "{run_root}",
+    "--output",
+    "{output}",
+    "--context",
+    "{context}",
+    "--control-seed",
+    "20270807"
+  ],
+  "control_seed": 20270807,
+  "implementation_revision": "5d3f159dc401a356195743d775aa6f49a6c07661db61a67b1da04184bfd16acf",
+  "schema_version": "csi-pairs-v6-shuffled-pair-adapter-v3"
+}

@@ -1,0 +1,45 @@
+{
+  "config_sha256": "620f300cbec1f56da4691882bc7dbe52593dc597fc62f6ae925c0f6ac72f1c6b",
+  "dataset_sha256": "ded1ec639ff3e6fd5eba769d42db1ed36222a48af333a30a670254b30b164b74",
+  "fixture": true,
+  "probes": [
+    {
+      "kind": "compatibility",
+      "path": "probes/seed_17/compatibility.pt",
+      "seed": 17,
+      "sha256": "8229d7594d680a33b632ebd8130625d61e592d7058643923043c9a62d171d3c7"
+    },
+    {
+      "kind": "response",
+      "path": "probes/seed_17/response.pt",
+      "seed": 17,
+      "sha256": "098adf3d3f50f17eed83b27f2015d0c02fc7f70da7729f4d18251586017f25fc"
+    },
+    {
+      "kind": "compatibility",
+      "path": "probes/seed_23/compatibility.pt",
+      "seed": 23,
+      "sha256": "703ade5449378c1d90810b9feb31a2c12021f6f122438be22ed98df60f657b24"
+    },
+    {
+      "kind": "response",
+      "path": "probes/seed_23/response.pt",
+      "seed": 23,
+      "sha256": "4f7cf77c5c8b3779ad914df65e94e9bed1aa6ccd554d0f29dd0aa61b07090127"
+    },
+    {
+      "kind": "compatibility",
+      "path": "probes/seed_31/compatibility.pt",
+      "seed": 31,
+      "sha256": "1fa6bf3f160c39d9536bdd4b913e30444b96bd4556c335db62ca0e1863b25f64"
+    },
+    {
+      "kind": "response",
+      "path": "probes/seed_31/response.pt",
+      "seed": 31,
+      "sha256": "35923e09d1e7460f51b37dc45fa0f9d9dedfd7c57d0a739c68e2bc9d7d45bdfb"
+    }
+  ],
+  "schema_version": "csi-pairs-v6-retention-probe-index-v1",
+  "training_provenance_sha256": "ff1555df44b74fc7c0b99f0884819c10046791b9016f704f7dd1c56e9d8c3968"
+}

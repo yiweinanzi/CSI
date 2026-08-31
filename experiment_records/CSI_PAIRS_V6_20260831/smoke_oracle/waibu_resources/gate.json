@@ -1,0 +1,11 @@
+{
+  "passed": true,
+  "registry_path": "/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/formal_v2/configs/waibu_resources_v1.json",
+  "registry_sha256": "29240d1d326208e9feb6482ad6cf40cb74a66470368b2b4ff32b5c587889b24c",
+  "resource_count": 11,
+  "rule": "A resource hash authenticates local bytes only; it does not authenticate scientific results.",
+  "schema_version": "csi-pairs-v6-waibu-resource-gate-v1",
+  "status": "PASS",
+  "verified_count": 11,
+  "waibu_root": "/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/waibu"
+}

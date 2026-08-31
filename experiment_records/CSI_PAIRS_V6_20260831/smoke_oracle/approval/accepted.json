@@ -1,0 +1,11 @@
+{
+  "accepted_utc": "2026-08-26T23:08:37Z",
+  "approval_manifest_path": "/root/xunlian/Futaoran/formal_external_inputs/run_approvals/smoke-full-v6-p8-clusterfix-20260826T230312Z/LLM_JUDGE_APPROVAL.json",
+  "approval_manifest_sha256": "297a508bd43c52b81cba882b911ed1820fbb448fe56ff52669fcc3109d9ad0fc",
+  "compute_plan_sha256": "d88c1dbed7a69547329cfe17c2656cec31a2495977c4587da1ba2c92e638f718",
+  "request_sha256": "66995151919cf020b2d5ad0bcda50a471ed3b288b5b4538fe432c1f45cd08870",
+  "run_id": "csi-pairs-864306f746f43e92",
+  "run_nonce": "864306f746f43e921a102489fbc2ea502bfb4b4336780a40c3e456173b7398ba",
+  "schema_version": "csi-pairs-full-run-approval-accepted-v2",
+  "status": "ACCEPTED"
+}

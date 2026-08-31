@@ -1,0 +1,24 @@
+{
+  "canonical_surface_ledger_sha256": "8f3fb801f1f394cead5a0e1be1dc2ecda9bfe367295545c3e1177ddbd417d717",
+  "compact_face_count": 2320,
+  "dataset_sha256": "ded1ec639ff3e6fd5eba769d42db1ed36222a48af333a30a670254b30b164b74",
+  "map_count": 72,
+  "passed": true,
+  "preprocessing": "surface-ledger-equivalent-rectangle-compaction-v1",
+  "reference_face_count": 10908,
+  "role_map_counts": {
+    "source_calibration_fit": 8,
+    "source_calibration_selection": 8,
+    "source_encoder_train": 8,
+    "source_final_unseen_bank": 8,
+    "source_method_selection": 8,
+    "source_probe_selection": 8,
+    "source_probe_train": 8,
+    "target": 16
+  },
+  "rule": "Every scene/world map, including held-out roles, is checked without reading CSI or labels; each compact mesh must exactly match independent grid-derived top and directed-side geometry/material surface arrays.",
+  "scene_count": 18,
+  "schema_version": "csi-pairs-v6-wigatr-mesh-surface-audit-v1",
+  "status": "PASS",
+  "world_count": 4
+}

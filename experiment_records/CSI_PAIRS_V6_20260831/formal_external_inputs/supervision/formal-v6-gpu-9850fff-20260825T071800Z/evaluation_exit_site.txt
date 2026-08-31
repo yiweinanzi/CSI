@@ -1,0 +1,16 @@
+2026-08-31T05:38:09+08:00
+git_head=9850fffe0b34f16b45066973308f18b10555ca5d
+git_status_begin
+?? formal_v2/external_adapters/.runtime-differt
+?? formal_v2/external_adapters/.runtime-sionna
+?? formal_v2/external_adapters/.venv-wigatr
+git_status_end
+config bytes=5301 mtime=2026-08-25 13:58:10.018362828 +0800 inode=394073119 path=/root/xunlian/Futaoran/CSI_FACTORIAL_PILOT_FIX_20260825/code/CSI-PAIRS-v2.0-server/formal_v2/configs/formal_v2.json
+dataset bytes=2006664110 mtime=2026-08-20 03:01:06.801583208 +0800 inode=693660340 path=/root/xunlian/Futaoran/正式开始训练/CSI-PAIRS-V6-WIDEBAND-FORMAL-227-20260819T105509Z/dataset.npz
+6842a565ba733ec6e6d2d3f96e99926cba75ea29dc87d46019bdea795d6def42  /root/xunlian/Futaoran/CSI_FACTORIAL_PILOT_FIX_20260825/code/CSI-PAIRS-v2.0-server/formal_v2/configs/formal_v2.json
+060d8671380acaf43bd0beb2c77ac5c6ec112e4ddc083451ab36a5916b7c9cac  /root/xunlian/Futaoran/正式开始训练/CSI-PAIRS-V6-WIDEBAND-FORMAL-227-20260819T105509Z/dataset.npz
+evaluation_inventory_begin
+evaluation_inventory_end
+operation_lock=PRESENT
+Filesystem                      1-blocks         Used    Available Capacity Mounted on
+/dev/mapper/zskudata-data05 536608768000 368267100160 168341667840      69% /root

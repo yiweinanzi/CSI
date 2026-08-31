@@ -1,0 +1,72 @@
+# package@cfg
+defaults:
+  - data: wi3r
+  - _self_
+data_root_dir: ???
+data:
+  reciprocity_augmentation: 0
+exp_dir: 'experiments/${exp_name}/${run_name}'
+experiment_target: wigatr.experiments.regression.Wi3RRegressionExperiment
+model:
+  net:
+    attention:
+      multi_query: true
+      in_mv_channels: null
+      out_mv_channels: null
+      in_s_channels: null
+      out_s_channels: null
+      num_heads: 8
+      additional_qk_mv_channels: 0
+      additional_qk_s_channels: 0
+      normalizer_eps: 0.001
+      pos_encoding: false
+      pos_enc_base: 4096
+      output_init: default
+      checkpoint: false
+      increase_hidden_channels: 2
+      dropout_prob: null
+    mlp:
+      mv_channels: null
+      s_channels: null
+      activation: gelu
+      dropout_prob: null
+    _target_: gatr.nets.GATr
+    in_mv_channels: ${data.dimensions.gatr.mv_channels_in}
+    out_mv_channels: ${data.dimensions.gatr.mv_channels_out}
+    hidden_mv_channels: 16
+    in_s_channels: ${data.dimensions.gatr.scalar_channels_in}
+    out_s_channels: ${data.dimensions.gatr.scalar_channels_out}
+    hidden_s_channels: 32
+    num_blocks: 32
+    reinsert_mv_channels: null
+    reinsert_s_channels: null
+    dropout_prob: null
+    checkpoint_blocks: false
+  _target_: wigatr.models.regression_gatr.RSRPRegressionGATr
+  embedding: kitchen_sink_z
+  affine_shift: ${data.target_scaling.mean}
+  affine_scale: ${data.target_scaling.std}
+exp_name: Wi3R
+run_name: wi-gatr
+seed: 1833
+debug: false
+checkpoint: null
+training:
+  steps: 500000
+  batchsize: 64
+  eval_batchsize: 128
+  lr: 0.001
+  lr_decay: 0.01
+  clip_grad_norm: 10.0
+  weight_decay: 0.0
+  early_stopping: true
+  float16: false
+  ema: false
+  log_every_n_steps: 100
+  validate_every_n_steps: 10000
+  plot_every_n_steps: 50000
+  save_model_every_n_steps: 50000
+  update_lr_every_n_steps: 10000
+  eval_device: cuda
+  progressbar: false
+  detect_anomaly: false

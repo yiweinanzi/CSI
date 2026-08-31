@@ -1,0 +1,249 @@
+{
+  "adapters": [
+    {
+      "adapter_config_path": "formal_v2/configs/controlled_map_smoke_v1.json",
+      "adapter_config_sha256": "aa5ab078227273cf508bc2f7b1369014331916b9033dac0f791026af1ec22b6d",
+      "adapter_id": "sigmap-controlled-csi-pairs-v1",
+      "adapter_source_path": "formal_v2/external_adapters/controlled_map_adapter.py",
+      "adapter_source_sha256": "7d3637fd778da9186971f52c87c940b7ea4ece35eb3b574506e28b4ad7d969f5",
+      "c1_eligible": false,
+      "citation_key": "sigmap-controlled",
+      "command": [
+        "{python}",
+        "{adapter_source}",
+        "--config",
+        "{adapter_config}",
+        "--dataset",
+        "{dataset}",
+        "--output",
+        "{output}",
+        "--run-root",
+        "{run_root}",
+        "--command-sha256",
+        "{adapter_command_sha256}",
+        "--source-revision",
+        "{source_revision}",
+        "--adapter-id",
+        "{adapter_id}",
+        "--model-name",
+        "{model_name}"
+      ],
+      "implementation_status": "style-controlled-implementation",
+      "license_id": "NO_EXTERNAL_SOURCE-BESPOKE_CONTROL",
+      "map_conditioned": true,
+      "model_name": "SigMap",
+      "source_revision": "frozen-v6-sigmap-spec-2026-08-06"
+    },
+    {
+      "adapter_config_path": "formal_v2/configs/wigatr_official_smoke_v1.json",
+      "adapter_config_sha256": "b72321b8239cc1266a19d90de970ec636f33798cb691f6993c5fa147fc2efdae",
+      "adapter_id": "wigatr-official-csi-pairs-v1",
+      "adapter_source_path": "formal_v2/external_adapters/wigatr_adapter.py",
+      "adapter_source_sha256": "b537f90746107f8a8bc92010cbfbea68e4f25eb5394c9b6ea169ca8eb8034bf2",
+      "c1_eligible": false,
+      "citation_key": "hehn2024wigatr",
+      "command": [
+        "{project_root}/formal_v2/external_adapters/.venv-wigatr/bin/python",
+        "{adapter_source}",
+        "--config",
+        "{adapter_config}",
+        "--dataset",
+        "{dataset}",
+        "--output",
+        "{output}",
+        "--run-root",
+        "{run_root}",
+        "--command-sha256",
+        "{adapter_command_sha256}",
+        "--source-revision",
+        "{source_revision}",
+        "--adapter-id",
+        "{adapter_id}",
+        "--model-name",
+        "{model_name}"
+      ],
+      "implementation_status": "official-code-adaptation",
+      "license_id": "BSD-3-Clause-Clear",
+      "map_conditioned": true,
+      "model_name": "Wi-GATr",
+      "source_revision": "6daa5bd49d9499817d903ab335830221d01e9daa"
+    },
+    {
+      "adapter_config_path": "formal_v2/configs/pmnet_official_smoke_v1.json",
+      "adapter_config_sha256": "42260f4580ecea0b9c6f2be1ea1f0d6f34ceb243e378f80e8df9fe5924e49438",
+      "adapter_id": "pmnet-official-csi-pairs-v1",
+      "adapter_source_path": "formal_v2/external_adapters/pmnet_adapter.py",
+      "adapter_source_sha256": "8a75be6edfa93cba435f8f553f3f3e150339b6026e7f65659d8b2324e4a34dcf",
+      "c1_eligible": false,
+      "citation_key": "lee2023pmnet",
+      "command": [
+        "{python}",
+        "{adapter_source}",
+        "--config",
+        "{adapter_config}",
+        "--dataset",
+        "{dataset}",
+        "--output",
+        "{output}",
+        "--run-root",
+        "{run_root}",
+        "--command-sha256",
+        "{adapter_command_sha256}",
+        "--source-revision",
+        "{source_revision}",
+        "--adapter-id",
+        "{adapter_id}",
+        "--model-name",
+        "{model_name}"
+      ],
+      "implementation_status": "official-code-adaptation",
+      "license_id": "MIT",
+      "map_conditioned": true,
+      "model_name": "PMNet",
+      "source_revision": "a0e0c5926de721074beeb23f630f2d313f6508dd"
+    },
+    {
+      "adapter_config_path": "formal_v2/configs/wiser_controlled_smoke_v1.json",
+      "adapter_config_sha256": "7c75ba213afa8886a65855ec7fa5794bc54ab620ada992d1e4f9936de62d0b50",
+      "adapter_id": "wiser-controlled-csi-pairs-v1",
+      "adapter_source_path": "formal_v2/external_adapters/controlled_map_adapter.py",
+      "adapter_source_sha256": "7d3637fd778da9186971f52c87c940b7ea4ece35eb3b574506e28b4ad7d969f5",
+      "c1_eligible": false,
+      "citation_key": "qiao2026wiser",
+      "command": [
+        "{python}",
+        "{adapter_source}",
+        "--config",
+        "{adapter_config}",
+        "--dataset",
+        "{dataset}",
+        "--output",
+        "{output}",
+        "--run-root",
+        "{run_root}",
+        "--command-sha256",
+        "{adapter_command_sha256}",
+        "--source-revision",
+        "{source_revision}",
+        "--adapter-id",
+        "{adapter_id}",
+        "--model-name",
+        "{model_name}"
+      ],
+      "implementation_status": "style-controlled-implementation",
+      "license_id": "NO_SOURCE_RELEASE-PAPER_SPEC",
+      "map_conditioned": true,
+      "model_name": "WiSER",
+      "source_revision": "arxiv:2606.04770v1:97e368043d0c111987d26993ec88c295c5bb997126e21711223ca5448d1645ec"
+    },
+    {
+      "adapter_config_path": "formal_v2/configs/rfir_controlled_smoke_v1.json",
+      "adapter_config_sha256": "9c860ca2bc4e20bfa723b950b85b81be5de52c68b2ea0ec6227dda436125223a",
+      "adapter_id": "rfir-controlled-csi-pairs-v1",
+      "adapter_source_path": "formal_v2/external_adapters/controlled_map_adapter.py",
+      "adapter_source_sha256": "7d3637fd778da9186971f52c87c940b7ea4ece35eb3b574506e28b4ad7d969f5",
+      "c1_eligible": false,
+      "citation_key": "wang2026rfir",
+      "command": [
+        "{python}",
+        "{adapter_source}",
+        "--config",
+        "{adapter_config}",
+        "--dataset",
+        "{dataset}",
+        "--output",
+        "{output}",
+        "--run-root",
+        "{run_root}",
+        "--command-sha256",
+        "{adapter_command_sha256}",
+        "--source-revision",
+        "{source_revision}",
+        "--adapter-id",
+        "{adapter_id}",
+        "--model-name",
+        "{model_name}"
+      ],
+      "implementation_status": "style-controlled-implementation",
+      "license_id": "NO_SOURCE_RELEASE-PAPER_SPEC",
+      "map_conditioned": true,
+      "model_name": "RFIR",
+      "source_revision": "arxiv:2604.07086v1:24838f6a01eab58bf31d7fe54167dc13a245d3e6a6986da4e3023cafe2e0ff83"
+    }
+  ],
+  "literature_registry": [
+    {
+      "adapter_id": "",
+      "baseline_name": "CSI-MAE",
+      "reason": "Executed by the separate software-smoke representation stage; it cannot count for C1.",
+      "status": "not_applicable"
+    },
+    {
+      "adapter_id": "",
+      "baseline_name": "CSI-CLIP",
+      "reason": "Executed by the separate software-smoke representation stage; it cannot count for C1.",
+      "status": "not_applicable"
+    },
+    {
+      "adapter_id": "",
+      "baseline_name": "CSI-CLIP++",
+      "reason": "Executed by the separate software-smoke representation stage; it cannot count for C1.",
+      "status": "not_applicable"
+    },
+    {
+      "adapter_id": "",
+      "baseline_name": "ContraWiMAE",
+      "reason": "Executed by the separate software-smoke representation stage; it cannot count for C1.",
+      "status": "not_applicable"
+    },
+    {
+      "adapter_id": "",
+      "baseline_name": "WWM",
+      "reason": "The WWM-inspired internal control is not a six-condition reproduction.",
+      "status": "not_applicable"
+    },
+    {
+      "adapter_id": "sigmap-controlled-csi-pairs-v1",
+      "baseline_name": "SigMap",
+      "reason": "Software-smoke execution only; scientific use is forbidden.",
+      "status": "executed"
+    },
+    {
+      "adapter_id": "wigatr-official-csi-pairs-v1",
+      "baseline_name": "Wi-GATr",
+      "reason": "Software-smoke execution only; scientific use is forbidden.",
+      "status": "executed"
+    },
+    {
+      "adapter_id": "pmnet-official-csi-pairs-v1",
+      "baseline_name": "PMNet",
+      "reason": "Software-smoke execution only; scientific use is forbidden.",
+      "status": "executed"
+    },
+    {
+      "adapter_id": "wiser-controlled-csi-pairs-v1",
+      "baseline_name": "WiSER",
+      "reason": "Software-smoke style-controlled execution only; C1-ineligible.",
+      "status": "executed"
+    },
+    {
+      "adapter_id": "",
+      "baseline_name": "CSI-only",
+      "reason": "Map-free negative control belongs to the internal evaluation.",
+      "status": "not_applicable"
+    },
+    {
+      "adapter_id": "",
+      "baseline_name": "oracle-x",
+      "reason": "Privileged true-position upper bound; never a strict no-x baseline.",
+      "status": "oracle_only"
+    },
+    {
+      "adapter_id": "rfir-controlled-csi-pairs-v1",
+      "baseline_name": "RFIR",
+      "reason": "Software-smoke style-controlled execution only; C1-ineligible.",
+      "status": "executed"
+    }
+  ],
+  "schema_version": "csi-pairs-v6-external-adapters-v2"
+}

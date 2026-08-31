@@ -1,0 +1,20 @@
+{
+  "batch_size": 2,
+  "device": "cuda",
+  "gradient_accumulation_steps": 1,
+  "last_training_power_mse": 0.15852591395378113,
+  "mesh_preprocessing": "surface-ledger-equivalent-rectangle-compaction-v1",
+  "mesh_surface_audit_path": "mesh_surface_audit.json",
+  "mesh_surface_audit_sha256": "ef9c9bf1e8036ee2803401d58007c7938f0b5d8f1c5182786581dcfc3b5cf983",
+  "microbatch_size": 2,
+  "optimizer": "Adam",
+  "scheduler": "CosineAnnealingLR",
+  "schema_version": "csi-pairs-wigatr-training-record-v2",
+  "selected_step": 2,
+  "selection_power_mse": 1.437706247146707,
+  "selection_role": "source_method_selection",
+  "source_revision": "6daa5bd49d9499817d903ab335830221d01e9daa",
+  "steps": 2,
+  "target_roles_read": [],
+  "train_role": "source_encoder_train"
+}

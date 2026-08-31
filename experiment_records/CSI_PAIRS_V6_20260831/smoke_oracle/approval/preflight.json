@@ -1,0 +1,847 @@
+{
+  "compute_budget": {
+    "authorized_gpu_hours": 0.0,
+    "authorized_wall_time_seconds": 0,
+    "dataset_bytes": 312290,
+    "estimated_gpu_hours": 0.0,
+    "estimated_output_bytes": 0,
+    "estimated_wall_time_seconds": 0,
+    "free_disk_bytes_at_preflight": 172927315968,
+    "minimum_free_disk_bytes": 0
+  },
+  "compute_plan": {
+    "bytes": 0,
+    "kind": "synthesized_advisory",
+    "path": null,
+    "sha256": "d88c1dbed7a69547329cfe17c2656cec31a2495977c4587da1ba2c92e638f718"
+  },
+  "config_sha256": "620f300cbec1f56da4691882bc7dbe52593dc597fc62f6ae925c0f6ac72f1c6b",
+  "dataset_path": "/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/runs/smoke-full-v6-p8-clusterfix-20260826T230312Z.fixture.npz",
+  "dataset_sha256": "ded1ec639ff3e6fd5eba769d42db1ed36222a48af333a30a670254b30b164b74",
+  "environment_variables_present": true,
+  "execution_devices": [],
+  "external_runtime_provenance": {
+    "wigatr": {
+      "cublas_workspace_config": ":4096:8",
+      "cuda_visible_devices": "0,1",
+      "environment_sha256": "3cb96dd77ba2068c2cd9d9470ca1d6e7b191144196ca261af57d6b92f8e7232a",
+      "installed_distributions": {
+        "aiohappyeyeballs": {
+          "name": "aiohappyeyeballs",
+          "record_sha256": "b4935c6efbf4163023b59715e3b481f2cbae9d20e36670ab17c05dee52fc9c99",
+          "version": "2.6.1"
+        },
+        "aiohttp": {
+          "name": "aiohttp",
+          "record_sha256": "458cbd4fd8c57f7c5d7731e7e65b93e5a3cf589511318f75a63fcda6f54bd65b",
+          "version": "3.11.16"
+        },
+        "aiosignal": {
+          "name": "aiosignal",
+          "record_sha256": "4b93ef68383c7009d6c304796045a4494ddda8b047fcd92d66a4c69b111e05a9",
+          "version": "1.3.2"
+        },
+        "antlr4-python3-runtime": {
+          "name": "antlr4-python3-runtime",
+          "record_sha256": "ac5485c73bdd66ed17792d648d779caa385a379d7c921f3107a241a66884816b",
+          "version": "4.9.3"
+        },
+        "astroid": {
+          "name": "astroid",
+          "record_sha256": "7a9256e3b2eb9496a3cdfc35e5047f31478eb5e05649c63af039c963a198645d",
+          "version": "3.0.3"
+        },
+        "async-timeout": {
+          "name": "async-timeout",
+          "record_sha256": "81296ab2d340603234df40d58003639688236fb0cc60e63fbf9da672253edcf5",
+          "version": "5.0.1"
+        },
+        "attrs": {
+          "name": "attrs",
+          "record_sha256": "df12d9b0786a5384b9ceabbb5cb8ceac40046ffd3d4d7fbc990b20a979605941",
+          "version": "25.3.0"
+        },
+        "black": {
+          "name": "black",
+          "record_sha256": "6b112a41701927d9740d5941f88e7d261c1cb2d37418235829a86af902c9f5e3",
+          "version": "23.12.1"
+        },
+        "certifi": {
+          "name": "certifi",
+          "record_sha256": "54793849146ea4fd4e2d4eb422f27a86165f3b05c22cfacd4ddcdff9e42ae88c",
+          "version": "2025.1.31"
+        },
+        "charset-normalizer": {
+          "name": "charset-normalizer",
+          "record_sha256": "348f7eb06a514e22dd6a2bff67df0080f023a9d90a4becf6ae3c32eb83a30819",
+          "version": "3.4.1"
+        },
+        "click": {
+          "name": "click",
+          "record_sha256": "f66a9f3ddef770929dad57aa65d94b57ac789d0999cebf3da6289616bb28932b",
+          "version": "8.1.8"
+        },
+        "clifford": {
+          "name": "clifford",
+          "record_sha256": "474d11682ec1d11573de80d37e7fda4adbd1322b1011f36a54542fd719811842",
+          "version": "1.4.0"
+        },
+        "cmake": {
+          "name": "cmake",
+          "record_sha256": "1b4b2c5fbd4bd355b357777c545fb6c2d2a6218f3fd6fd07aec9db8ac338a7ef",
+          "version": "4.0.0"
+        },
+        "contourpy": {
+          "name": "contourpy",
+          "record_sha256": "dbc313904ff29e8a88cca3465f721df9510656effaf0f952282aade41a482ec6",
+          "version": "1.3.1"
+        },
+        "cycler": {
+          "name": "cycler",
+          "record_sha256": "cbcbee5f18d75bd4935199b135aa33c3ed62df14991110a35c428883798d7979",
+          "version": "0.12.1"
+        },
+        "dill": {
+          "name": "dill",
+          "record_sha256": "018de59c8a852029aa3cb4b397f4d8e68a3d11b886503891258f539b3b326568",
+          "version": "0.3.9"
+        },
+        "e3nn": {
+          "name": "e3nn",
+          "record_sha256": "1f525ff2e8f4be0fd8411dcce9e666bb933ed90ef9e637ec04ca0128d8b37ab4",
+          "version": "0.5.6"
+        },
+        "einops": {
+          "name": "einops",
+          "record_sha256": "ae588868f6639285b483e497dbd424b644e2e23f42784b984f441ea60706a159",
+          "version": "0.8.0"
+        },
+        "exceptiongroup": {
+          "name": "exceptiongroup",
+          "record_sha256": "03e082c7ad5d9ec91900ca381000995697009eb6c3b36bbe19267811cc516085",
+          "version": "1.2.2"
+        },
+        "filelock": {
+          "name": "filelock",
+          "record_sha256": "903af81ecae4433e37bd566be4aaaf912a0851a92778814f2ecb56b35befb295",
+          "version": "3.18.0"
+        },
+        "fonttools": {
+          "name": "fonttools",
+          "record_sha256": "41c3c2e139ed8fb0bfda4d035ee51d33d09eaccf5004a4cf9f0fd95e3d812599",
+          "version": "4.57.0"
+        },
+        "frozenlist": {
+          "name": "frozenlist",
+          "record_sha256": "af71889aa77436ea5782874b2e9a19eb66219ae8037a959d482d94110b845257",
+          "version": "1.5.0"
+        },
+        "fsspec": {
+          "name": "fsspec",
+          "record_sha256": "b4ee0b45cc0102f74a38f4d340e48be7d759d9a3528b4c56dc0f483d29493176",
+          "version": "2025.3.2"
+        },
+        "gatr": {
+          "name": "GATr",
+          "record_sha256": "984ba0ca998a5f7ec23636491a07b3ab29e0ddeb1d8971b8d01f0d1df1296cab",
+          "version": "1.2.2"
+        },
+        "h5py": {
+          "name": "h5py",
+          "record_sha256": "3a0a5cbc87052eebca14f996aef966363610ecde177b51c06aa126a3b36fc328",
+          "version": "3.11.0"
+        },
+        "hydra-core": {
+          "name": "hydra-core",
+          "record_sha256": "1abb3b7e07d36c66042e2a5e8b858c7c14392f3980dc7a098a9c717d6eeded31",
+          "version": "1.3.2"
+        },
+        "idna": {
+          "name": "idna",
+          "record_sha256": "5c0d108e37b975a2cb607b3a36672be5b3ca234c0268ee8807072a218cb7c613",
+          "version": "3.10"
+        },
+        "iniconfig": {
+          "name": "iniconfig",
+          "record_sha256": "c93489b0de9987b6fedd5f89dd50416e7da59537f3b86ab15ae38c895875903a",
+          "version": "2.1.0"
+        },
+        "isort": {
+          "name": "isort",
+          "record_sha256": "9837187e313f7fe0fbf713542cf9aa6b26ac7b2c36c14bf8903b11334b6fe9b6",
+          "version": "5.13.2"
+        },
+        "jinja2": {
+          "name": "Jinja2",
+          "record_sha256": "4551b3fb657b85a9f01e961c0f8a235da65d758149b619400211964b3ac02bdc",
+          "version": "3.1.6"
+        },
+        "kiwisolver": {
+          "name": "kiwisolver",
+          "record_sha256": "2a7533111615989a5183a5c8cfc033019fff536872b8f3bbf0802d7cac43a951",
+          "version": "1.4.8"
+        },
+        "lit": {
+          "name": "lit",
+          "record_sha256": "5e05ade574e2dc96e7a9622586747f91476e0b599db75de0f51d524868ed27b4",
+          "version": "18.1.8"
+        },
+        "llvmlite": {
+          "name": "llvmlite",
+          "record_sha256": "e0934a11b5f909ce6339dd9f28162458646022039e81e2c5a09d1d55ec316999",
+          "version": "0.44.0"
+        },
+        "markupsafe": {
+          "name": "MarkupSafe",
+          "record_sha256": "86912b4549ec60f97b89bd23c385d986fd30df488e41161ccf4fa31dc99e2564",
+          "version": "3.0.2"
+        },
+        "matplotlib": {
+          "name": "matplotlib",
+          "record_sha256": "e81b97c75a5654e98d28f5eb3972eb527c3cfa5d056f472162c34307ed8ab9ec",
+          "version": "3.9.2"
+        },
+        "mccabe": {
+          "name": "mccabe",
+          "record_sha256": "e3338149462fafed60c525c63b2c62383d59202131717efda86f2c99865fe7f2",
+          "version": "0.7.0"
+        },
+        "mpmath": {
+          "name": "mpmath",
+          "record_sha256": "09cbd04e87d0c5ab64aab08291b31883e4ea27e8d2c640710e0beb1995e86b9b",
+          "version": "1.3.0"
+        },
+        "multidict": {
+          "name": "multidict",
+          "record_sha256": "367a1feb827697aeeac6e9793ae9cdc7f2ee358af384c78c73dd79cda62a204e",
+          "version": "6.4.3"
+        },
+        "mypy-extensions": {
+          "name": "mypy-extensions",
+          "record_sha256": "b1e590d0d590d3240a40353a3bd183c37fdccbcd8ff517782e62ae32fb5630dd",
+          "version": "1.0.0"
+        },
+        "networkx": {
+          "name": "networkx",
+          "record_sha256": "221ae0a94c75acd963f62b9909b58a2827a8cdfba8f0adcfb4141b598b201779",
+          "version": "3.4.2"
+        },
+        "numba": {
+          "name": "numba",
+          "record_sha256": "ed43a29d363d0e43caf64f70cff70ea3d2701e92f69ebc3f3a44acd92b58f7d1",
+          "version": "0.61.2"
+        },
+        "numpy": {
+          "name": "numpy",
+          "record_sha256": "d787ce6720bf3e932b0b3ae4da8dde530a987a5664371dbd17bb4e5548dd0b56",
+          "version": "1.24.4"
+        },
+        "nvidia-cublas-cu11": {
+          "name": "nvidia-cublas-cu11",
+          "record_sha256": "06fdc37bd18e0e6a2219445a6e7b750ec403a3f7b3a854a8fa3a0110fabdfa8e",
+          "version": "11.10.3.66"
+        },
+        "nvidia-cuda-cupti-cu11": {
+          "name": "nvidia-cuda-cupti-cu11",
+          "record_sha256": "a575ec9f6bc02077cfe67382100d0d3b1b60a503d4bea3f6244179a533e0ecd1",
+          "version": "11.7.101"
+        },
+        "nvidia-cuda-nvrtc-cu11": {
+          "name": "nvidia-cuda-nvrtc-cu11",
+          "record_sha256": "c33233b86717a2c5f9f93305942434acd3e434b8a8a1c156886f7b7b8813bea1",
+          "version": "11.7.99"
+        },
+        "nvidia-cuda-runtime-cu11": {
+          "name": "nvidia-cuda-runtime-cu11",
+          "record_sha256": "04829faf2a22ae4ff79bb7af3c02787cb5f815bf74a063897fa30584a9708363",
+          "version": "11.7.99"
+        },
+        "nvidia-cudnn-cu11": {
+          "name": "nvidia-cudnn-cu11",
+          "record_sha256": "f83ef7c7b759728ca14eaf6ed6331dab694f5be1dbaae63b97a016f1752759f7",
+          "version": "8.5.0.96"
+        },
+        "nvidia-cufft-cu11": {
+          "name": "nvidia-cufft-cu11",
+          "record_sha256": "bf0584c9cd531264a719aebc94d503b72b53bda26be3c713179eb20fd15468c6",
+          "version": "10.9.0.58"
+        },
+        "nvidia-curand-cu11": {
+          "name": "nvidia-curand-cu11",
+          "record_sha256": "4349afb5b3a0cf438a68a8beeec470eb5c00f2797a0e2b57a9505fc4917bf420",
+          "version": "10.2.10.91"
+        },
+        "nvidia-cusolver-cu11": {
+          "name": "nvidia-cusolver-cu11",
+          "record_sha256": "6e50d5ca360e2cf0f56f1959d9dee06149e539549801bb88c7886ba627105114",
+          "version": "11.4.0.1"
+        },
+        "nvidia-cusparse-cu11": {
+          "name": "nvidia-cusparse-cu11",
+          "record_sha256": "2c28527ee18b5f3677fd7c8afdc374d960aa18927cdce91c6120fc374cc5ea4d",
+          "version": "11.7.4.91"
+        },
+        "nvidia-nccl-cu11": {
+          "name": "nvidia-nccl-cu11",
+          "record_sha256": "c57df6c9a3e02d5af817c2bbac380a3721ab2b903730e075b2827ed35a11bb66",
+          "version": "2.14.3"
+        },
+        "nvidia-nvtx-cu11": {
+          "name": "nvidia-nvtx-cu11",
+          "record_sha256": "096c5d88c66c9a6f6a810d031d3ab8ce8278fc5d8a1b83a482cc76b36d6bc47b",
+          "version": "11.7.91"
+        },
+        "omegaconf": {
+          "name": "omegaconf",
+          "record_sha256": "35b8f9051e9326b2cbc7d9cb7ca1b8e7f55504a4404a4937d1d7872063b85e72",
+          "version": "2.3.0"
+        },
+        "opt-einsum": {
+          "name": "opt_einsum",
+          "record_sha256": "70c99bfffe7f29b9edecc0225c3e50448f2f46d997e71807327b7374cff9e7e0",
+          "version": "3.3.0+24.g1a984b7"
+        },
+        "opt-einsum-fx": {
+          "name": "opt-einsum-fx",
+          "record_sha256": "6fc6d0dccaa3ff3c1ed68cd0c1aea89a31bd442df71417d6b1df25ae7a756a1b",
+          "version": "0.1.4"
+        },
+        "packaging": {
+          "name": "packaging",
+          "record_sha256": "e91542fad707b2fd6d4094311a61854c810ce9d10231ddc459214657add05094",
+          "version": "23.2"
+        },
+        "pandas": {
+          "name": "pandas",
+          "record_sha256": "83ce76011604e0fd2ea46192945e62e5109c380918c699d1e5a5a26950370c95",
+          "version": "1.5.1"
+        },
+        "pathspec": {
+          "name": "pathspec",
+          "record_sha256": "4985a02a3d51760e507a9b2f8349ba8cb0e7187d8bbe48eedf8f0a2cc2db6a97",
+          "version": "0.12.1"
+        },
+        "pillow": {
+          "name": "pillow",
+          "record_sha256": "b3a83948c7340a457645d9e9ed6880d696f40a8462c4b6f08d56e85d8db0f990",
+          "version": "11.2.1"
+        },
+        "platformdirs": {
+          "name": "platformdirs",
+          "record_sha256": "30acd8922c69f49a75871a5fe6f59bf2d232e5c05d7ab645b8bd8cb8124f28e7",
+          "version": "4.3.7"
+        },
+        "pluggy": {
+          "name": "pluggy",
+          "record_sha256": "17ca2b490aaaa55c7760ffcaf4b43aa8db7db97820fd08cf7823c4703d9da8d5",
+          "version": "1.5.0"
+        },
+        "propcache": {
+          "name": "propcache",
+          "record_sha256": "7a05261fa4a71cde78759f6480f8c915e03218cb5814c1e82799e9ef281cb85a",
+          "version": "0.3.1"
+        },
+        "psutil": {
+          "name": "psutil",
+          "record_sha256": "89d8b45910df70fcc5e6d3d90a4e80cbfd0581178772d5b6cf494c79f2c14171",
+          "version": "7.0.0"
+        },
+        "pycollada": {
+          "name": "pycollada",
+          "record_sha256": "212a00c9d11e10905fc8e82079743aa97abb6486547f3995aedfb855f4644300",
+          "version": "0.9"
+        },
+        "pylint": {
+          "name": "pylint",
+          "record_sha256": "39b4f7dbd6a1f2c8b86665758f11204732b069e8533a8bc637f1bd3e588ecb99",
+          "version": "3.0.3"
+        },
+        "pyparsing": {
+          "name": "pyparsing",
+          "record_sha256": "1b3ba8ed6e47c634574efd127792c94b7ff7725b4f335884c78ff9dfb6c334aa",
+          "version": "3.2.3"
+        },
+        "pyre-extensions": {
+          "name": "pyre-extensions",
+          "record_sha256": "1a705548c0dd7318b73c925fea67d1f4c7386493a5904eeeeaf2615a0005f604",
+          "version": "0.0.29"
+        },
+        "pytest": {
+          "name": "pytest",
+          "record_sha256": "c64ae814fa00a1f0f153a67b84fcfd02e1fa55aacbdb762b9760238483c44138",
+          "version": "7.4.4"
+        },
+        "pytest-datadir": {
+          "name": "pytest-datadir",
+          "record_sha256": "920a30ec97bfade10962477859fc152ff12a7f3d9ac3ce22ea33edfc1fa6a43f",
+          "version": "1.6.1"
+        },
+        "pytest-regressions": {
+          "name": "pytest-regressions",
+          "record_sha256": "a9be4b2d4cbd9fa845bc5951266b0a73247a373360ed735d40232465ccbdc6b9",
+          "version": "2.7.0"
+        },
+        "python-dateutil": {
+          "name": "python-dateutil",
+          "record_sha256": "e15e868a50b9c4e71df17b31369843617780146ac5adb1bbfdcced0ebe501824",
+          "version": "2.9.0.post0"
+        },
+        "pytz": {
+          "name": "pytz",
+          "record_sha256": "d8f73cdff88bf60a3057789e744e1f1bb90fe8fad289dc5dfe412d6fd1e45c99",
+          "version": "2023.4"
+        },
+        "pyyaml": {
+          "name": "PyYAML",
+          "record_sha256": "f16c1cf78d70d018a0c2068618dca670c003ae76b190ec403f3db411600484f0",
+          "version": "6.0.2"
+        },
+        "requests": {
+          "name": "requests",
+          "record_sha256": "9031e3690c55455214bd2c1e3ec7112d0a235560ee8e4f5c0ff7be3b12ed2f70",
+          "version": "2.32.3"
+        },
+        "scipy": {
+          "name": "scipy",
+          "record_sha256": "444bc15899896188a34428783431551929e4be976d7a87242dde99f99b4389db",
+          "version": "1.13.1"
+        },
+        "seaborn": {
+          "name": "seaborn",
+          "record_sha256": "28cc11a75b9a326c2f28947db88e83b1215702c219ca61a9470cbc7439d447cd",
+          "version": "0.13.2"
+        },
+        "setuptools": {
+          "name": "setuptools",
+          "record_sha256": "a20628e88a72670896096c609d1c57e72bdc12276636a882e2dd78ce854fb9c0",
+          "version": "78.1.0"
+        },
+        "six": {
+          "name": "six",
+          "record_sha256": "d16e50f347969b1e1919fb0c88bac4b9c644f5305bcfcfb00f72b646dbd4065d",
+          "version": "1.17.0"
+        },
+        "sparse": {
+          "name": "sparse",
+          "record_sha256": "559a32e8982a7d99415fceb758d82aef87fb0804704330044cd951e522aeef12",
+          "version": "0.16.0"
+        },
+        "sympy": {
+          "name": "sympy",
+          "record_sha256": "328fd2fb2d4759c62ce380386bc39838794e682dd4e1fb5e35dc8fa98cc0702a",
+          "version": "1.13.3"
+        },
+        "tomli": {
+          "name": "tomli",
+          "record_sha256": "913cd4b9003ea1ceaea68e4f5e5fa0539a915c006925484a733aa0ffe9f7afb1",
+          "version": "2.2.1"
+        },
+        "tomlkit": {
+          "name": "tomlkit",
+          "record_sha256": "ce4b62fd58a464a40520445c8952723adfe621aa76ba62aaedcabfd2a01b3925",
+          "version": "0.13.2"
+        },
+        "torch": {
+          "name": "torch",
+          "record_sha256": "945331f0ef945c8c8ab6492a9e7ba0d0bcc5efb9f0789c3c9f9ecce9aa5f2943",
+          "version": "2.0.1"
+        },
+        "torch-ema": {
+          "name": "torch-ema",
+          "record_sha256": "b9d03b2e6178cce49de5909a276e955abeded6dabfcfd6dcacc84d669117991d",
+          "version": "0.3"
+        },
+        "torch-geometric": {
+          "name": "torch-geometric",
+          "record_sha256": "d790c8a525b347ddc8b823254626cff74af7dad706b0ae29f721ca8f0e3647bb",
+          "version": "2.6.0"
+        },
+        "torchvision": {
+          "name": "torchvision",
+          "record_sha256": "5a6b8480d0ff93bbf30a0611cb721aab97bddf03b9a35461726a7e1b8545e533",
+          "version": "0.15.2"
+        },
+        "tqdm": {
+          "name": "tqdm",
+          "record_sha256": "4295d1414135a489a16ef7940249e4f75377e17489643584cae321d22f7e50cd",
+          "version": "4.66.5"
+        },
+        "triton": {
+          "name": "triton",
+          "record_sha256": "a7d193e4d55efffa501dc73262e6d6d954e98f384a44a9c8cdca495913ffd135",
+          "version": "2.0.0"
+        },
+        "typing-extensions": {
+          "name": "typing_extensions",
+          "record_sha256": "0c367c7a4f49e53b7262e3df026588d94a971db6922dbc1eb89fb3a1e94444ab",
+          "version": "4.13.2"
+        },
+        "typing-inspect": {
+          "name": "typing-inspect",
+          "record_sha256": "1ca026790596e68932dbc97101cdff844e40c70d9e68c1a522b7172ee2cebdc2",
+          "version": "0.9.0"
+        },
+        "urllib3": {
+          "name": "urllib3",
+          "record_sha256": "feeed2b03621e8b47673dc07eb02cccc313a24a8ef3a38839413f04857647668",
+          "version": "2.4.0"
+        },
+        "wheel": {
+          "name": "wheel",
+          "record_sha256": "a4ea6a0858454291db783ad24a20e9d3943cbac68d79e2f3776275a9bdc162fa",
+          "version": "0.45.1"
+        },
+        "wigatr": {
+          "name": "WiGATr",
+          "record_sha256": "1c5ba3c3f11c68bb61b51ad1edb1f0abea6d97ab192167affd7b02f137d74011",
+          "version": "1.0.0"
+        },
+        "wiinsim": {
+          "name": "WiInSim",
+          "record_sha256": "b3e1f9722d0492982756f046dff7741111b20d113c79cb76d734a33618b0cf16",
+          "version": "1.0.0"
+        },
+        "xformers": {
+          "name": "xformers",
+          "record_sha256": "a63d33a1503b74e125e78ae08f2bebe87ceeb30d2016e66be0eea0fd53e7ed89",
+          "version": "0.0.20"
+        },
+        "yarl": {
+          "name": "yarl",
+          "record_sha256": "ca99fe700f5dfcf9f36fafa890db1800c612c0d5502e58e2dc2dd3f392cdf07c",
+          "version": "1.19.0"
+        }
+      },
+      "lock_files": {
+        "wigatr_uv_lock": "3d9aeed2d11abbb84addf54eda0395e384b83c01cfb5f1b0a10377bf8bbe63e1",
+        "wigatr_vendor_manifest": "c823487958bec28d4ceb25b5ab503177940405a18358ab68e55761bd59f4eb79"
+      },
+      "platform_machine": "x86_64",
+      "platform_release": "4.18.0-348.23.1.2.g50e329dc22ea.el8.x86_64",
+      "platform_system": "Linux",
+      "profile": "wigatr",
+      "python_executable": "/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/formal_v2/external_adapters/.venv-wigatr/bin/python",
+      "python_implementation": "CPython",
+      "python_prefix": "/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/formal_v2/external_adapters/.venv-wigatr",
+      "python_version": "3.10.20",
+      "schema_version": "csi-pairs-external-runtime-provenance-v1",
+      "torch": {
+        "cuda_available": true,
+        "cuda_matmul_allow_tf32": false,
+        "cuda_version": "11.7",
+        "cudnn_allow_tf32": false,
+        "cudnn_benchmark": false,
+        "cudnn_deterministic": true,
+        "cudnn_version": 8500,
+        "deterministic_algorithms": true,
+        "devices": [
+          {
+            "compute_capability": [
+              8,
+              0
+            ],
+            "index": 0,
+            "name": "NVIDIA A100-SXM4-40GB",
+            "total_memory_bytes": 42285268992
+          },
+          {
+            "compute_capability": [
+              8,
+              0
+            ],
+            "index": 1,
+            "name": "NVIDIA A100-SXM4-40GB",
+            "total_memory_bytes": 42285268992
+          }
+        ],
+        "float32_matmul_precision": "highest",
+        "nvidia_driver_versions": [
+          "550.163.01"
+        ],
+        "version": "2.0.1+cu117"
+      }
+    }
+  },
+  "fixture": true,
+  "gpu_inventory": [
+    {
+      "cuda_runtime": "12.1",
+      "index": 0,
+      "name": "NVIDIA A100-SXM4-40GB",
+      "total_memory_bytes": 42285268992,
+      "uuid": "0e31845b-99e5-7784-4b0d-d37446c79176"
+    },
+    {
+      "cuda_runtime": "12.1",
+      "index": 1,
+      "name": "NVIDIA A100-SXM4-40GB",
+      "total_memory_bytes": 42285268992,
+      "uuid": "826ef21b-33e6-41a7-7a7b-c2e15cd2b96d"
+    }
+  ],
+  "input_bindings": {
+    "adapter_manifest": {
+      "bytes": 7552,
+      "kind": "file",
+      "path": "/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/formal_v2/external_adapters/all_map_adapters_smoke_v1.json",
+      "sha256": "c3c58f43a5bb2b82a16fddac08a871926abeb6b13669bc2a37a4b0f8630a74b9"
+    },
+    "control_manifest": {
+      "bytes": 4160,
+      "kind": "file",
+      "path": "/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/formal_v2/external_adapters/resource_controls_v3.json",
+      "sha256": "5fbe7584ef9969f2105a7a1e8b8041bae16d9db73345faac970d9365ade5ed75"
+    },
+    "prepared_inputs": {
+      "files": [],
+      "kind": "directory_inventory",
+      "root": "/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/runs/smoke-full-v6-p8-clusterfix-20260826T230312Z/inputs"
+    },
+    "representation_baseline_config": {
+      "bytes": 1227,
+      "kind": "file",
+      "path": "/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/formal_v2/configs/representation_baselines_smoke_v1.json",
+      "sha256": "9c7ba3e31e5f05c1664991049a63c72ee0212a367676e0df59be2de3cca82140"
+    },
+    "resource_registry": {
+      "bytes": 7844,
+      "kind": "file",
+      "path": "/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/formal_v2/configs/waibu_resources_v1.json",
+      "sha256": "29240d1d326208e9feb6482ad6cf40cb74a66470368b2b4ff32b5c587889b24c"
+    },
+    "retention_manifest": {
+      "bytes": 524,
+      "kind": "file",
+      "path": "/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/formal_v2/external_adapters/retention_control_v3.json",
+      "sha256": "9eeac446774ef7040e9e1131da23d2fdde97e48a22d961686b0776ea820f40fb"
+    },
+    "scene_id_manifest": {
+      "kind": "builtin",
+      "value": "builtin:sigmap-scene-id-v1"
+    },
+    "shuffled_pair_manifest": {
+      "bytes": 570,
+      "kind": "file",
+      "path": "/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/formal_v2/external_adapters/shuffled_pair_control_v3.json",
+      "sha256": "435982638bec75d762edc9f6a9bfa4938603422294569e983d11c9b9401619ce"
+    }
+  },
+  "license_acknowledgements": [],
+  "prepared_root": "/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/runs/smoke-full-v6-p8-clusterfix-20260826T230312Z",
+  "required_environment_values": {},
+  "required_environment_variables": [],
+  "required_gpu_count": 0,
+  "required_license_acknowledgements": [
+    "BSD-3-Clause-Clear",
+    "MIT",
+    "NO_EXTERNAL_SOURCE-BESPOKE_CONTROL",
+    "NO_SOURCE_RELEASE-PAPER_SPEC",
+    "https://arxiv.org/licenses/nonexclusive-distrib/1.0/",
+    "https://creativecommons.org/licenses/by/4.0/",
+    "https://github.com/NVlabs/sionna-large-radio-maps/blob/1ba19ae1df1d26302fcfbaab14efc2347313da5d/LICENSE",
+    "https://github.com/NVlabs/sionna/blob/04ddb9312116b408093b9d3ad363a3df355093a6/LICENSE",
+    "https://github.com/Qualcomm-AI-research/Wi-GATr/blob/6daa5bd49d9499817d903ab335830221d01e9daa/LICENSE",
+    "https://opensource.org/license/mit"
+  ],
+  "requirements_lock_sha256": "9548a24a4faf5db17b5251df407b4402de033ae8648ec321c850fe6105002cf1",
+  "runtime_provenance": {
+    "cublas_workspace_config": ":4096:8",
+    "installed_distributions": {
+      "Jinja2": {
+        "record_sha256": "aea0a4bbe71769b8884b52cca4358e901f777f3e233c6726b728fd78b3b571e9",
+        "version": "3.1.6",
+        "wheel_sha256": "85ece4451f492d0c13c5dd7c13a64681a86afae63a5f347908daf103ce6d2f67"
+      },
+      "MarkupSafe": {
+        "record_sha256": "f07692abaeeeb03b62d10b7b5bb6d1a4da376ba66df41a2283183615bccbc8fe",
+        "version": "3.0.3",
+        "wheel_sha256": "d6dd0be5b5b189d31db7cda48b91d7e0a9795f31430b7f271219ab30f1d3ac9d"
+      },
+      "Pygments": {
+        "record_sha256": "b47ca19c32aa9efd11c357b28b6ab6063bd8b4dd9921a18a1a17e01f975d24de",
+        "version": "2.21.0",
+        "wheel_sha256": "2363c69b61c4a97c838da3b130dcd6468f4848992b21a82f2a63ec34377137d9"
+      },
+      "filelock": {
+        "record_sha256": "1ef83719724bfdb08a68067e728a9af38d77b28994877125184030688ae63561",
+        "version": "3.32.2",
+        "wheel_sha256": "87dd94cf281e586d135fa51132b8e3d9a598b316e90377a288663c9321036c82"
+      },
+      "fsspec": {
+        "record_sha256": "61ba9741a50801030d99983e2f288f4abe4c4991abc897db1515d9ac5e4a033b",
+        "version": "2026.7.0",
+        "wheel_sha256": "b57ddbafedfaef7018c1ecab32aa200a9d7ca26b77965f64e48b70061249d279"
+      },
+      "iniconfig": {
+        "record_sha256": "66787079877a254b4512fa2ce5f1bc399da444fd07965277f40738d4771c4d7f",
+        "version": "2.3.0",
+        "wheel_sha256": "f631c04d2c48c52b84d0d0549c99ff3859c98df65b3101406327ecc7d53fbf12"
+      },
+      "mpmath": {
+        "record_sha256": "bb674e4e32e10e0f48e905e746ae927c66e4ea23ee547c5d4c72f824f2d43e04",
+        "version": "1.3.0",
+        "wheel_sha256": "a0b2b9fe80bbcd81a6647ff13108738cfb482d481d826cc0e02f5b35e5c88d2c"
+      },
+      "networkx": {
+        "record_sha256": "34a15c53076ce29677d9400441d75c954681da00b229b571afbfea6de7668c5d",
+        "version": "3.6.1",
+        "wheel_sha256": "d47fbf302e7d9cbbb9e2555a0d267983d2aa476bac30e90dfbe5669bd57f3762"
+      },
+      "numpy": {
+        "record_sha256": "c38d1c08f8c6939ce32b73d751a75e47a1cb456e48c966b5a1ff13ebc880f1a3",
+        "version": "2.3.5",
+        "wheel_sha256": "0d8163f43acde9a73c2a33605353a4f1bc4798745a8b1d73183b28e5b435ae28"
+      },
+      "nvidia-cublas-cu12": {
+        "record_sha256": "82a69b9269bddcad908845c68cdf0a4c8f00a43ad321105cd3e704bd1ffda978",
+        "version": "12.1.3.1",
+        "wheel_sha256": "ee53ccca76a6fc08fb9701aa95b6ceb242cdaab118c3bb152af4e579af792728"
+      },
+      "nvidia-cuda-cupti-cu12": {
+        "record_sha256": "463c829a2e3bc24aa9d43a1739b2654dffc9f6234bb15b11e1784e954aafc467",
+        "version": "12.1.105",
+        "wheel_sha256": "e54fde3983165c624cb79254ae9818a456eb6e87a7fd4d56a2352c24ee542d7e"
+      },
+      "nvidia-cuda-nvrtc-cu12": {
+        "record_sha256": "aae08fc7891c9d1c93b615642bf2facb3a7d4707939eac01a677523f340aab8e",
+        "version": "12.1.105",
+        "wheel_sha256": "339b385f50c309763ca65456ec75e17bbefcbbf2893f462cb8b90584cd27a1c2"
+      },
+      "nvidia-cuda-runtime-cu12": {
+        "record_sha256": "febaf4e451bc30bb377d5128bbfea6e7784e9a5858bffe8cd6219a1b02438fb4",
+        "version": "12.1.105",
+        "wheel_sha256": "6e258468ddf5796e25f1dc591a31029fa317d97a0a94ed93468fc86301d61e40"
+      },
+      "nvidia-cudnn-cu12": {
+        "record_sha256": "9c8346559edfcc38282b96126dfe30fbb1531c0646e39de0cc3dd3362a03a555",
+        "version": "9.1.0.70",
+        "wheel_sha256": "165764f44ef8c61fcdfdfdbe769d687e06374059fbb388b6c89ecb0e28793a6f"
+      },
+      "nvidia-cufft-cu12": {
+        "record_sha256": "4ec4366d5524f84726b1dfbf2d7855b07b04c1c13ae5320dc09ce36e60db3a71",
+        "version": "11.0.2.54",
+        "wheel_sha256": "794e3948a1aa71fd817c3775866943936774d1c14e7628c74f6f7417224cdf56"
+      },
+      "nvidia-curand-cu12": {
+        "record_sha256": "8dc0759cd4f39fd36cd661688827eb35157b406ec8e2d8ecf7dbc6c995305d42",
+        "version": "10.3.2.106",
+        "wheel_sha256": "9d264c5036dde4e64f1de8c50ae753237c12e0b1348738169cd0f8a536c0e1e0"
+      },
+      "nvidia-cusolver-cu12": {
+        "record_sha256": "a63770827aeb1933be738e55f5a3a750c4a95f7c9f3c7fce7c1d55e48ce5969d",
+        "version": "11.4.5.107",
+        "wheel_sha256": "8a7ec542f0412294b15072fa7dab71d31334014a69f953004ea7a118206fe0dd"
+      },
+      "nvidia-cusparse-cu12": {
+        "record_sha256": "941a23b7ad429d029e9e1cd1d45850a116c1372dd9415beb9860c41eee2334da",
+        "version": "12.1.0.106",
+        "wheel_sha256": "f3b50f42cf363f86ab21f720998517a659a48131e8d538dc02f8768237bd884c"
+      },
+      "nvidia-nccl-cu12": {
+        "record_sha256": "81d5c536d0dbbec691c1d6822b55931af5392a0986948922e42573962da67abd",
+        "version": "2.21.5",
+        "wheel_sha256": "8579076d30a8c24988834445f8d633c697d42397e92ffc3f63fa26766d25e0a0"
+      },
+      "nvidia-nvjitlink-cu12": {
+        "record_sha256": "211016fc358a85ea5409b6848030f86514d9a548619cd7fddc15a3a85ac92b70",
+        "version": "12.9.86",
+        "wheel_sha256": "e3f1171dbdc83c5932a45f0f4c99180a70de9bd2718c1ab77d14104f6d7147f9"
+      },
+      "nvidia-nvtx-cu12": {
+        "record_sha256": "f52f9d1de478fc5bf533045fde9af9b7a8a88133cf345b5b7288537473c8b93a",
+        "version": "12.1.105",
+        "wheel_sha256": "dc21cf308ca5691e7c04d962e213f8a4aa9bbfa23d95412f452254c2caeb09e5"
+      },
+      "packaging": {
+        "record_sha256": "7074c2b63752a891e4032b7c2043f0d237bc170e33c85c7c1af0d99140469905",
+        "version": "26.3",
+        "wheel_sha256": "d7193f7c8e4e93f444fde0262bf90af30e16fa0ad0ad44cb553c87339b23cd1c"
+      },
+      "pluggy": {
+        "record_sha256": "916f99c41b52173d1f9c02dbf67aab4c137fb4cd57b559d9755a79acd52f7d1b",
+        "version": "1.6.0",
+        "wheel_sha256": "e920276dd6813095e9377c0bc5566d94c932c33b27a3e3945d8389c374dd4746"
+      },
+      "pytest": {
+        "record_sha256": "0b578440e1c21bd5b568460dcff9af756e41f7b0b0ce177e4ec1237ec3591200",
+        "version": "8.4.2",
+        "wheel_sha256": "872f880de3fc3a5bdc88a11b39c9710c3497a547cfa9320bc3c5e62fbf272e79"
+      },
+      "scipy": {
+        "record_sha256": "9dd8f9d59393daa15da22b6cd6d26ae287bfa9cb86d14a8e0528d61f43190035",
+        "version": "1.17.1",
+        "wheel_sha256": "02ae3b274fde71c5e92ac4d54bc06c42d80e399fec704383dcd99b301df37458"
+      },
+      "setuptools": {
+        "record_sha256": "2c66042043bcbe249b106f7b69b353528b5386ac93d6118f444e12b92e0908da",
+        "version": "83.0.0",
+        "wheel_sha256": "29b23c360f22f414dc7336bb39178cc7bcbf6021ed2733cde173f09dba19abb3"
+      },
+      "shapely": {
+        "record_sha256": "b2b35832504c1c921d4064ad2d05b6d6052dabf7bbd31b44e9cf1bbd29c433fc",
+        "version": "2.1.2",
+        "wheel_sha256": "1e7d4d7ad262a48bb44277ca12c7c78cb1b0f56b32c10734ec9a1d30c0b0c54b"
+      },
+      "sympy": {
+        "record_sha256": "bb63c5fa8a150f8554e00d41d66671714dcd0fea2ae9e9c45801cf13310abadf",
+        "version": "1.13.1",
+        "wheel_sha256": "db36cdc64bf61b9b24578b6f7bab1ecdd2452cf008f34faa33776680c26d66f8"
+      },
+      "torch": {
+        "record_sha256": "d97f4074cf7c05d8bebaad7ca00c1e4aa6ca122fd41eb06efd380b7205992ffd",
+        "version": "2.5.1+cu121",
+        "wheel_sha256": "222be02548c2e74a21a8fbc8e5b8d2eef9f9faee865d70385d2eb1b9aabcbc76"
+      },
+      "triton": {
+        "record_sha256": "c88e536a877a2f7cfc3a8426f1d76414c1a61767b0ed4e813f31f75cc7bee668",
+        "version": "3.1.0",
+        "wheel_sha256": "c8182f42fd8080a7d39d666814fa36c5e30cc00ea7eeeb1a2983dbb4c99a0fdc"
+      },
+      "typing_extensions": {
+        "record_sha256": "c9683637fd3591b7fc8fe5b5da0bc40c497cd6067d21407365f52663a3ea1446",
+        "version": "4.16.0",
+        "wheel_sha256": "481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8"
+      }
+    },
+    "installer_report_path": "/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/csi-pairs-install-report.json",
+    "installer_report_sha256": "eb21cff04bccdf0f523eeffba908c817c2edad8c312a65a575b958a35186fb95",
+    "platform_libc_name": "glibc",
+    "platform_libc_version": "2.31",
+    "platform_mac_version": null,
+    "platform_machine": "x86_64",
+    "platform_release": "4.18.0-348.23.1.2.g50e329dc22ea.el8.x86_64",
+    "platform_system": "Linux",
+    "python_dont_write_bytecode": true,
+    "python_executable": "/root/miniconda3/envs/csi-pairs-formal/bin/python3.12",
+    "python_executable_name": "python3.12",
+    "python_implementation": "CPython",
+    "python_prefix": "/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z",
+    "python_version": "3.12.13",
+    "requirements_lock_sha256": "9548a24a4faf5db17b5251df407b4402de033ae8648ec321c850fe6105002cf1",
+    "reviewed_wheel_manifest_path": "/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/csi-pairs-reviewed-wheel-manifest.json",
+    "reviewed_wheel_manifest_sha256": "669aa8938bf2390c4e117240e6f7021378e5f5ff280afa2c01c48d6452d29e9d",
+    "reviewed_wheelhouse_path": "/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/csi-pairs-reviewed-wheels",
+    "reviewed_wheelhouse_sha256": "fa31496ca575bf617e214c2d78a621a2150dcbb58cbca8101b18f93847507865",
+    "schema_version": "csi-pairs-runtime-provenance-v3",
+    "source_tree_sha256": "0901433cbfe906073eae45118a1466e03afab04a766a3061a988ffe089ba4e01",
+    "torch": {
+      "cuda_available": true,
+      "cuda_matmul_allow_tf32": false,
+      "cuda_version": "12.1",
+      "cudnn_allow_tf32": false,
+      "cudnn_benchmark": false,
+      "cudnn_deterministic": true,
+      "deterministic_algorithms": true,
+      "float32_matmul_precision": "highest",
+      "gpu_names": [
+        "NVIDIA A100-SXM4-40GB",
+        "NVIDIA A100-SXM4-40GB"
+      ],
+      "version": "2.5.1+cu121"
+    }
+  },
+  "runtime_provenance_sha256": "8128818d8ea8f5c3517d04da28955f010269df61e756429957a0a032386f6c51",
+  "schema_version": "csi-pairs-full-run-static-preflight-v2",
+  "source_tree_sha256": "0901433cbfe906073eae45118a1466e03afab04a766a3061a988ffe089ba4e01",
+  "status": "PASS"
+}

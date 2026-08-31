@@ -1,0 +1,9 @@
+{
+  "database": "Semantic Scholar",
+  "query": "CSI map localization",
+  "receipt_path": "receipts/semantic-scholar-csi-map-localization.json",
+  "receipt_sha256": "e26d8d5ccd7ca8650d6f1d4214f3b1d6d48773e7081121b057448e54237dcc96",
+  "result_count": 20,
+  "retrieval_url": "https://api.semanticscholar.org/graph/v1/paper/search?query=CSI+map+localization&limit=20&fields=paperId%2Ctitle%2Cyear%2Cauthors%2Curl%2CexternalIds%2Cvenue",
+  "searched_utc": "2026-08-23T14:12:35Z"
+}

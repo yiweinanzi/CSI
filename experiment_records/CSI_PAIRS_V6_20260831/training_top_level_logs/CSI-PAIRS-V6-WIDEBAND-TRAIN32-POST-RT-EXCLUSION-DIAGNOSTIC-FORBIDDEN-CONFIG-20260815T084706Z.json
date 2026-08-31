@@ -1,0 +1,298 @@
+{
+  "cities": [
+    {
+      "bank_count": 57,
+      "center_lat": 41.882,
+      "center_lon": -87.629,
+      "city_id": "source-chicago",
+      "query_delta_lat": 0.0215,
+      "query_delta_lon": 0.028,
+      "source_role_bank_counts": {
+        "source_calibration_fit": 4,
+        "source_calibration_selection": 4,
+        "source_encoder_train": 16,
+        "source_final_unseen_bank": 21,
+        "source_method_selection": 4,
+        "source_probe_selection": 4,
+        "source_probe_train": 4
+      },
+      "split_group": "source"
+    },
+    {
+      "bank_count": 56,
+      "center_lat": 30.2675,
+      "center_lon": -97.7425,
+      "city_id": "source-austin",
+      "query_delta_lat": 0.0215,
+      "query_delta_lon": 0.024,
+      "source_role_bank_counts": {
+        "source_calibration_fit": 4,
+        "source_calibration_selection": 4,
+        "source_encoder_train": 16,
+        "source_final_unseen_bank": 20,
+        "source_method_selection": 4,
+        "source_probe_selection": 4,
+        "source_probe_train": 4
+      },
+      "split_group": "source"
+    },
+    {
+      "bank_count": 41,
+      "center_lat": 47.607,
+      "center_lon": -122.333,
+      "city_id": "target-seattle",
+      "query_delta_lat": 0.0215,
+      "query_delta_lon": 0.031,
+      "split_group": "target"
+    },
+    {
+      "bank_count": 41,
+      "center_lat": 42.3595,
+      "center_lon": -71.0595,
+      "city_id": "target-boston",
+      "query_delta_lat": 0.0215,
+      "query_delta_lon": 0.029,
+      "split_group": "target"
+    },
+    {
+      "bank_count": 16,
+      "center_lat": 39.7392,
+      "center_lon": -104.9903,
+      "city_id": "external-denver",
+      "query_delta_lat": 0.0215,
+      "query_delta_lon": 0.027,
+      "split_group": "external"
+    },
+    {
+      "bank_count": 16,
+      "center_lat": 25.775,
+      "center_lon": -80.1937,
+      "city_id": "external-miami",
+      "query_delta_lat": 0.0215,
+      "query_delta_lon": 0.023,
+      "split_group": "external"
+    }
+  ],
+  "interventions": {
+    "center_separation_m": 6.0,
+    "depth_m": 4.0,
+    "geometry": "four_equal_axis_aligned_cuboids_two_orthogonal_pairs",
+    "height_m": 18.0,
+    "joint_reflection_quota": 96,
+    "minimum_exact_positions_per_primitive": 24,
+    "minimum_selected_quality_mean_per_primitive": 0.0048,
+    "primitive_count": 4,
+    "schema_version": "csi-pairs-controlled-interventions-v1",
+    "state_materials": [
+      "concrete",
+      "glass"
+    ],
+    "width_m": 4.0,
+    "wrong_action_distance_relative_max": 0.05
+  },
+  "map": {
+    "bs_placement_sample_count": 44,
+    "bs_selection": "sampled-formal-placement-capacity-v1",
+    "candidate_grid_radius": 7,
+    "candidate_grid_spacing_m": 300.0,
+    "candidate_qualification_order": "sparse-osm-first-v1",
+    "minimum_building_area_m2": 9.0,
+    "minimum_buildings_per_bank": 6,
+    "minimum_reflection_incidence_cosine": 0.15,
+    "origin_xy_m": [
+      -128.0,
+      -128.0
+    ],
+    "primitive_shortlist_size": 16,
+    "receiver_building_clearance_m": 2.0,
+    "receiver_grid_spacing_m": 0.5,
+    "receiver_minimum_bs_distance_m": 8.0,
+    "receiver_minimum_direct_path_vertical_clearance_m": 0.5,
+    "receiver_primitive_quota": 64,
+    "reflection_candidate_limit": 2048,
+    "resolution_m": 1.0,
+    "size": 256
+  },
+  "overpass_endpoint": "https://overpass-api.de/api/interpreter",
+  "positions_per_bank": 256,
+  "post_rt_exclusions": {
+    "cities": [
+      {
+        "city_id": "source-austin",
+        "excluded_bs_utm_xy_m": [
+          [
+            621596.537389,
+            3347031.605659
+          ],
+          [
+            622496.537389,
+            3348831.605659
+          ],
+          [
+            620076.489387,
+            3350633.205502
+          ]
+        ],
+        "exclusion_manifest_sha256": "a24e78f73b1414b29cbd4ef15247a14f15f0e8d92af050870786b417cb9dafdf"
+      },
+      {
+        "city_id": "source-chicago",
+        "excluded_bs_utm_xy_m": [
+          [
+            446326.778396,
+            4637429.248346
+          ],
+          [
+            447474.515878,
+            4635950.89619
+          ],
+          [
+            446911.471059,
+            4636286.203528
+          ],
+          [
+            445711.471059,
+            4636526.203528
+          ]
+        ],
+        "exclusion_manifest_sha256": "8770ce8ba7ec404ba81b2942bd315734a86868fbfc0aa4193901ad45012b2a75"
+      }
+    ],
+    "failed_gate": "minimum_active_branching_fraction",
+    "schema_version": "csi-pairs-v5-post-rt-candidate-exclusions-config-v1",
+    "selection_policy": "exclude-bound-method-selection-rt-failed-bs-centers-v1",
+    "threshold": 0.8
+  },
+  "power_design": {
+    "assumed_correct_direction_probability": 0.8,
+    "exact_power_at_minimum": 0.8177401044602306,
+    "familywise_alpha": 0.05,
+    "holm_family_size_upper_bound": 31,
+    "independent_unit": "canonical_base_map_cluster",
+    "insufficient_clusters_policy": "downgrade_claim_no_position_repeat_or_seed_pseudoreplication",
+    "minimum_external_validation_clusters": 32,
+    "minimum_g3_scope_clusters": 41,
+    "minimum_source_role_clusters": 8,
+    "required_power": 0.8,
+    "schema_version": "csi-pairs-bank-power-design-v1",
+    "test": "exact_two_sided_sign_test_worst_case_bonferroni",
+    "worst_case_bonferroni_alpha": 0.0016129032258064516
+  },
+  "radio": {
+    "carrier_frequency_hz": 3500000000.0,
+    "max_depth": 3,
+    "max_stored_paths": 64,
+    "observation_noise_std": 1e-08,
+    "receiver_z_m": 1.5,
+    "repeats": 3,
+    "subcarrier_spacing_hz": 1000000.0,
+    "subcarriers": 16,
+    "transmitter_z_m": 25.0,
+    "tx_antennas": 2
+  },
+  "renderer": {
+    "drjit_threads": 1,
+    "mitsuba_variant": "llvm_ad_mono_polarized",
+    "verification_workers": 8
+  },
+  "schema_version": "csi-pairs-sionna-osm-candidate-config-v6",
+  "seed": 2026081301,
+  "world_bits": [
+    [
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      1,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      1,
+      0,
+      0
+    ],
+    [
+      1,
+      1,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      1,
+      0
+    ],
+    [
+      1,
+      0,
+      1,
+      0
+    ],
+    [
+      0,
+      1,
+      1,
+      0
+    ],
+    [
+      1,
+      1,
+      1,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      1
+    ],
+    [
+      1,
+      0,
+      0,
+      1
+    ],
+    [
+      0,
+      1,
+      0,
+      1
+    ],
+    [
+      1,
+      1,
+      0,
+      1
+    ],
+    [
+      0,
+      0,
+      1,
+      1
+    ],
+    [
+      1,
+      0,
+      1,
+      1
+    ],
+    [
+      0,
+      1,
+      1,
+      1
+    ],
+    [
+      1,
+      1,
+      1,
+      1
+    ]
+  ]
+}

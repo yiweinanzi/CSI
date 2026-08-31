@@ -1,0 +1,2 @@
+df: options -P and --output are mutually exclusive
+Try 'df --help' for more information.

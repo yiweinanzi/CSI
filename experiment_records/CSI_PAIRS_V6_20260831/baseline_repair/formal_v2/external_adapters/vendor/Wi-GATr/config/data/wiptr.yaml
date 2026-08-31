@@ -1,0 +1,136 @@
+max_floor_plans: 0
+reciprocity_augmentation: ???
+add_edge_index: false
+canonicalize: null
+dimensions:
+  gatr:
+    mv_channels_in: 15
+    mv_channels_out: 1
+    scalar_channels_in: 10
+    scalar_channels_out: 1
+  transformer:
+    channels_in: 45
+    channels_out: 1
+wiinsim:
+  name: wiptr
+  root: ${data_root_dir}/WiPTR/train
+  floor_dataset_class:
+    _target_: wiinsim.dataset.WiPTRDataset
+  tx_idx: null
+  rx_idx: null
+  transforms:
+    antenna_pattern:
+      _target_: wiinsim.utils.IsotropicToVerticalDipolePattern
+  simulation_attrs:
+    carrier_freq_ghz: 3.5
+target_scaling:
+  mean: -55.09146926128748
+  std: 7.778573253118747
+  min: -100.23883056640625
+  max: -26.875608444213867
+splits:
+  train:
+    dir: ${data_root_dir}/WiPTR/train
+    floor_id:
+    - 0
+    - 10000
+    exclude_floor_id:
+    - 2516
+    - 2517
+    - 6453
+    - 7779
+    - 8546
+    - 8981
+    - 9105
+    - 9170
+    - 9930
+    - 7521
+    tx_id: null
+    rx_id:
+    - 5
+    - 200
+  val:
+    dir: ${data_root_dir}/WiPTR/val
+    floor_id:
+    - 0
+    - 1000
+    tx_id: null
+    rx_id: null
+  eval_rx_gen:
+    dir: ${data_root_dir}/WiPTR/train
+    floor_id:
+    - 0
+    - 10000
+    exclude_floor_id:
+    - 2516
+    - 2517
+    - 6453
+    - 7779
+    - 8546
+    - 8981
+    - 9105
+    - 9170
+    - 9930
+    - 7521
+    tx_id: null
+    rx_id:
+    - 0
+    - 5
+  eval_floor_gen:
+    dir: ${data_root_dir}/WiPTR/test
+    floor_id:
+    - 0
+    - 1000
+    tx_id: null
+    rx_id: null
+  eval_rotation:
+    dir: ${data_root_dir}/WiPTR/test
+    floor_id:
+    - 0
+    - 1000
+    tx_id: null
+    rx_id: null
+    transform: rotation
+  eval_translation:
+    dir: ${data_root_dir}/WiPTR/test
+    floor_id:
+    - 0
+    - 1000
+    tx_id: null
+    rx_id: null
+    transform: translation
+  eval_reciprocity:
+    dir: ${data_root_dir}/WiPTR/test
+    floor_id:
+    - 0
+    - 1000
+    tx_id: null
+    rx_id: null
+    transform: reciprocity
+  eval_ood:
+    dir: ${data_root_dir}/WiPTR/val_ood
+    floor_id:
+    - 0
+    - 5
+    tx_id: null
+    rx_id: null
+  viz_train:
+    dir: ${data_root_dir}/WiPTR/train_grid
+    floor_id:
+    - 0
+    - 1
+    tx_id:
+    - 0
+    - 1
+    rx_id: null
+  viz_val:
+    dir: ${data_root_dir}/WiPTR/val_grid
+    floor_id:
+    - 0
+    - 1
+    tx_id:
+    - 0
+    - 1
+    rx_id: null
+num_materials: 6
+viz_num_z_planes: 2

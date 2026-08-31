@@ -1,0 +1,15 @@
+{
+  "adapter_source_sha256": "eef860afeb150a1027d34cdc57ebef80cb4c6704c73f066ea9fe57849485ca33",
+  "checkpoint_index_sha256": "1c7745a75efc6da27fd7b1a7f391581063ff3ca52ed072503498ab5b1ee149b7",
+  "config_sha256": "620f300cbec1f56da4691882bc7dbe52593dc597fc62f6ae925c0f6ac72f1c6b",
+  "dataset_sha256": "ded1ec639ff3e6fd5eba769d42db1ed36222a48af333a30a670254b30b164b74",
+  "fixture": true,
+  "pair_registry_sha256": "4a0967847b6e116813a0588677221632704331ff84c5a72479a83be9ddfb1cc4",
+  "per_unit_results_path": "per_unit_results.csv",
+  "per_unit_results_sha256": "b2b900b8f03f7efe59172e03c09ca17da57466726fd72dc94d5b47578edc9488",
+  "probe_checkpoint_index_path": "probe_checkpoint_index.json",
+  "probe_checkpoint_index_sha256": "068bc1c6d1c61461f7ff7d9f4013d72d798e6be6edf3e869ad045dbd00dc74fa",
+  "probe_training_provenance_path": "probe_training_provenance.json",
+  "probe_training_provenance_sha256": "ff1555df44b74fc7c0b99f0884819c10046791b9016f704f7dd1c56e9d8c3968",
+  "schema_version": "csi-pairs-v6-retention-results-v3"
+}

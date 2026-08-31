@@ -1,0 +1,19 @@
+{
+  "schema_version": "csi-pairs-v6-retention-adapter-v3",
+  "command": [
+    "{python}",
+    "{adapter_source}",
+    "--dataset",
+    "{dataset}",
+    "--run-root",
+    "{run_root}",
+    "--output",
+    "{output}",
+    "--context",
+    "{context}"
+  ],
+  "implementation_revision": "eef860afeb150a1027d34cdc57ebef80cb4c6704c73f066ea9fe57849485ca33",
+  "control_seed": 20270807,
+  "adapter_source_path": "retention_control.py",
+  "adapter_source_sha256": "eef860afeb150a1027d34cdc57ebef80cb4c6704c73f066ea9fe57849485ca33"
+}

@@ -1,0 +1,66 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import os
+import signal
+import time
+from pathlib import Path
+
+
+LOG = Path("/tmp/csi-fixture-control-quarantine.log")
+TARGETS = (
+    "formal_v2_smoke.json",
+    "smoke-full-v6",
+    "/tmp/csi_formal_dataset_guard.py",
+    "csi-formal-data-guard",
+)
+
+
+def command_line(pid: int) -> str:
+    try:
+        return Path(f"/proc/{pid}/cmdline").read_bytes().replace(b"\0", b" ").decode(
+            "utf-8", errors="replace"
+        )
+    except (FileNotFoundError, PermissionError, ProcessLookupError):
+        return ""
+
+
+def log(message: str) -> None:
+    with LOG.open("a", encoding="utf-8") as stream:
+        stream.write(f"{time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())} {message}\n")
+
+
+def main() -> None:
+    own_pid = os.getpid()
+    own_group = os.getpgrp()
+    deadline = time.monotonic() + 4 * 60 * 60
+    log(f"started pid={own_pid} pgid={own_group}")
+    while time.monotonic() < deadline:
+        groups: dict[int, tuple[int, str]] = {}
+        for entry in Path("/proc").iterdir():
+            if not entry.name.isdigit():
+                continue
+            pid = int(entry.name)
+            if pid == own_pid:
+                continue
+            command = command_line(pid)
+            if not command or not any(target in command for target in TARGETS):
+                continue
+            try:
+                group = os.getpgid(pid)
+            except ProcessLookupError:
+                continue
+            if group != own_group:
+                groups.setdefault(group, (pid, command))
+        for group, (pid, command) in groups.items():
+            try:
+                os.killpg(group, signal.SIGTERM)
+                log(f"stopped pgid={group} sample_pid={pid} cmd={command[:500]}")
+            except ProcessLookupError:
+                pass
+        time.sleep(1)
+    log("expired")
+
+
+if __name__ == "__main__":
+    main()

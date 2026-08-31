@@ -1,0 +1,16 @@
+{
+  "adapter_config_path": "adapter_config.json",
+  "adapter_config_sha256": "7c75ba213afa8886a65855ec7fa5794bc54ab620ada992d1e4f9936de62d0b50",
+  "adapter_id": "wiser-controlled-csi-pairs-v1",
+  "checkpoint_path": "checkpoints/wiser_source_selected.pt",
+  "checkpoint_sha256": "ff1910553b22e1531582d8340aebdc10ccfdea994a2b5503dc2f5f520428c2d1",
+  "command_sha256": "f631766117d1831a4ee6ce845d1234b02eaaf481620ce0eb3055d4ebf7337766",
+  "dataset_sha256": "ded1ec639ff3e6fd5eba769d42db1ed36222a48af333a30a670254b30b164b74",
+  "implementation_status": "style-controlled-implementation",
+  "model_name": "WiSER",
+  "results_sha256": "29d25d1242ae03b09fc8821281f533fbafaaa36dba1262e84cd3d6f39497e5e9",
+  "schema_version": "csi-pairs-v6-external-execution-v2",
+  "source_revision": "arxiv:2606.04770v1:97e368043d0c111987d26993ec88c295c5bb997126e21711223ca5448d1645ec",
+  "training_record_path": "training_record.json",
+  "training_record_sha256": "b5b59ca1770a89381181eedb2ef245c7c3632deb81b245fdbf2babfb4bcd92bb"
+}

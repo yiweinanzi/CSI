@@ -1,0 +1,15 @@
+{
+  "counts": {
+    "active": 46,
+    "correct": 64,
+    "gray": 0,
+    "null": 18
+  },
+  "required_proportions": {
+    "active": 0.25,
+    "correct": 0.25,
+    "gray": 0.25,
+    "null": 0.25
+  },
+  "role": "source_method_selection"
+}

@@ -1,0 +1,21 @@
+exp_dir: ???
+step: null
+
+scene: ???
+num_measurements: [10, 5, 3, 2, 1]
+
+device: cuda
+
+num_experiments: 1
+num_sgd_fits: 20
+steps: 250
+
+lr: 0.1
+lr_decay: 0.1
+clip_grad_norm: 10.0
+noise_steps: 0
+noise: 0.0
+noise_decay: 1.0
+reg_factor: 100.0
+
+ranges: null

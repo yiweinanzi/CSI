@@ -1,0 +1,3 @@
+jit_cuda_api_init(): could not find symbol "cuInit" -- disabling CUDA backend!
+{"event":"formal_candidate_bank_started","scene_id":"osm-sionna-external-miami-bank-15","scene_index":226,"world_count":1}
+{"elapsed_seconds":49.901,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-external-miami-bank-15","scene_index":226,"world_count":1,"world_index":0,"worlds_complete":1}

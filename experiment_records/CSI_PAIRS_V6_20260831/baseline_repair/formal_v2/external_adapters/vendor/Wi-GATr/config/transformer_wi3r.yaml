@@ -1,0 +1,46 @@
+defaults:
+  - data: wi3r
+  - _self_
+data_root_dir: ???
+data:
+  reciprocity_augmentation: 1
+exp_dir: 'experiments/${exp_name}/${run_name}'
+experiment_target: wigatr.experiments.regression.Wi3RRegressionExperiment
+model:
+  _target_: wigatr.models.regression_transformer.RSRPRegressionTransformer
+  embedding: kitchen_sink
+  affine_shift: ${data.target_scaling.mean}
+  affine_scale: ${data.target_scaling.std}
+  net:
+    _target_: gatr.baselines.transformer.BaselineTransformer
+    in_channels: ${data.dimensions.transformer.channels_in}
+    out_channels: ${data.dimensions.transformer.channels_out}
+    num_blocks: 32
+    hidden_channels: 288
+    num_heads: 8
+    multi_query: true
+    pos_encoding: false
+exp_name: Wi3R
+run_name: transformer
+seed: 1833
+debug: false
+checkpoint: null
+training:
+  steps: 500000
+  batchsize: 64
+  eval_batchsize: 128
+  lr: 0.001
+  lr_decay: 0.01
+  clip_grad_norm: 10.0
+  weight_decay: 0.0
+  early_stopping: true
+  float16: false
+  ema: false
+  log_every_n_steps: 100
+  validate_every_n_steps: 10000
+  plot_every_n_steps: 50000
+  save_model_every_n_steps: 50000
+  update_lr_every_n_steps: 10000
+  eval_device: cuda
+  progressbar: false
+  detect_anomaly: false

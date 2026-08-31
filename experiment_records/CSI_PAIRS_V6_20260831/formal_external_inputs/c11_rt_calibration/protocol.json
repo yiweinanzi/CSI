@@ -1,0 +1,13 @@
+{
+  "absolute_tolerances": {
+    "angular_spread": 15.0,
+    "delay_spread": 25.0,
+    "path_loss": 6.0,
+    "visible_path_count": 3.0
+  },
+  "aggregation": "mean_absolute_error_per_unit",
+  "exclusion_rules": [],
+  "frozen_utc": "2026-08-21T12:00:23Z",
+  "minimum_validation_units": 16,
+  "schema_version": "csi-pairs-v6-rt-calibration-protocol-v4"
+}

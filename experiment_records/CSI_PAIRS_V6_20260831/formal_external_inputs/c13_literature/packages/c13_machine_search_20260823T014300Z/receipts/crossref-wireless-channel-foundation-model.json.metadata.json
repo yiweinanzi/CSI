@@ -1,0 +1,9 @@
+{
+  "database": "Crossref",
+  "query": "wireless channel foundation model",
+  "receipt_path": "receipts/crossref-wireless-channel-foundation-model.json",
+  "receipt_sha256": "c0e29c622ad5b4c60336078c39ac701d592199ac7f19646c3fcda10c41c36d1d",
+  "result_count": 20,
+  "retrieval_url": "https://api.crossref.org/works?query=wireless+channel+foundation+model&rows=20",
+  "searched_utc": "2026-08-23T01:44:25Z"
+}

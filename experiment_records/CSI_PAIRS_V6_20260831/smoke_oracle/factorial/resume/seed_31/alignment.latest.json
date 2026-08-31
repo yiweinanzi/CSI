@@ -1,0 +1,15 @@
+{
+  "arm": "alignment",
+  "batch_size": 4,
+  "checkpoint_bytes": 166784,
+  "checkpoint_path": "alignment.slot0.pt",
+  "checkpoint_schema_version": "csi-pairs-v6-factorial-resume-checkpoint-v1",
+  "checkpoint_sha256": "0b43c7fc7a6e3fb5d0f483774a8fb5491dbaff0dbb3a8d1b8956d05b0e5d92a6",
+  "completed_steps": 2,
+  "context_sha256": "dbec0a1e27eded75078971e6250de1a46710ac7f6034f1499945ce8fbc2d8a5c",
+  "generation": 0,
+  "schema_version": "csi-pairs-v6-factorial-resume-pointer-v1",
+  "seed": 31,
+  "status": "COMPLETE",
+  "total_steps": 2
+}

@@ -1,0 +1,16 @@
+{
+  "schema_version": "csi-pairs-v6-control-architecture-v2",
+  "control_id": "equal_flop_alignment",
+  "architecture_family": "single_branch_alignment",
+  "objective_terms": ["endpoint", "alignment"],
+  "training_role": "source_encoder_train",
+  "selection_role": "source_method_selection",
+  "evaluation_roles": ["source_final_unseen_bank", "target_query"],
+  "search_policy": {
+    "selection_data": "architecture_and_source_only_profiler",
+    "selection_rule": "fixed_full_width",
+    "csi_encoder_layers": [1],
+    "map_dim_scales": [1.0],
+    "hidden_dim_scales": [1.0]
+  }
+}

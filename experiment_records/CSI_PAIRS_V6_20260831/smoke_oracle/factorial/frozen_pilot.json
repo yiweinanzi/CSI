@@ -1,0 +1,18 @@
+{
+  "alignment_null_tolerance": 0.0,
+  "alignment_scale": 0.03999561071395874,
+  "checkpoint_reused_for_final_training": false,
+  "pilot_contract": "endpoint-only source-encoder-train fit; source-method-selection no-op kappa and frozen scale sequence",
+  "pilot_seed": 6018,
+  "pilot_steps": 2,
+  "response_scale": 3.209302544593811,
+  "role_permissions": {
+    "source_encoder_train": "endpoint-only pilot optimization",
+    "source_method_selection": "no-op kappa and loss-scale selection only"
+  },
+  "schema_version": "csi-pairs-v6-frozen-pilot-v1",
+  "source_roles": [
+    "source_encoder_train",
+    "source_method_selection"
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "autocast_enabled": false,
+  "batch_size": 4,
+  "configured_precision": "float32",
+  "device": "cuda",
+  "executed_precision": "float32",
+  "gradient_accumulation_steps": 2,
+  "gradient_scaler_enabled": false,
+  "last_training_loss": 9.749327182769775,
+  "method": "rfir",
+  "microbatch_size": 2,
+  "optimizer": "AdamW",
+  "scheduler": "cosine-to-0.1x",
+  "schema_version": "csi-pairs-v6-controlled-map-training-record-v2",
+  "selected_step": 2,
+  "selection_loss": 8.700748682022095,
+  "selection_role": "source_method_selection",
+  "steps": 2,
+  "target_roles_read": [],
+  "task_schedule": {
+    "cir": 0,
+    "joint": 2,
+    "radiomap": 0
+  },
+  "train_role": "source_encoder_train"
+}

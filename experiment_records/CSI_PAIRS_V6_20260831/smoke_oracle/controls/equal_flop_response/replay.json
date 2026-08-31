@@ -1,0 +1,11 @@
+{
+  "adapter_source_sha256": "0d2d94701e46449dc2b2de452a45d29128af7dd10ed9ded38dd78f3fe7f3e846",
+  "architecture_spec_sha256": "93f87f25480cb8cbe3544172e2b8766f6698ef1b3e019134fffeee2dfed32322",
+  "control_id": "equal_flop_response",
+  "localization_per_bank_sha256": "2a8b1fbb888848dc3ba1b0a2dc226803d8ecfa4a81d5efa70528503aa697153d",
+  "recomputed_inference_flops": 147144.0,
+  "recomputed_parameters": 15454.0,
+  "recomputed_training_flops": 96850208.0,
+  "resource_index_sha256": "9f7c585850dfb749895606d4da31fec4f6a51a4f40e3a67e7d2b301e9431eef8",
+  "schema_version": "csi-pairs-v6-resource-replay-v2"
+}

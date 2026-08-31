@@ -1,0 +1,22 @@
+{
+  "events": [
+    {
+      "count": 1,
+      "flops": 95281992.0,
+      "name": "response_training_graph",
+      "phase": "training"
+    },
+    {
+      "count": 1,
+      "flops": 147144.0,
+      "name": "response_retained_inference_graph",
+      "phase": "inference"
+    }
+  ],
+  "measured_inference_flops": 147144.0,
+  "measured_training_flops": 95281992.0,
+  "profiled_step_count": 2,
+  "profiler": "torch.utils.flop_counter.FlopCounterMode",
+  "resource_accounting_scope": "representation_training_and_retained_inference_excluding_common_localization_head",
+  "schema_version": "csi-pairs-v6-profiler-summary-v3"
+}

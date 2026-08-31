@@ -1,0 +1,9 @@
+{
+  "database": "Crossref",
+  "query": "CSI map localization",
+  "receipt_path": "receipts/crossref-csi-map-localization.json",
+  "receipt_sha256": "f4347aab410bb3d0c04df6078e6993903075b9af3a759912c4f23b7d7a929043",
+  "result_count": 20,
+  "retrieval_url": "https://api.crossref.org/works?query=CSI+map+localization&rows=20",
+  "searched_utc": "2026-08-23T01:44:27Z"
+}

@@ -1,0 +1,9 @@
+{
+  "database": "OpenAlex",
+  "query": "wireless scene representation",
+  "receipt_path": "receipts/openalex-wireless-scene-representation.json",
+  "receipt_sha256": "ea4e9c5ff6baf395c0ed526d2ecade89bfcdf3e71d151821c2e1321190468995",
+  "result_count": 20,
+  "retrieval_url": "https://api.openalex.org/works?search=wireless+scene+representation&per-page=20",
+  "searched_utc": "2026-08-23T01:44:38Z"
+}

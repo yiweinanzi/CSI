@@ -1,0 +1,24 @@
+# MAC OS
+.DS_Store
+
+# Python
+*__pycache__*
+*.py[cod]
+*.cpython-36.pyc
+*.egg-info
+
+# Notebooks (save percent Python scripts instead)
+*.ipynb
+
+# Plots
+*.pdf
+*.png
+
+# Data folder
+/data
+
+# Wi-GATr experiments output folder
+/experiments
+
+# Hydra run output folder
+/outputs

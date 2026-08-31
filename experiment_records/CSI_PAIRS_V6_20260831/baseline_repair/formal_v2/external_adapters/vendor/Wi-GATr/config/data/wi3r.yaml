@@ -1,0 +1,143 @@
+dimensions:
+  gatr:
+    mv_channels_in: 15
+    mv_channels_out: 1
+    scalar_channels_in: 4
+    scalar_channels_out: 1
+  transformer:
+    channels_in: 39
+    channels_out: 1
+wiinsim:
+  name: wi3r
+  root: ${data_root_dir}/Wi3R/main_5tx
+  floor_dataset_class:
+    _target_: wiinsim.dataset.Wi3RDataset
+  tx_idx: null
+  rx_idx: null
+  transforms:
+    antenna_pattern:
+      _target_: wiinsim.utils.IsotropicToVerticalDipolePattern
+  simulation_attrs:
+    carrier_freq_ghz: 3.5
+target_scaling:
+  mean: -33.7302
+  std: 5.3933
+  min: -75.2735
+  max: -20.7094
+splits:
+  train:
+    floor_id:
+    - 0
+    - 4500
+    tx_id:
+    - 0
+    - 5
+    rx_id:
+    - 0
+    - 190
+  val:
+    floor_id:
+    - 4500
+    - 4750
+    tx_id:
+    - 0
+    - 5
+    rx_id:
+    - 0
+    - 200
+  eval_rx_gen:
+    floor_id:
+    - 0
+    - 4500
+    tx_id:
+    - 0
+    - 5
+    rx_id:
+    - 190
+    - 200
+  eval_floor_gen:
+    floor_id:
+    - 4750
+    - 5000
+    tx_id:
+    - 0
+    - 5
+    rx_id:
+    - 0
+    - 200
+  viz_train:
+    dir: ${data_root_dir}/Wi3R/grid
+    floor_id:
+    - 0
+    - 1
+    tx_id:
+    - 0
+    - 1
+    rx_id: null
+  viz_val:
+    dir: ${data_root_dir}/Wi3R/grid
+    floor_id:
+    - 1
+    - 2
+    tx_id:
+    - 0
+    - 1
+    rx_id: null
+  eval_rotation:
+    floor_id:
+    - 4750
+    - 5000
+    tx_id:
+    - 0
+    - 5
+    rx_id:
+    - 0
+    - 200
+    transform: rotation
+  eval_translation:
+    floor_id:
+    - 4750
+    - 5000
+    tx_id:
+    - 0
+    - 5
+    rx_id:
+    - 0
+    - 200
+    transform: translation
+  eval_reciprocity:
+    floor_id:
+    - 4750
+    - 5000
+    tx_id:
+    - 0
+    - 5
+    rx_id:
+    - 0
+    - 200
+    transform: reciprocity
+  eval_ood_scale:
+    dir: ${data_root_dir}/Wi3R/outofdistribution/scaled
+    floor_id:
+    - 0
+    - 1
+    tx_id: null
+    rx_id: null
+  eval_ood_layout:
+    dir: ${data_root_dir}/Wi3R/outofdistribution/fourrooms
+    floor_id:
+    - 0
+    - 1
+    tx_id: null
+    rx_id: null
+  eval_ood_shape:
+    dir: ${data_root_dir}/Wi3R/outofdistribution/squared
+    floor_id:
+    - 0
+    - 1
+    tx_id: null
+    rx_id: null
+max_floor_plans: 0
+reciprocity_augmentation: ???
+add_edge_index: false
+canonicalize: null

@@ -1,0 +1,29 @@
+{
+  "base_config": "/root/xunlian/Futaoran/\u6b63\u5f0f\u5f00\u59cb\u8bad\u7ec3/CSI-PAIRS-V5-WIDEBAND-DIAGNOSTIC-FORBIDDEN-SPLIT-FIT-20260815T012100Z/assets/generator_config.json",
+  "base_config_sha256": "1f303ea64f6612342a99988b98daeb348ef4192ed94314940c990825f02f2a6c",
+  "created_utc": "2026-08-15T01:48:09.055956+00:00",
+  "expanded_config": "/root/xunlian/Futaoran/\u6b63\u5f0f\u5f00\u59cb\u8bad\u7ec3/CSI-PAIRS-V5-WIDEBAND-EXPANDED-TRAIN32-DIAGNOSTIC-FORBIDDEN-CONFIG-20260815T101500Z.json",
+  "expanded_config_sha256": "8009bc1da24b277abe4bf9c169307b44daebc14aa08edaaa18db88552c959441",
+  "fixture": false,
+  "formal_dataset": false,
+  "paper_table_eligible": false,
+  "reason": "diagnose whether independent training-bank coverage resolves cross-bank response generalization without reusing evaluation roles",
+  "scene_count": 227,
+  "schema_version": "csi-pairs-v5-expanded-training-config-diagnostic-v1",
+  "scientific_use": "FORBIDDEN",
+  "simulation_not_measurement": true,
+  "source_encoder_train_bank_count": 32,
+  "source_encoder_train_banks_per_city": 16,
+  "source_method_selection_bank_count": 8,
+  "status": "FORBIDDEN_EXPANDED_TRAINING_COVERAGE_DIAGNOSTIC",
+  "unchanged_roles": [
+    "source_method_selection",
+    "source_probe_train",
+    "source_probe_selection",
+    "source_calibration_fit",
+    "source_calibration_selection",
+    "source_final_unseen_bank",
+    "target",
+    "external_validation"
+  ]
+}

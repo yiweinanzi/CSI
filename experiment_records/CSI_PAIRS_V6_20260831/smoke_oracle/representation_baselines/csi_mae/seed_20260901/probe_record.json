@@ -1,0 +1,12 @@
+{
+  "algorithm_seed": 20260901,
+  "head_steps": 2,
+  "label_draws": 1,
+  "probe_selection_role": "source_probe_selection",
+  "probe_train_role": "source_probe_train",
+  "schema_version": "csi-pairs-v6-representation-probe-record-v2",
+  "source_probe_selection_median_error_m": 2.1120352745056152,
+  "target_evaluation_role": "query",
+  "target_normalization_statistics_used": false,
+  "target_support_role": "support_pool"
+}

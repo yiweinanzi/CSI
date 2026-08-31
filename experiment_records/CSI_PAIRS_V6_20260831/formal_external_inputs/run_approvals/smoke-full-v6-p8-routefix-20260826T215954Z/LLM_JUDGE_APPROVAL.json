@@ -1,0 +1,16 @@
+{
+  "approved_gate_sha256s": {
+    "G1_G2": "5fe68d8bdea47632e6179f2b46f3b55fce08fc3eef794e44e581c3e4080b2dc1",
+    "waibu_resources": "098e07680c8f2c69598a2a0733849eeb06503563239b13cc0a15b7fc737e07b5"
+  },
+  "approved_utc": "2026-08-26T22:03:00Z",
+  "attestation": "This LLM-as-judge (codex, claude-code, or cursor) reviewed the bound G0, independent RT, G1/G2, Response-control, G8 independent external-validity, input, runtime, and compute-plan evidence and authorizes only this run nonce.",
+  "compute_plan_sha256": "d88c1dbed7a69547329cfe17c2656cec31a2495977c4587da1ba2c92e638f718",
+  "decision": "APPROVE",
+  "expires_utc": "2026-08-27T10:00:00Z",
+  "judge": "codex:gpt-5",
+  "request_sha256": "da3987287b2932da33ce742453a5abe14b18e783ead0d54031a7bc968ab5ba23",
+  "run_id": "csi-pairs-44ab4ed3dbb6f4cb",
+  "run_nonce": "44ab4ed3dbb6f4cb7d77f75864976b6f26e9dea85b736a02ca171a032cb091c6",
+  "schema_version": "csi-pairs-full-run-llm-judge-approval-v1"
+}

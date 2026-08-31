@@ -1,0 +1,32 @@
+## main...origin/main
+ M code/CSI-PAIRS-v2.0-server/SHA256SUMS
+ M code/CSI-PAIRS-v2.0-server/artifacts/v6_atomic_requirement_matrix_2026-08-08.csv
+ M code/CSI-PAIRS-v2.0-server/formal_v2/external_adapters/setup_sionna.sh
+ M code/CSI-PAIRS-v2.0-server/formal_v2/external_adapters/setup_wigatr.sh
+ M code/CSI-PAIRS-v2.0-server/formal_v2/formal_cli.py
+ M code/CSI-PAIRS-v2.0-server/formal_v2/formal_dataset.py
+ M code/CSI-PAIRS-v2.0-server/formal_v2/formal_evaluation.py
+ M code/CSI-PAIRS-v2.0-server/formal_v2/formal_evidence.py
+ M code/CSI-PAIRS-v2.0-server/formal_v2/formal_external_runtime.py
+ M code/CSI-PAIRS-v2.0-server/formal_v2/formal_factorial.py
+ M code/CSI-PAIRS-v2.0-server/formal_v2/formal_metrics.py
+ M code/CSI-PAIRS-v2.0-server/formal_v2/formal_model.py
+ M code/CSI-PAIRS-v2.0-server/formal_v2/formal_qualification.py
+ M code/CSI-PAIRS-v2.0-server/formal_v2/formal_risk.py
+ M code/CSI-PAIRS-v2.0-server/formal_v2/formal_runtime_integrity.py
+ M code/CSI-PAIRS-v2.0-server/formal_v2/formal_teacher.py
+ M code/CSI-PAIRS-v2.0-server/formal_v2/scripts/run_formal_v2_dry_run.sh
+ M code/CSI-PAIRS-v2.0-server/formal_v2/scripts/setup_formal_v2.sh
+ M code/CSI-PAIRS-v2.0-server/formal_v2/tests/test_audit_artifacts.py
+ M code/CSI-PAIRS-v2.0-server/formal_v2/tests/test_formal_v2.py
+ M code/CSI-PAIRS-v2.0-server/formal_v2/tests/test_runtime_integrity.py
+?? artifacts/
+?? code/CSI-PAIRS-v2.0-server/formal_v2/configs/sionna_osm_formal_candidate_v1.json
+?? code/CSI-PAIRS-v2.0-server/formal_v2/formal_sionna_osm_verifier.py
+?? code/CSI-PAIRS-v2.0-server/formal_v2/requirements-lock-linux-x86_64-cu121.txt
+?? code/CSI-PAIRS-v2.0-server/formal_v2/scripts/setup_cuda_compat_13.sh
+?? code/CSI-PAIRS-v2.0-server/formal_v2/sionna_osm_candidate.py
+?? code/CSI-PAIRS-v2.0-server/formal_v2/tests/test_pre_run_regressions.py
+?? formal_envs/
+?? formal_inputs/
+?? generated_datasets/

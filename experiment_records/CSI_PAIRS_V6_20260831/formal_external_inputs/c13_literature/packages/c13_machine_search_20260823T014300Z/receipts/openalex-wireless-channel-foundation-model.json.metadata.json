@@ -1,0 +1,9 @@
+{
+  "database": "OpenAlex",
+  "query": "wireless channel foundation model",
+  "receipt_path": "receipts/openalex-wireless-channel-foundation-model.json",
+  "receipt_sha256": "4c8743b0322d271829b2f1cb961d70347d1682c7424365dd71f0a916583a21e4",
+  "result_count": 20,
+  "retrieval_url": "https://api.openalex.org/works?search=wireless+channel+foundation+model&per-page=20",
+  "searched_utc": "2026-08-23T01:44:32Z"
+}

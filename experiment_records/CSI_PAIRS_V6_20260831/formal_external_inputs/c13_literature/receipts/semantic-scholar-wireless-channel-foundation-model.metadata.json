@@ -1,0 +1,9 @@
+{
+  "database": "Semantic Scholar",
+  "query": "wireless channel foundation model",
+  "receipt_path": "receipts/semantic-scholar-wireless-channel-foundation-model.json",
+  "receipt_sha256": "01b6e5baba34e17c54c56ec4e17b37a2eba6528d3067777351a9208094134e63",
+  "result_count": 20,
+  "retrieval_url": "https://api.semanticscholar.org/graph/v1/paper/search?query=wireless+channel+foundation+model&limit=20&fields=paperId%2Ctitle%2Cyear%2Cauthors%2Curl%2CexternalIds%2Cvenue",
+  "searched_utc": "2026-08-23T01:37:05Z"
+}

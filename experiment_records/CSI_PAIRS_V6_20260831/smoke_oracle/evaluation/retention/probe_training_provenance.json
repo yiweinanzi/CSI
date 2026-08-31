@@ -1,0 +1,14 @@
+{
+  "config_sha256": "620f300cbec1f56da4691882bc7dbe52593dc597fc62f6ae925c0f6ac72f1c6b",
+  "dataset_sha256": "ded1ec639ff3e6fd5eba769d42db1ed36222a48af333a30a670254b30b164b74",
+  "evaluation_roles": [
+    "source_final_unseen_bank",
+    "target"
+  ],
+  "fit_role": "source_probe_train",
+  "fixture": true,
+  "formal_model_parameters_updated": false,
+  "schema_version": "csi-pairs-v6-retention-probe-training-v1",
+  "selection_role": "source_probe_selection",
+  "target_labels_used": false
+}

@@ -1,0 +1,28 @@
+{
+  "adapters": [
+    {
+      "adapter_id": "sigmap-scene-id-v1",
+      "adapter_source_path": "/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/formal_v2/external_adapters/scene_id_sigmap.py",
+      "adapter_source_sha256": "cdd9592a431b9fa2a8d8ab9f99a7a087447e73a916e2d5c52eb979e0768a50fc",
+      "command": [
+        "{python}",
+        "{adapter_source}",
+        "--dataset",
+        "{dataset}",
+        "--output",
+        "{output}",
+        "--checkpoint",
+        "{checkpoint}",
+        "--run-root",
+        "{run_root}"
+      ],
+      "implementation_revision": "cdd9592a431b9fa2a8d8ab9f99a7a087447e73a916e2d5c52eb979e0768a50fc",
+      "model_checkpoint_path": "/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/runs/smoke-full-v6-p8-clusterfix-20260826T230312Z/external_baselines/adapters/sigmap-controlled-csi-pairs-v1/checkpoints/sigmap_source_selected.pt",
+      "model_checkpoint_sha256": "1a9e42d361811c9fd4b95bf05ef56cc15f65ec7d99002891586ebf83f32e149a",
+      "model_name": "SigMap",
+      "training_provenance_path": "/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/runs/smoke-full-v6-p8-clusterfix-20260826T230312Z/scene_id/builtin_inputs/sigmap_training_provenance.json",
+      "training_provenance_sha256": "31ad5337f53829de44a99d85b547e3782422d925025b516a9c7062d8e7892704"
+    }
+  ],
+  "schema_version": "csi-pairs-v6-scene-id-adapters-v3"
+}

@@ -1,0 +1,61 @@
+defaults:
+  - wiptr@_here_
+  - _self_
+wiinsim:
+  name: wiptr_test
+splits:
+  train:
+    dir: ${data_root_dir}/WiPTR/train
+    floor_id: [0, 2]
+    exclude_floor_id: [2516, 2517, 6453, 7779, 8546, 8981, 9105, 9170, 9930, 7521]  # Excluding faulty floor plans where sim crashed
+    tx_id: [0, 1]
+    rx_id: [5, 10]
+  val:
+    dir: ${data_root_dir}/WiPTR/val
+    floor_id: [0, 1]
+    tx_id: [0, 1]
+    rx_id: [0, 10]
+  eval_rx_gen:
+    dir: ${data_root_dir}/WiPTR/train
+    floor_id: [0, 1]
+    exclude_floor_id: [2516, 2517, 6453, 7779, 8546, 8981, 9105, 9170, 9930, 7521]  # Excluding faulty floor plans where sim crashed
+    tx_id: [0, 1]
+    rx_id: [0, 5]
+  eval_floor_gen:
+    dir: ${data_root_dir}/WiPTR/test
+    floor_id: [0, 1]
+    tx_id: [0, 1]
+    rx_id: [0, 5]
+  eval_rotation:
+    dir: ${data_root_dir}/WiPTR/test
+    floor_id: [0, 1]
+    tx_id: [0, 1]
+    rx_id: [0, 5]
+    transform: rotation
+  eval_translation:
+    dir: ${data_root_dir}/WiPTR/test
+    floor_id: [0, 1]
+    tx_id: [0, 1]
+    rx_id: [0, 5]
+    transform: translation
+  eval_reciprocity:
+    dir: ${data_root_dir}/WiPTR/test
+    floor_id: [0, 1]
+    tx_id: [0, 1]
+    rx_id: [0, 5]
+    transform: reciprocity
+  eval_ood:
+    dir: ${data_root_dir}/WiPTR/val_ood
+    floor_id: [0, 1]
+    tx_id: [0, 1]
+    rx_id: [0, 5]
+  viz_train:
+    dir: ${data_root_dir}/WiPTR/train_grid
+    floor_id: [0, 1]
+    tx_id: [0, 1]
+    rx_id: [0, 5]
+  viz_val:
+    dir: ${data_root_dir}/WiPTR/val_grid
+    floor_id: [0, 1]
+    tx_id: [0, 1]
+    rx_id: [0, 5]

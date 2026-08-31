@@ -1,0 +1,32 @@
+{
+  "schema_version": "csi-pairs-a100-external-baseline-license-status-v1",
+  "package_distribution": "INTERNAL_RESEARCH_TEAM_TRANSFER_ONLY",
+  "public_redistribution": "FORBIDDEN_PENDING_DATASET_LEVEL_REVIEW",
+  "datasets": {
+    "DeepMIMO": {
+      "code_license_snapshot": "Apache-2.0",
+      "dataset_license_snapshot": "NOT_ESTABLISHED_BY_LOCAL_EVIDENCE",
+      "paper_use": "CONDITIONAL"
+    },
+    "UrbanMIMOMap": {
+      "code_license_snapshot": "MIT",
+      "dataset_license_snapshot": "NOT_ESTABLISHED_BY_LOCAL_EVIDENCE",
+      "paper_use": "CONDITIONAL"
+    },
+    "RadioMapSeer": {
+      "code_license_snapshot": "MIT for RadioUNet code only",
+      "dataset_license_snapshot": "NOT_ESTABLISHED_BY_LOCAL_EVIDENCE",
+      "paper_use": "CONDITIONAL"
+    },
+    "DeepSense6G": {
+      "code_license_snapshot": "NOT_APPLICABLE",
+      "dataset_license_snapshot": "REVIEW_REQUIRED_BEFORE_REDISTRIBUTION_OR_PUBLICATION",
+      "paper_use": "CONDITIONAL"
+    }
+  },
+  "excluded": {
+    "qualcomm_wireless_indoor": "Dataset license and provenance snapshots are missing.",
+    "IRT2HighRes.zip": "Paid original was not acquired.",
+    "original_WWM_payloads": "Restricted originals were not acquired."
+  }
+}

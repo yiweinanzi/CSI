@@ -1,0 +1,9 @@
+{
+  "prepared_root": "/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/runs/smoke-full-v6-p8-clusterfix-20260826T230312Z",
+  "request_path": "approval/request.json",
+  "request_sha256": "66995151919cf020b2d5ad0bcda50a471ed3b288b5b4538fe432c1f45cd08870",
+  "run_id": "csi-pairs-864306f746f43e92",
+  "run_nonce": "864306f746f43e921a102489fbc2ea502bfb4b4336780a40c3e456173b7398ba",
+  "schema_version": "csi-pairs-full-run-prepared-v2",
+  "status": "AWAITING_LLM_JUDGE"
+}

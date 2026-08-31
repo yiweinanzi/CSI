@@ -1,0 +1,15 @@
+{
+  "files": [
+    {
+      "bytes": 582,
+      "path": "gate.json",
+      "sha256": "098e07680c8f2c69598a2a0733849eeb06503563239b13cc0a15b7fc737e07b5"
+    },
+    {
+      "bytes": 5678,
+      "path": "resource_inventory.csv",
+      "sha256": "591d62aea002ccc4fbad3e7d4ed4b82c97aff1314532c04abdd89d5927aadc51"
+    }
+  ],
+  "schema_version": "csi-pairs-waibu-resource-stage-manifest-v1"
+}

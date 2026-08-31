@@ -1,0 +1,45 @@
+{
+  "schema_version": "csi-pairs-v6-representation-baselines-v1",
+  "profile": "software-smoke-only",
+  "seed": 20260901,
+  "source_roles": {
+    "pretrain": "source_encoder_train",
+    "selection": "source_method_selection",
+    "probe_train": "source_probe_train",
+    "probe_selection": "source_probe_selection",
+    "evaluation": ["source_final_unseen_bank", "target"]
+  },
+  "probe": {
+    "head_steps": 2,
+    "learning_rate": 0.001,
+    "hidden_dim": 8,
+    "label_draws": 1
+  },
+  "models": [
+    {
+      "model_name": "CSI-MAE",
+      "paper_label": "CSI-MAE paper-spec controlled implementation",
+      "implementation_status": "paper-spec-controlled-implementation",
+      "resource_id": "arxiv:2601.03789v1",
+      "epochs": 1,
+      "batch_size": 4,
+      "learning_rate": 0.0003,
+      "weight_decay": 0.0,
+      "warmup_epochs": 0,
+      "mask_fraction": 0.75,
+      "dim": 16,
+      "heads": 4,
+      "encoder_layers": 1,
+      "decoder_layers": 1,
+      "decoder_dim": 8,
+      "warm_start_epochs": 0,
+      "preprocessing": "zscore",
+      "resnet_width": 8,
+      "resnet_depth": 50,
+      "ema": 0.9,
+      "reconstruction_weight": 0.9,
+      "minimum_snr_db": 5.0,
+      "maximum_snr_db": 40.0
+    }
+  ]
+}

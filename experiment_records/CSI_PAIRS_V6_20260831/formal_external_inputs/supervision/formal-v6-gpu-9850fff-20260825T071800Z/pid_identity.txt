@@ -1,0 +1,14 @@
+PID=66858
+PID_IDENTITY=MATCH
+PID_IDENTITY_SHA256=bcc357b38dcc6fc737a1b4a04c933663160e47713e53960831803845a96fbc09
+BOOT_ID=fdc6d132-f41a-46ac-a732-c969575124c4
+START_TICKS=466542136
+START_ISO=2026-08-29T10:52:49+0800
+CWD=/root/xunlian/Futaoran/CSI_FACTORIAL_PILOT_FIX_20260825/code/CSI-PAIRS-v2.0-server
+EXE=/root/miniconda3/envs/csi-pairs-formal/bin/python3.12
+CMDLINE=/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/bin/python -B -m formal_v2.formal_cli run-evaluation --config formal_v2/configs/formal_v2.json --dataset /root/xunlian/Futaoran/正式开始训练/CSI-PAIRS-V6-WIDEBAND-FORMAL-227-20260819T105509Z/dataset.npz --output runs/formal-v6-gpu-9850fff-20260825T071800Z
+LOG_LOCATION=EXEC_SESSION_60477_PIPE
+STDOUT_FD_TARGET=pipe:[921548520]
+STDERR_FD_TARGET=pipe:[921548521]
+    PID    PPID S                  STARTED     ELAPSED     TIME %CPU %MEM   RSS COMMAND
+  66858   65598 R Sat Aug 29 10:52:49 2026  1-04:29:56 2-08:58:18 199 18.1 138566224 /root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/bin/python -B -m formal_v2.formal_cli run-evaluation --config formal_v2/configs/formal_v2.json --dataset /root/xunlian/Futaoran/正式开始训练/CSI-PAIRS-V6-WIDEBAND-FORMAL-227-20260819T105509Z/dataset.npz --output runs/formal-v6-gpu-9850fff-20260825T071800Z

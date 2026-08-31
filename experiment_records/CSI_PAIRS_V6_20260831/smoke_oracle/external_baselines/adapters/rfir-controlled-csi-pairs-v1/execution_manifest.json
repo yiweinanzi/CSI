@@ -1,0 +1,16 @@
+{
+  "adapter_config_path": "adapter_config.json",
+  "adapter_config_sha256": "9c860ca2bc4e20bfa723b950b85b81be5de52c68b2ea0ec6227dda436125223a",
+  "adapter_id": "rfir-controlled-csi-pairs-v1",
+  "checkpoint_path": "checkpoints/rfir_source_selected.pt",
+  "checkpoint_sha256": "28c6db707383c925007ee5e2fb8e8e74e0c4dbd12a3738886fdfc8a114762a20",
+  "command_sha256": "f631766117d1831a4ee6ce845d1234b02eaaf481620ce0eb3055d4ebf7337766",
+  "dataset_sha256": "ded1ec639ff3e6fd5eba769d42db1ed36222a48af333a30a670254b30b164b74",
+  "implementation_status": "style-controlled-implementation",
+  "model_name": "RFIR",
+  "results_sha256": "3638ff21e5127868e343e20b582800a65da88431b263f7db3332603e03c481e4",
+  "schema_version": "csi-pairs-v6-external-execution-v2",
+  "source_revision": "arxiv:2604.07086v1:24838f6a01eab58bf31d7fe54167dc13a245d3e6a6986da4e3023cafe2e0ff83",
+  "training_record_path": "training_record.json",
+  "training_record_sha256": "dee07b6c723c485efb2927dfb444b2dfe397e3ad2544975524a3778fb965cb52"
+}

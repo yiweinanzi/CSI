@@ -1,0 +1,16 @@
+{
+  "adapter_config_path": "adapter_config.json",
+  "adapter_config_sha256": "aa5ab078227273cf508bc2f7b1369014331916b9033dac0f791026af1ec22b6d",
+  "adapter_id": "sigmap-controlled-csi-pairs-v1",
+  "checkpoint_path": "checkpoints/sigmap_source_selected.pt",
+  "checkpoint_sha256": "1a9e42d361811c9fd4b95bf05ef56cc15f65ec7d99002891586ebf83f32e149a",
+  "command_sha256": "f631766117d1831a4ee6ce845d1234b02eaaf481620ce0eb3055d4ebf7337766",
+  "dataset_sha256": "ded1ec639ff3e6fd5eba769d42db1ed36222a48af333a30a670254b30b164b74",
+  "implementation_status": "style-controlled-implementation",
+  "model_name": "SigMap",
+  "results_sha256": "215b657d03a197fbee18a5d4297c0197b60f34ce358503f59e31df032c613142",
+  "schema_version": "csi-pairs-v6-external-execution-v2",
+  "source_revision": "frozen-v6-sigmap-spec-2026-08-06",
+  "training_record_path": "training_record.json",
+  "training_record_sha256": "84c067ed8b444808a2907bf071e3c316b7861a0c2d009a8970983f1e9e11760b"
+}

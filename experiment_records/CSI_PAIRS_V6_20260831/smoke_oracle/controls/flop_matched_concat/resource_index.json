@@ -1,0 +1,50 @@
+{
+  "adapter_source_sha256": "0d2d94701e46449dc2b2de452a45d29128af7dd10ed9ded38dd78f3fe7f3e846",
+  "architecture_spec_sha256": "f12d131161140bda7ef48520ab5ba0354a1b6b774b457348878adf0a5b6dd87a",
+  "config_sha256": "620f300cbec1f56da4691882bc7dbe52593dc597fc62f6ae925c0f6ac72f1c6b",
+  "control_id": "flop_matched_concat",
+  "dataset_sha256": "ded1ec639ff3e6fd5eba769d42db1ed36222a48af333a30a670254b30b164b74",
+  "fixture": true,
+  "records": [
+    {
+      "checkpoint_path": "checkpoints/seed_17/control.pt",
+      "checkpoint_sha256": "7ed6096bbbf1ab87d6e6fb37b9f27d72da56265eed386b0dc56d4b0e901e2159",
+      "inference_flops": 294864.0,
+      "parameters": 31208,
+      "profiler_trace_path": "checkpoints/seed_17/profiler_trace.json",
+      "profiler_trace_sha256": "c07cf943cd755435c364cf337e274e8450c92a944309d36ee78c477ed80d6bc2",
+      "seed": 17,
+      "training_flops": 94664352.0,
+      "training_log_path": "checkpoints/seed_17/training_log.json",
+      "training_log_sha256": "7536c456f26e2d9dd52dc10466f9fce01acaa679bd2824f26dd58b9de9aa0a69",
+      "wall_seconds": 10.593325221911073
+    },
+    {
+      "checkpoint_path": "checkpoints/seed_23/control.pt",
+      "checkpoint_sha256": "ec743200a7ee5b4e35d1aed3e13f971c6ef1f4cbbddb86431b70eb5169947ab4",
+      "inference_flops": 294864.0,
+      "parameters": 31208,
+      "profiler_trace_path": "checkpoints/seed_23/profiler_trace.json",
+      "profiler_trace_sha256": "b51c2c9f79a1660717a2bb192d62fe94a964c464cc9b16453309e1b15f8482be",
+      "seed": 23,
+      "training_flops": 93940560.0,
+      "training_log_path": "checkpoints/seed_23/training_log.json",
+      "training_log_sha256": "107bd6887e205e3aab97cd06ce73e5b53eff9ec334d77ce07af1a5fb16b56a62",
+      "wall_seconds": 5.807835033163428
+    },
+    {
+      "checkpoint_path": "checkpoints/seed_31/control.pt",
+      "checkpoint_sha256": "95c9604a3b4699a734822a4839b987f82070f7ec8b35ae3d0cabcc1e6283586b",
+      "inference_flops": 294864.0,
+      "parameters": 31208,
+      "profiler_trace_path": "checkpoints/seed_31/profiler_trace.json",
+      "profiler_trace_sha256": "b51c2c9f79a1660717a2bb192d62fe94a964c464cc9b16453309e1b15f8482be",
+      "seed": 31,
+      "training_flops": 93940560.0,
+      "training_log_path": "checkpoints/seed_31/training_log.json",
+      "training_log_sha256": "5b243b35a574bd3985aa27a287a01e7eacf796c89f285c20316598a68608c3b5",
+      "wall_seconds": 5.998004779219627
+    }
+  ],
+  "schema_version": "csi-pairs-v6-resource-index-v3"
+}

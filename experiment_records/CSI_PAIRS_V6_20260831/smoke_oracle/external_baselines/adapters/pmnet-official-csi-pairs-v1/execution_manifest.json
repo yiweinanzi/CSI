@@ -1,0 +1,18 @@
+{
+  "adapter_config_path": "adapter_config.json",
+  "adapter_config_sha256": "42260f4580ecea0b9c6f2be1ea1f0d6f34ceb243e378f80e8df9fe5924e49438",
+  "adapter_id": "pmnet-official-csi-pairs-v1",
+  "checkpoint_path": "checkpoints/pmnet_source_selected.pt",
+  "checkpoint_sha256": "2f26eea42bae62542e0806802bc6f9b76896503204b8c846173f350296567e90",
+  "command_sha256": "f631766117d1831a4ee6ce845d1234b02eaaf481620ce0eb3055d4ebf7337766",
+  "dataset_sha256": "ded1ec639ff3e6fd5eba769d42db1ed36222a48af333a30a670254b30b164b74",
+  "implementation_status": "official-code-adaptation",
+  "model_name": "PMNet",
+  "results_sha256": "4b5e5e002685dc5b20a1f9b00e1811e136e5c1a8dfc64ef9d38a4878da7ce071",
+  "runtime_provenance_path": "runtime_provenance.json",
+  "runtime_provenance_sha256": "5d057f643a509f0331387eeae6e85534ccaf0dbf627b44179afb669ef242b368",
+  "schema_version": "csi-pairs-v6-external-execution-v4",
+  "source_revision": "a0e0c5926de721074beeb23f630f2d313f6508dd",
+  "training_record_path": "training_record.json",
+  "training_record_sha256": "d6258b6e259f43e36b20b70f949a899d29b8e7dc15bbf41c571c0fe94b41f35d"
+}

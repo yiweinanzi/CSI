@@ -1,0 +1,14 @@
+{
+  "schema_version": "csi-pairs-v6-controlled-map-adapter-v2",
+  "profile": "formal-paper-dose",
+  "method": "sigmap",
+  "model_name": "SigMap",
+  "adapter_id": "sigmap-controlled-csi-pairs-v1",
+  "implementation_status": "style-controlled-implementation",
+  "source_revision": "frozen-v6-sigmap-spec-2026-08-06",
+  "resource_id": "frozen-v6-section-11.2",
+  "source_roles": {"train": "source_encoder_train", "selection": "source_method_selection", "evaluation": ["source_final_unseen_bank", "target"]},
+  "model": {"hidden_dim": 256, "scene_dim": 128, "heads": 4, "layers": 4, "grid_size": 16, "corridor_tokens": 32, "tap_count": 20, "maximum_primitives": 4096},
+  "training": {"seed": 20260911, "steps": 20000, "batch_size": 128, "microbatch_size": 16, "precision": "bf16", "learning_rate": 0.001, "weight_decay": 0.0001, "selection_every_steps": 500, "clip_grad_norm": 1.0},
+  "inverse": {"candidates_per_axis": 64, "candidate_batch_size": 1024, "csi_weight": 1.0, "power_weight": 1.0, "receiver_z_m": 1.5}
+}

@@ -1,0 +1,37 @@
+defaults:
+  - wi3r@_here_
+  - _self_
+wiinsim:
+  name: wi3r_test
+splits:
+  train: &train_split
+    floor_id: [0, 1]
+    tx_id: [0, 2]
+    rx_id: [0, 30]
+  val: *train_split
+  eval_rx_gen: *train_split
+  eval_floor_gen: *train_split
+  eval_rotation: *train_split
+  eval_translation: *train_split
+  eval_reciprocity: *train_split
+  eval_ood_scale:
+    dir: ${data_root_dir}/Wi3R/outofdistribution/scaled
+    floor_id: [0, 1]
+    tx_id: [0, 2]
+    rx_id: [0, 10]
+  eval_ood_layout:
+    dir: ${data_root_dir}/Wi3R/outofdistribution/fourrooms
+    floor_id: [0, 1]
+    tx_id: [0, 2]
+    rx_id: [0, 5]
+  eval_ood_shape:
+    dir: ${data_root_dir}/Wi3R/outofdistribution/squared
+    floor_id: [0, 1]
+    tx_id: [0, 1]
+    rx_id: [0, 5]
+  viz_train: &viz_train_split
+    dir: ${data_root_dir}/Wi3R/grid
+    floor_id: [0, 1]
+    tx_id: [0, 1]
+    rx_id: [0, 5]
+  viz_val: *viz_train_split

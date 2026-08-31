@@ -1,0 +1,45 @@
+{
+  "schema_version": "csi-pairs-wigatr-official-adapter-v2",
+  "profile": "software-smoke-only",
+  "source_revision": "6daa5bd49d9499817d903ab335830221d01e9daa",
+  "source_roles": {
+    "train": "source_encoder_train",
+    "selection": "source_method_selection",
+    "evaluation": ["source_final_unseen_bank", "target"]
+  },
+  "model": {
+    "embedding": "kitchen_sink_z",
+    "hidden_mv_channels": 4,
+    "hidden_s_channels": 8,
+    "num_blocks": 1,
+    "num_heads": 1,
+    "multi_query": true
+  },
+  "training": {
+    "seed": 8123,
+    "steps": 2,
+    "batch_size": 2,
+    "microbatch_size": 2,
+    "learning_rate": 0.001,
+    "weight_decay": 0.0,
+    "clip_grad_norm": 10.0,
+    "selection_every_steps": 1
+  },
+  "inverse": {
+    "seed": 240614995,
+    "receiver_z_m": 0.0,
+    "restarts": 1,
+    "steps": 2,
+    "learning_rate": 0.05,
+    "clip_grad_norm": 10.0
+  },
+  "mesh": {
+    "occupancy_threshold": 0.5,
+    "minimum_height_m": 0.001,
+    "preprocessing": "surface-ledger-equivalent-rectangle-compaction-v1"
+  },
+  "power": {
+    "floor": 1e-12,
+    "definition": "10log10(mean(real_csi^2+imag_csi^2))"
+  }
+}

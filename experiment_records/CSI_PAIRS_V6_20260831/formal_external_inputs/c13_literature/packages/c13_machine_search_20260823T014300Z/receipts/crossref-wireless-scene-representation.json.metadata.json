@@ -1,0 +1,9 @@
+{
+  "database": "Crossref",
+  "query": "wireless scene representation",
+  "receipt_path": "receipts/crossref-wireless-scene-representation.json",
+  "receipt_sha256": "53643ede0c9013edf64dd038bdb9e7dec33bb917b55cbf37d3c2fb8e30934bee",
+  "result_count": 20,
+  "retrieval_url": "https://api.crossref.org/works?query=wireless+scene+representation&rows=20",
+  "searched_utc": "2026-08-23T01:44:30Z"
+}

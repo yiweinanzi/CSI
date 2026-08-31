@@ -1,0 +1,12 @@
+{
+  "schema_version": "csi-pairs-v6-differt-provenance-v1",
+  "repository": "https://github.com/jeertmans/DiffeRT",
+  "release": "v0.10.0",
+  "commit": "673cc58ef61906b8ab0869dd206b3d032dbc01b2",
+  "license_id": "MIT",
+  "license_url": "https://github.com/jeertmans/DiffeRT/blob/v0.10.0/LICENSE.md",
+  "pypi_wheel": "differt-0.10.0-py3-none-any.whl",
+  "pypi_wheel_sha256": "02592c665acb9d23f848d7e476f57337b8511f7677b0341c1e91aa71449d69c6",
+  "scientific_role": "independent external-engine rerender for G8 only",
+  "primary_engine_independent": true
+}

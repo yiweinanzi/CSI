@@ -1,0 +1,21 @@
+{
+  "adapter_config_path": "adapter_config.json",
+  "adapter_config_sha256": "b72321b8239cc1266a19d90de970ec636f33798cb691f6993c5fa147fc2efdae",
+  "adapter_id": "wigatr-official-csi-pairs-v1",
+  "checkpoint_path": "checkpoints/wigatr_source_selected.pt",
+  "checkpoint_sha256": "c8f585e2affcfd0a73d27d3b49cc7bde04a2558678e0ba9c6a7fe95864e0422c",
+  "command_sha256": "ca9af9b0d0172399be988795c00fa928bb85d28b19efed94841015e97588f1a1",
+  "dataset_sha256": "ded1ec639ff3e6fd5eba769d42db1ed36222a48af333a30a670254b30b164b74",
+  "implementation_status": "official-code-adaptation",
+  "mesh_surface_audit_path": "mesh_surface_audit.json",
+  "mesh_surface_audit_sha256": "ef9c9bf1e8036ee2803401d58007c7938f0b5d8f1c5182786581dcfc3b5cf983",
+  "model_name": "Wi-GATr",
+  "results_sha256": "66fa6f8ccff9b7d29564610cdf731365b99cf73007ecade99e39dc76fcec8a9e",
+  "runtime_environment_sha256": "3cb96dd77ba2068c2cd9d9470ca1d6e7b191144196ca261af57d6b92f8e7232a",
+  "runtime_provenance_path": "runtime_provenance.json",
+  "runtime_provenance_sha256": "039970cf4e03582342cfcbfb674154160b0c07cd92806b8b6c0643b5bb87616e",
+  "schema_version": "csi-pairs-v6-external-execution-v4",
+  "source_revision": "6daa5bd49d9499817d903ab335830221d01e9daa",
+  "training_record_path": "training_record.json",
+  "training_record_sha256": "eac7ed0f163290122007d67f59a07e640e7e6926770723b82c0930f20fb1b09d"
+}

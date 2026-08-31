@@ -1,0 +1,8 @@
+{
+  "checkpoint_index_sha256": "1c7745a75efc6da27fd7b1a7f391581063ff3ca52ed072503498ab5b1ee149b7",
+  "config_sha256": "620f300cbec1f56da4691882bc7dbe52593dc597fc62f6ae925c0f6ac72f1c6b",
+  "dataset_sha256": "ded1ec639ff3e6fd5eba769d42db1ed36222a48af333a30a670254b30b164b74",
+  "implementation_source_sha256": "0862704f7a0345fdc10343bfc01d218fb88c961f9c5263036a06dafcead99da2",
+  "payload_sha256": "93fdef86d7d696d88d965261b23ed32205c14edddb7e6eef3bf38980d42e2154",
+  "schema_version": "csi-pairs-v6-risk-replay-binding-v1"
+}
