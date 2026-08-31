@@ -1,0 +1,23 @@
+{
+  "schema_version": "csi-pairs-v6-fixture-streaming-execution-plan-v1",
+  "status": "PREVALIDATED_NOT_STARTED",
+  "scientific_use": "FORBIDDEN",
+  "source_git_commit": "8d489b2387e7bb6c988a41d9e0d57b8a6cffc4d4",
+  "source_tree_sha256": "aa5b1d6a1062d68bb5de045b40f042e1a453d14a8d73632ad0be86dc7b07caff",
+  "requirements_lock_sha256": "9548a24a4faf5db17b5251df407b4402de033ae8648ec321c850fe6105002cf1",
+  "fixture_dataset": "/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/runs/smoke-full-v6-p8-clusterfix-20260826T230312Z.fixture.npz",
+  "fixture_dataset_sha256": "ded1ec639ff3e6fd5eba769d42db1ed36222a48af333a30a670254b30b164b74",
+  "config": "/root/xunlian/Futaoran/CSI_EVALUATION_RUNTIME_FINAL_20260831/code/CSI-PAIRS-v2.0-server/formal_v2/configs/formal_v2_smoke.json",
+  "config_sha256": "620f300cbec1f56da4691882bc7dbe52593dc597fc62f6ae925c0f6ac72f1c6b",
+  "fixture_upstream": "/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/runs/smoke-full-v6-p8-clusterfix-20260826T230312Z",
+  "candidate_output": "/root/xunlian/Futaoran/formal_external_inputs/evaluation_migration_8d489b2_20260831/smoke_candidate_evaluation",
+  "run_nonce": "f126eba30d21793df2162eaeaa9785de13c06885cd767cbfc484a4d53123637f",
+  "execution_devices": [
+    "cuda:0",
+    "cuda:1"
+  ],
+  "batch_size": 1,
+  "prevalidated_identity_sha256": "23428d001dc8571366f6da5e19b9c599814733b155048555d7780475db25ff84",
+  "launcher": "/root/xunlian/Futaoran/formal_external_inputs/evaluation_migration_8d489b2_20260831/run_smoke_candidate_8d489b2.sh",
+  "launch_condition": "Both physical A100 GPUs are free of unrelated compute processes and the frozen real-subset comparator no longer uses cuda:0."
+}

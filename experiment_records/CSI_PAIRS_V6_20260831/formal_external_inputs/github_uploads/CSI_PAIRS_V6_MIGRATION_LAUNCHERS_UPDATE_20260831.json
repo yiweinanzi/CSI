@@ -1,0 +1,48 @@
+{
+  "schema_version": "csi-pairs-v6-github-migration-launchers-update-v1",
+  "created_utc": "2026-08-31T13:19:58Z",
+  "remote": "https://github.com/yiweinanzi/CSI",
+  "evidence_branch": "codex/csi-pairs-v6-full-evidence-20260831",
+  "runtime_commit": "8d489b2387e7bb6c988a41d9e0d57b8a6cffc4d4",
+  "files": [
+    {
+      "path": "formal_external_inputs/evaluation_migration_8d489b2_20260831/run_smoke_candidate_8d489b2.sh",
+      "bytes": 1572,
+      "sha256": "c71251471fa99a779c08ddfcbd67f45d85fa4f68b712e42ef9d44f7ec0152440"
+    },
+    {
+      "path": "formal_external_inputs/evaluation_migration_8d489b2_20260831/smoke_candidate_plan.json",
+      "bytes": 1720,
+      "sha256": "1fd0bc4ada185ffe09108d7c51d68cf58430fe23e02adcdf8af423da1fc46cde"
+    },
+    {
+      "path": "formal_external_inputs/evaluation_migration_8d489b2_20260831/run_all_streaming_8d489b2.sh",
+      "bytes": 1741,
+      "sha256": "399a848fc5bb31cbb7c71a857f10584655164fdb6ae2b9321c765f7a459e6e1b"
+    },
+    {
+      "path": "formal_external_inputs/evaluation_migration_8d489b2_20260831/create_migration_request_8d489b2.sh",
+      "bytes": 3637,
+      "sha256": "bc942eb104220ba00077132622d35bbcace093e96115199809d27ec44b164a7c"
+    }
+  ],
+  "file_count": 4,
+  "total_bytes": 8670,
+  "shell_syntax_check": "PASS",
+  "prevalidation": {
+    "smoke_identity_sha256": "23428d001dc8571366f6da5e19b9c599814733b155048555d7780475db25ff84",
+    "migration_request_missing-evidence_refusal": "PASS",
+    "formal_all_missing-approval_refusal": "PASS"
+  },
+  "sensitive_pattern_scan": "PASS",
+  "dataset_included": false,
+  "checkpoint_or_weight_included": false,
+  "pyc_or_pyo_included": false,
+  "fixed_run_contaminated": false,
+  "scientific_claims_authorized": false,
+  "notes": [
+    "These launchers are inert until their exact authenticated prerequisites exist.",
+    "Archival of a launcher does not prove that its stage ran or passed.",
+    "The active comparator and unrelated GPU workloads were not modified."
+  ]
+}
