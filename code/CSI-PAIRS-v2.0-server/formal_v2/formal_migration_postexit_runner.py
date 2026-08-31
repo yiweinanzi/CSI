@@ -47,8 +47,10 @@ class _GuardRecord:
     path: Path
     device: int
     inode: int
+    links: int
     mode: int
     size: int
+    mtime_ns: int
     sha256: str
 
 
@@ -107,7 +109,11 @@ def _prepare_output_directory(
         target.mkdir(mode=0o700)
         _fsync_directory(target.parent)
         output = _regular_directory(target, "post-exit output directory")
-    unexpected = sorted(item.name for item in output.iterdir() if item.name not in _ALLOWED_OUTPUT_NAMES)
+    unexpected = sorted(
+        item.name
+        for item in output.iterdir()
+        if item.name not in _ALLOWED_OUTPUT_NAMES
+    )
     if unexpected:
         raise PostExitMigrationError(
             "post-exit output directory contains unexpected entries: "
@@ -184,10 +190,28 @@ def _guard_record(path: Path, descriptor: int) -> _GuardRecord:
         path=path,
         device=current.st_dev,
         inode=current.st_ino,
+        links=current.st_nlink,
         mode=stat.S_IMODE(current.st_mode),
         size=current.st_size,
+        mtime_ns=current.st_mtime_ns,
         sha256=hashlib.sha256(content).hexdigest(),
     )
+
+
+def _verify_guard_unchanged(
+    path: Path, descriptor: int, snapshot: _GuardRecord
+) -> None:
+    try:
+        observed = os.lstat(path)
+    except OSError as error:
+        raise PostExitMigrationError("operation-lock guard disappeared") from error
+    after = _guard_record(path, descriptor)
+    if (
+        observed.st_dev != snapshot.device
+        or observed.st_ino != snapshot.inode
+        or after != snapshot
+    ):
+        raise PostExitMigrationError("operation-lock guard changed during migration")
 
 
 @contextmanager
@@ -215,18 +239,10 @@ def _exclusive_guard(path: Path) -> Iterator[_GuardRecord]:
                 "legacy run still has an active operation-lock guard holder"
             ) from error
         snapshot = _guard_record(path, descriptor)
-        yield snapshot
         try:
-            observed = os.lstat(path)
-        except OSError as error:
-            raise PostExitMigrationError("operation-lock guard disappeared") from error
-        after = _guard_record(path, descriptor)
-        if (
-            observed.st_dev != snapshot.device
-            or observed.st_ino != snapshot.inode
-            or after != snapshot
-        ):
-            raise PostExitMigrationError("operation-lock guard changed during migration")
+            yield snapshot
+        finally:
+            _verify_guard_unchanged(path, descriptor, snapshot)
     finally:
         if locked:
             fcntl.flock(descriptor, fcntl.LOCK_UN)
@@ -540,6 +556,17 @@ def run_post_exit_migration(
     freeze_path = output / FREEZE_NAME
 
     with _exclusive_guard(guard_path) as guard:
+        inventory = _load_or_write_inventory(
+            inventory_path,
+            identity=identity,
+            command=command,
+            legacy_root=legacy_root,
+            new_root=new_root,
+        )
+        if inventory["results"]["files"] != []:
+            raise PostExitMigrationError(
+                "legacy evaluation inventory must be empty before lock archival"
+            )
         archive_state, archive_record = _archive_stale_lock(
             canonical_lock,
             archive,
@@ -547,13 +574,6 @@ def run_post_exit_migration(
             expected_payload=expected_payload,
             expected_pid=expected_lock_pid,
             after_link=_after_archive_link,
-        )
-        _load_or_write_inventory(
-            inventory_path,
-            identity=identity,
-            command=command,
-            legacy_root=legacy_root,
-            new_root=new_root,
         )
         _load_or_write_freeze(
             freeze_path,
@@ -578,7 +598,10 @@ def run_post_exit_migration(
         if _lexists(canonical_lock):
             raise PostExitMigrationError("canonical operation lock reappeared")
         final_archive = _read_file_record(archive, "completed operation-lock archive")
-        if final_archive.sha256 != archive_record.sha256 or final_archive.inode != archive_record.inode:
+        if (
+            final_archive.sha256 != archive_record.sha256
+            or final_archive.inode != archive_record.inode
+        ):
             raise PostExitMigrationError("operation-lock archive changed after receipt creation")
 
     inventory_payload = read_strict_json(inventory_path)
