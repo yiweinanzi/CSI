@@ -14,6 +14,8 @@ WIGATR_TARGET=/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.
 RUNTIME_PROBE=/root/xunlian/Futaoran/formal_external_inputs/evaluation_migration_8d489b2_20260831/probe_wigatr_runtime_8d489b2.sh
 EXPECTED_RUNTIME_PROBE_SHA256=0fd56ff2fb391d133861eb5986f01aa2ac3daba0ab719f6e41cbd5ebd1283d69
 POLL_SECONDS=300
+RETRY_SECONDS=60
+MAX_EVALUATION_ATTEMPTS=3
 
 export PYTHONDONTWRITEBYTECODE=1
 export CUDA_VISIBLE_DEVICES=0,1
@@ -114,31 +116,75 @@ record_status() {
   log "PYC_COUNT=$(find "$RUNTIME_ROOT" -type f \( -name '*.pyc' -o -name '*.pyo' \) -print | wc -l)"
 }
 
+downstream_started() {
+  local relative
+  for relative in \
+    risk \
+    path \
+    external_baselines \
+    representation_baselines \
+    controls \
+    scene_id \
+    evaluation/retention \
+    claims
+  do
+    if [[ -e "$RUN_ROOT/$relative" || -L "$RUN_ROOT/$relative" ]]; then
+      log "DOWNSTREAM_STARTED=$relative"
+      return 0
+    fi
+  done
+  return 1
+}
+
 main() {
   preflight || return 92
   refuse_duplicate_child || return 0
   log "SUPERVISOR_START accepted_sha256=$(sha256sum "$ACCEPTED" | awk '{print $1}')"
-  bash "$LAUNCHER" &
-  local child_pid=$!
+  local attempt=0
+  local child_pid
   local start_ticks
-  start_ticks=$(awk '{print $22}' "/proc/$child_pid/stat") || return 93
-  {
-    printf 'pid=%s\n' "$child_pid"
-    printf 'start_ticks=%s\n' "$start_ticks"
-    printf 'launcher_sha256=%s\n' "$EXPECTED_LAUNCHER_SHA256"
-    printf 'accepted_sha256=%s\n' "$(sha256sum "$ACCEPTED" | awk '{print $1}')"
-    printf 'started_at=%s\n' "$(date --iso-8601=seconds)"
-  } >"$CHILD_IDENTITY"
-  log "CHILD_STARTED pid=$child_pid start_ticks=$start_ticks"
+  local code
+  while (( attempt < MAX_EVALUATION_ATTEMPTS )); do
+    attempt=$((attempt + 1))
+    if (( attempt > 1 )); then
+      preflight || return 92
+      refuse_duplicate_child || return 0
+    fi
+    bash "$LAUNCHER" &
+    child_pid=$!
+    start_ticks=$(awk '{print $22}' "/proc/$child_pid/stat") || return 93
+    {
+      printf 'pid=%s\n' "$child_pid"
+      printf 'start_ticks=%s\n' "$start_ticks"
+      printf 'attempt=%s\n' "$attempt"
+      printf 'launcher_sha256=%s\n' "$EXPECTED_LAUNCHER_SHA256"
+      printf 'accepted_sha256=%s\n' "$(sha256sum "$ACCEPTED" | awk '{print $1}')"
+      printf 'started_at=%s\n' "$(date --iso-8601=seconds)"
+    } >"$CHILD_IDENTITY"
+    log "CHILD_STARTED pid=$child_pid start_ticks=$start_ticks attempt=$attempt"
 
-  while kill -0 "$child_pid" 2>/dev/null; do
-    record_status "$child_pid" "$start_ticks" || return 94
-    sleep "$POLL_SECONDS"
+    while kill -0 "$child_pid" 2>/dev/null; do
+      record_status "$child_pid" "$start_ticks" || return 94
+      sleep "$POLL_SECONDS"
+    done
+    wait "$child_pid"
+    code=$?
+    log "CHILD_EXIT_CODE=$code attempt=$attempt"
+    if (( code == 0 )); then
+      return 0
+    fi
+    if downstream_started; then
+      log "AUTO_RESUME=REFUSED_AFTER_DOWNSTREAM_START child_exit_code=$code"
+      return "$code"
+    fi
+    if (( attempt >= MAX_EVALUATION_ATTEMPTS )); then
+      log "AUTO_RESUME=EXHAUSTED child_exit_code=$code attempts=$attempt"
+      return "$code"
+    fi
+    log "AUTO_RESUME=EVALUATION_ONLY attempt_next=$((attempt + 1)) wait_seconds=$RETRY_SECONDS"
+    sleep "$RETRY_SECONDS"
   done
-  wait "$child_pid"
-  local code=$?
-  log "CHILD_EXIT_CODE=$code"
-  return "$code"
+  return 96
 }
 
 main
