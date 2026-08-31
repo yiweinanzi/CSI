@@ -2,6 +2,7 @@
 set -euo pipefail
 
 RUNTIME_ROOT=/root/xunlian/Futaoran/CSI_EVALUATION_RUNTIME_FINAL_20260831/code/CSI-PAIRS-v2.0-server
+FROZEN_ROOT=/root/xunlian/Futaoran/CSI_FACTORIAL_PILOT_FIX_20260825/code/CSI-PAIRS-v2.0-server
 RUNTIME_PYTHON=/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/bin/python
 EVIDENCE_ROOT=/root/xunlian/Futaoran/formal_external_inputs/evaluation_migration_8d489b2_20260831
 REQUEST="$RUNTIME_ROOT/runs/formal-v6-streaming-8d489b2-d7d0b8affcd40f05/migration/request.json"
@@ -18,6 +19,15 @@ EXPECTED_RUN_ALL_SHA256=399a848fc5bb31cbb7c71a857f10584655164fdb6ae2b9321c765f7a
 EXPECTED_SUPERVISOR_SHA256=fee5fe65e56d738bd4056dbc693fd2a343247c8d855471f15d2b9a76ba29fa37
 EXPECTED_WIGATR_PROBE_SHA256=099901cc3b68a7021728ce37c74a037e77f3047a24200da966e899b6f7debf0f
 EXPECTED_REQUEST_CREATOR_SHA256=c2f6e76609758de033a9d25d4bccd04d0518cc3767c081174d4ad6cfdcb12914
+
+export PYTHONDONTWRITEBYTECODE=1
+
+scientific_pyc_count() {
+  find "$RUNTIME_ROOT" "$FROZEN_ROOT" "$EVIDENCE_ROOT" \
+    \( -type d \( -name .git -o -name '.venv*' -o -name '.runtime*' \) -prune \) \
+    -o \( -type f \( -name '*.pyc' -o -name '*.pyo' \) -print \) \
+    | wc -l
+}
 
 required=(
   "$REQUEST"
@@ -74,6 +84,10 @@ if [[ -e "$APPROVAL" || -L "$APPROVAL" ]]; then
   printf 'JUDGE_REFUSAL=exclusive approval already exists: %s\n' "$APPROVAL" >&2
   exit 97
 fi
+if [[ "$(scientific_pyc_count)" != 0 ]]; then
+  printf 'JUDGE_REFUSAL=scientific source or evidence contains bytecode\n' >&2
+  exit 98
+fi
 
 ATTEMPT_ROOT=$(mktemp -d "$APPROVAL_ROOT/attempt-$(date -u +%Y%m%dT%H%M%SZ)-XXXXXX")
 REVIEW="$ATTEMPT_ROOT/LLM_JUDGE_MIGRATION_REVIEW.md"
@@ -91,12 +105,16 @@ if ! codex exec --ephemeral --json --color never \
   - <"$PROMPT" >"$EVENT_LOG" 2>"$STDERR_LOG"
 then
   printf 'JUDGE_RESULT=CODEX_EXEC_FAILED attempt=%s\n' "$ATTEMPT_ROOT" >&2
-  exit 98
+  exit 99
 fi
 
 if [[ ! -f "$REVIEW" || -L "$REVIEW" ]]; then
   printf 'JUDGE_RESULT=REVIEW_MISSING attempt=%s\n' "$ATTEMPT_ROOT" >&2
-  exit 99
+  exit 100
+fi
+if [[ "$(scientific_pyc_count)" != 0 ]]; then
+  printf 'JUDGE_RESULT=BYTECODE_CREATED attempt=%s\n' "$ATTEMPT_ROOT" >&2
+  exit 101
 fi
 
 cd "$RUNTIME_ROOT"
