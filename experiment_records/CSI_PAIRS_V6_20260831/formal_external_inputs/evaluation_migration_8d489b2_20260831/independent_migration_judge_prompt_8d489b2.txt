@@ -46,6 +46,15 @@ Constraints:
    fields with the legacy approved Wi-GATr provenance, and require identical
    interpreter/environment realpaths. Only the worktree-visible executable and
    prefix paths, and therefore their canonical environment digest, may differ.
+10. Review run_all_streaming_8d489b2.sh,
+    supervise_all_streaming_8d489b2.sh and
+    probe_wigatr_runtime_8d489b2.sh. Confirm their fixed source, launcher,
+    runtime-link and runtime-probe identities; confirm automatic retry is limited
+    to at most three attempts before any downstream stage starts; and confirm the
+    supervisor refuses to rerun all after risk, path, external baselines,
+    representation baselines, controls, scene-ID, retention or claims has begun.
+    A final nonzero CLI exit caused only by an authenticated scientific FAIL must
+    not be treated as permission to overwrite completed downstream artifacts.
 
 If any required evidence is missing, malformed, inconsistent, non-equivalent,
 expired, or insufficient, do not create the approval file. Report REJECT with exact
