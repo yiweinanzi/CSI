@@ -14,8 +14,8 @@
     "--context",
     "{context}"
   ],
-  "implementation_revision": "35d752b810168bb41a1e584796f389a467a552c1e8314911149b010c76083305",
+  "implementation_revision": "7840a0980cd58b3b9bf4024ae70a0aa901fc5bf0d5f5afe0a07fcf6957d5b808",
   "control_seed": 20270807,
   "adapter_source_path": "retention_control.py",
-  "adapter_source_sha256": "35d752b810168bb41a1e584796f389a467a552c1e8314911149b010c76083305"
+  "adapter_source_sha256": "7840a0980cd58b3b9bf4024ae70a0aa901fc5bf0d5f5afe0a07fcf6957d5b808"
 }

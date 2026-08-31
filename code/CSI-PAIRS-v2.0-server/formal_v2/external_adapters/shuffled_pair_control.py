@@ -10,8 +10,8 @@ import torch
 from formal_v2.formal_claim_controls import (
     SHUFFLED_SYSTEMS,
     _authenticated_qualification_gate,
+    _load_control_full_checkpoint_payloads,
     _registry_action_sha256,
-    _validate_formal_checkpoint,
 )
 from formal_v2.formal_dataset import FormalDataset
 from formal_v2.formal_evaluation import _compatibility_dataset, _response_probe_dataset
@@ -148,6 +148,19 @@ def run_shuffled_pair_control(
         or sha256_file(teacher_path) != qualification["teacher_checkpoint_sha256"]
     ):
         raise RuntimeError("shuffled control teacher checkpoint is not authenticated")
+    checkpoint_index_path = upstream / "factorial" / "checkpoint_index.json"
+    checkpoint_index = read_strict_json(checkpoint_index_path)
+    matched = _load_control_full_checkpoint_payloads(
+        config,
+        upstream / "factorial",
+        checkpoint_index,
+        evidence,
+        qualification["teacher_checkpoint_sha256"],
+        legacy_runtime=authenticated.migrated,
+    )
+    matched_rows = {seed: value[0] for seed, value in matched.items()}
+    matched_payloads = {seed: value[1] for seed, value in matched.items()}
+
     teacher = load_teacher_bundle(teacher_path, config)
     route_normalization = fit_route_normalization(dataset, teacher)
     normalization = _training_normalization(
@@ -166,22 +179,6 @@ def run_shuffled_pair_control(
     )
     pilot = read_strict_json(upstream / "factorial" / "frozen_pilot.json")
     _validate_pilot(pilot)
-
-    checkpoint_index_path = upstream / "factorial" / "checkpoint_index.json"
-    checkpoint_index = read_strict_json(checkpoint_index_path)
-    matched_rows = {
-        int(row["seed"]): row
-        for row in checkpoint_index.get("checkpoints", [])
-        if row.get("arm") == "full"
-    }
-    if set(matched_rows) != set(map(int, config["seeds"])):
-        raise RuntimeError("shuffled control requires every registered Full checkpoint")
-    if any(
-        row.get("teacher_checkpoint_sha256")
-        != qualification["teacher_checkpoint_sha256"]
-        for row in matched_rows.values()
-    ):
-        raise RuntimeError("shuffled control Full checkpoint teacher hash mismatch")
 
     pairing_by_seed = {}
     permutation_rows = []
@@ -285,19 +282,7 @@ def run_shuffled_pair_control(
         int(row["seed"]): row["sha256"] for row in shuffled_checkpoint_rows
     }
     for seed in map(int, config["seeds"]):
-        matched_path = upstream / "factorial" / matched_rows[seed]["path"]
-        if sha256_file(matched_path) != matched_rows[seed]["sha256"]:
-            raise RuntimeError("shuffled control matched checkpoint hash mismatch")
-        matched_payload = _validate_formal_checkpoint(
-            matched_path,
-            matched_rows[seed],
-            evidence,
-            teacher_checkpoint_sha256=qualification[
-                "teacher_checkpoint_sha256"
-            ],
-            legacy_runtime=authenticated.migrated,
-        )
-        matched_model = _model_from_payload(matched_payload)
+        matched_model = _model_from_payload(matched_payloads[seed])
         result_rows.extend(
             _evaluate_seed(
                 config,

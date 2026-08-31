@@ -21,6 +21,7 @@ from formal_v2.formal_claim_controls import (
     _FORMAL_CHECKPOINT_BASE_FIELDS,
     _SHUFFLED_CHECKPOINT_BASE_FIELDS,
     _authenticated_qualification_gate,
+    _load_control_full_checkpoint_payloads,
     _validate_checkpoint_evidence,
     _validate_formal_checkpoint,
     _validate_shuffled_checkpoint,
@@ -224,6 +225,199 @@ class ClaimControlCheckpointAuthenticationTests(unittest.TestCase):
                 )
         self.assertEqual(loaded["runtime_provenance_sha256"], self.runtime_sha256)
 
+    def test_claim_control_preflight_accepts_current_runtime_checkpoints(self):
+        try:
+            import torch
+        except ImportError:
+            self.skipTest("PyTorch unavailable")
+
+        class FakeFormalModel:
+            def __init__(self, **_model_spec):
+                self._state = {"weight": torch.ones(1)}
+
+            def load_state_dict(self, state_dict, strict):
+                if strict is not True or set(state_dict) != set(self._state):
+                    raise RuntimeError("state mismatch")
+
+            def state_dict(self):
+                return self._state
+
+        with tempfile.TemporaryDirectory() as temporary:
+            factorial = Path(temporary)
+            checkpoint = factorial / "checkpoints" / "full.pt"
+            checkpoint.parent.mkdir()
+            torch.save(
+                self._formal_payload(current=True, torch_module=torch), checkpoint
+            )
+            row = {
+                **self.current_row,
+                "arm": "full",
+                "path": checkpoint.relative_to(factorial).as_posix(),
+                "sha256": sha256_file(checkpoint),
+            }
+            with patch(
+                "formal_v2.formal_model.CSIPairsFormalModel", FakeFormalModel
+            ):
+                loaded = _load_control_full_checkpoint_payloads(
+                    {"seeds": [20270001]},
+                    factorial,
+                    {"checkpoints": [row]},
+                    self.current_evidence,
+                    _digest("teacher"),
+                    legacy_runtime=False,
+                )
+        self.assertEqual(tuple(loaded), (20270001,))
+        self.assertEqual(loaded[20270001][1]["seed"], 20270001)
+
+    def test_claim_control_preflight_rejects_missing_checkpoint_provenance(self):
+        try:
+            import torch
+        except ImportError:
+            self.skipTest("PyTorch unavailable")
+
+        for missing in sorted(_CHECKPOINT_PROVENANCE_PAYLOAD_FIELDS):
+            with self.subTest(missing=missing), tempfile.TemporaryDirectory() as temporary:
+                factorial = Path(temporary)
+                checkpoint = factorial / "full.pt"
+                payload = self._formal_payload(current=True, torch_module=torch)
+                payload.pop(missing)
+                torch.save(payload, checkpoint)
+                row = {
+                    **self.current_row,
+                    "arm": "full",
+                    "path": checkpoint.name,
+                    "sha256": sha256_file(checkpoint),
+                }
+                with self.assertRaisesRegex(RuntimeError, "fields are not exact"):
+                    _load_control_full_checkpoint_payloads(
+                        {"seeds": [20270001]},
+                        factorial,
+                        {"checkpoints": [row]},
+                        self.current_evidence,
+                        _digest("teacher"),
+                        legacy_runtime=False,
+                    )
+
+    def test_claim_control_preflight_rejects_row_payload_provenance_mismatch(self):
+        try:
+            import torch
+        except ImportError:
+            self.skipTest("PyTorch unavailable")
+
+        with tempfile.TemporaryDirectory() as temporary:
+            factorial = Path(temporary)
+            checkpoint = factorial / "full.pt"
+            torch.save(
+                self._formal_payload(current=True, torch_module=torch), checkpoint
+            )
+            row = {
+                **self.current_row,
+                "source_tree_sha256": _digest("different-source"),
+                "arm": "full",
+                "path": checkpoint.name,
+                "sha256": sha256_file(checkpoint),
+            }
+            with self.assertRaisesRegex(RuntimeError, "source_tree_sha256 provenance mismatch"):
+                _load_control_full_checkpoint_payloads(
+                    {"seeds": [20270001]},
+                    factorial,
+                    {"checkpoints": [row]},
+                    self.current_evidence,
+                    _digest("teacher"),
+                    legacy_runtime=False,
+                )
+
+    def test_claim_control_adapters_preflight_before_expensive_work(self):
+        from formal_v2.external_adapters import retention_control, shuffled_pair_control
+
+        config = {
+            "seeds": [20270001],
+            "data": {
+                "require_clean_csi": True,
+                "minimum_repeats": 1,
+                "minimum_target_cities": 1,
+                "minimum_source_cities": 1,
+                "minimum_banks_per_target_city": 1,
+                "minimum_independent_base_map_clusters_per_target_city": 1,
+                "minimum_banks_per_source_role": 1,
+                "minimum_independent_source_final_unseen_clusters": 1,
+                "minimum_independent_external_validation_clusters": 1,
+            },
+        }
+        dataset = SimpleNamespace(is_fixture=False, validate=lambda **_kwargs: None)
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            output_run = root / "output-run"
+            upstream = root / "upstream"
+            factorial = upstream / "factorial"
+            output_run.mkdir()
+            factorial.mkdir(parents=True)
+            write_json(factorial / "checkpoint_index.json", {"checkpoints": []})
+            teacher = root / "teacher.pt"
+            teacher.write_bytes(b"teacher")
+            context = root / "context.json"
+            write_json(
+                context,
+                {
+                    "schema_version": "csi-pairs-v6-claim-control-context-v1",
+                    "config": config,
+                    **self.current_evidence,
+                },
+            )
+            authenticated = SimpleNamespace(migrated=True)
+            qualification = {
+                "teacher_checkpoint": str(teacher),
+                "teacher_checkpoint_sha256": sha256_file(teacher),
+            }
+
+            cases = (
+                (shuffled_pair_control, "_build_corpus", True),
+                (retention_control, "_fit_probes", False),
+            )
+            for module, expensive_name, shuffled in cases:
+                with (
+                    self.subTest(module=module.__name__),
+                    patch.object(module, "configure_reproducible_runtime"),
+                    patch.object(module.FormalDataset, "load", return_value=dataset),
+                    patch.object(
+                        module, "evidence_context", return_value=self.current_evidence
+                    ),
+                    patch.object(
+                        module,
+                        "_resolve_run_roots",
+                        return_value=(output_run, upstream, authenticated),
+                    ),
+                    patch.object(
+                        module,
+                        "_authenticated_qualification_gate",
+                        return_value=qualification,
+                    ),
+                    patch.object(
+                        module,
+                        "_load_control_full_checkpoint_payloads",
+                        side_effect=RuntimeError("checkpoint preflight failed"),
+                    ) as preflight,
+                    patch.object(module, "load_teacher_bundle") as load_teacher,
+                    patch.object(module, expensive_name) as expensive,
+                    self.assertRaisesRegex(RuntimeError, "checkpoint preflight failed"),
+                ):
+                    arguments = {
+                        "dataset_path": root / "dataset.npz",
+                        "run_root": None,
+                        "output_root": output_run / "control-output",
+                        "context_path": context,
+                        "output_run_root": output_run,
+                        "upstream_root": upstream,
+                    }
+                    if shuffled:
+                        arguments["control_seed"] = 20270807
+                    module.run_shuffled_pair_control(**arguments) if shuffled else (
+                        module.run_retention_control(**arguments)
+                    )
+                preflight.assert_called_once()
+                load_teacher.assert_not_called()
+                expensive.assert_not_called()
+
     def test_formal_checkpoint_rejects_teacher_that_only_matches_its_index_row(self):
         try:
             import torch
@@ -369,6 +563,18 @@ class ClaimControlCheckpointAuthenticationTests(unittest.TestCase):
                     for row in index["checkpoints"]
                     if row["arm"] == "full"
                 },
+            )
+            loaded = _load_control_full_checkpoint_payloads(
+                config,
+                fixture.factorial_root,
+                index,
+                common_evidence,
+                sha256_file(fixture.teacher),
+                legacy_runtime=True,
+            )
+            self.assertEqual(tuple(loaded), tuple(config["seeds"]))
+            self.assertTrue(
+                all(payload["arm"] == "full" for _, payload in loaded.values())
             )
 
             row = next(
