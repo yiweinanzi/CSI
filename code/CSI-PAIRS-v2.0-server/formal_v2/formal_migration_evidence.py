@@ -13,6 +13,8 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Mapping, Sequence
 
+from .formal_config import load_formal_config
+from .formal_evidence import config_sha256
 from .formal_evaluation_compare import (
     CSV_CONTRACTS,
     REPORT_SCHEMA as EVALUATION_COMPARATOR_SCHEMA,
@@ -269,6 +271,7 @@ POST_EXIT_TERMINATION_FIELDS = {
     "timing_evidence",
     "supervisor_log_evidence",
     "supervisor_script_evidence",
+    "config_evidence",
 }
 POST_EXIT_RESIDUAL_LOCK_FIELDS = {
     "status",
@@ -1089,6 +1092,7 @@ def write_legacy_evaluation_post_exit_freeze_receipt(
     timing_path: str | Path,
     supervisor_log_path: str | Path,
     supervisor_script_path: str | Path,
+    config_path: str | Path,
     created_utc: str | None = None,
 ) -> dict[str, object]:
     """Freeze an OOM-terminated legacy evaluation without claiming a live lock."""
@@ -1110,6 +1114,7 @@ def write_legacy_evaluation_post_exit_freeze_receipt(
     timing = external_binding(timing_path)
     supervisor_log = external_binding(supervisor_log_path)
     supervisor_script = external_binding(supervisor_script_path)
+    config_artifact = external_binding(config_path)
     process = _derive_post_exit_process(pid_snapshot)
     monitor = _derive_post_exit_monitor(
         monitor_artifact,
@@ -1122,6 +1127,7 @@ def write_legacy_evaluation_post_exit_freeze_receipt(
         timing=timing,
         supervisor_log=supervisor_log,
         supervisor_script=supervisor_script,
+        config_artifact=config_artifact,
         process=process,
         monitor=monitor,
         identity=identity,
@@ -1139,6 +1145,7 @@ def write_legacy_evaluation_post_exit_freeze_receipt(
         timing,
         supervisor_log,
         supervisor_script,
+        config_artifact,
     ]
     payload = {
         "schema_version": MIGRATION_POST_EXIT_FREEZE_SCHEMA,
@@ -2738,8 +2745,8 @@ def _validate_post_exit_freeze(
         POST_EXIT_NEW_RUN_IDENTITY_FIELDS,
         "post-exit new-run identity",
     )
-    if len(artifacts) != 8:
-        raise RuntimeError("post-exit freeze must bind exactly eight evidence files")
+    if len(artifacts) != 9:
+        raise RuntimeError("post-exit freeze must bind exactly nine evidence files")
     inventory_binding, inventory_path = artifacts[0]
     expected_bindings = [
         inventory_binding,
@@ -2750,6 +2757,7 @@ def _validate_post_exit_freeze(
         termination["timing_evidence"],
         termination["supervisor_log_evidence"],
         termination["supervisor_script_evidence"],
+        termination["config_evidence"],
     ]
     if [binding for binding, _ in artifacts] != expected_bindings:
         raise RuntimeError("post-exit freeze evidence bindings are not canonical")
@@ -2795,6 +2803,7 @@ def _validate_post_exit_freeze(
         timing=termination["timing_evidence"],
         supervisor_log=termination["supervisor_log_evidence"],
         supervisor_script=termination["supervisor_script_evidence"],
+        config_artifact=termination["config_evidence"],
         process=derived_process,
         monitor=derived_monitor,
         identity=identity,
@@ -2979,6 +2988,7 @@ def _derive_post_exit_termination(
     timing,
     supervisor_log,
     supervisor_script,
+    config_artifact,
     process,
     monitor,
     identity,
@@ -2986,7 +2996,7 @@ def _derive_post_exit_termination(
 ):
     _validate_post_exit_supervisor_script(supervisor_script, process)
     kernel = _parse_kernel_cgroup_oom(kernel_oom)
-    site = _parse_post_exit_site(exit_site, identity)
+    site = _parse_post_exit_site(exit_site, identity, config_artifact)
     timing_values = _parse_post_exit_timing(timing)
     verified = _parse_supervisor_exit(supervisor_log)
     started = _parse_utc(process["started_utc"], "post-exit process start")
@@ -3047,6 +3057,7 @@ def _derive_post_exit_termination(
         "timing_evidence": dict(timing),
         "supervisor_log_evidence": dict(supervisor_log),
         "supervisor_script_evidence": dict(supervisor_script),
+        "config_evidence": dict(config_artifact),
     }
     residual_lock = {
         "status": POST_EXIT_LOCK_STATUS,
@@ -3123,7 +3134,20 @@ def _parse_kernel_cgroup_oom(binding):
     }
 
 
-def _parse_post_exit_site(binding, identity):
+def _validate_post_exit_config_binding(config_artifact, identity):
+    config_path = _authenticate_file_binding(config_artifact)
+    try:
+        canonical_config_sha256 = config_sha256(load_formal_config(config_path))
+    except (OSError, RuntimeError, TypeError, ValueError) as error:
+        raise RuntimeError("post-exit bound formal config is invalid") from error
+    if canonical_config_sha256 != identity["config_sha256"]:
+        raise RuntimeError(
+            "post-exit bound formal config canonical SHA-256 mismatch"
+        )
+    return config_path
+
+
+def _parse_post_exit_site(binding, identity, config_artifact):
     text = _bound_evidence_text(binding, "post-exit site evidence")
     lines = text.splitlines()
     if not lines:
@@ -3139,11 +3163,15 @@ def _parse_post_exit_site(binding, identity):
         for line in lines
         if (match := re.match(r"^([0-9a-f]{64})  /", line))
     }
+    _validate_post_exit_config_binding(config_artifact, identity)
+    expected_config_line = (
+        f"{config_artifact['sha256']}  {config_artifact['path']}"
+    )
     if (
         values.get("git_head") != identity["legacy_commit"]
         or values.get("operation_lock") != "PRESENT"
         or end != begin + 1
-        or identity["config_sha256"] not in observed_digests
+        or lines.count(expected_config_line) != 1
         or identity["dataset_sha256"] not in observed_digests
     ):
         raise RuntimeError("post-exit site identity or inventory is invalid")
