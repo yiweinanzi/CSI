@@ -47,7 +47,10 @@ def main(argv=None) -> int:
     parser.add_argument("--config", required=True)
     parser.add_argument("--dataset", required=True)
     parser.add_argument("--output", required=True)
-    parser.add_argument("--run-root", required=True)
+    roots = parser.add_mutually_exclusive_group(required=True)
+    roots.add_argument("--run-root")
+    roots.add_argument("--output-run-root")
+    parser.add_argument("--upstream-root")
     parser.add_argument("--command-sha256", required=True)
     parser.add_argument("--source-revision", required=True)
     parser.add_argument("--adapter-id", default=ADAPTER_ID)
@@ -84,16 +87,27 @@ def run_adapter(args) -> dict:
         if (output / relative).exists():
             raise FileExistsError(f"refusing to overwrite PMNet output: {relative}")
 
-    run_root = Path(args.run_root).resolve()
-    qualification = read_strict_json(run_root / "qualification" / "gate.json")
+    provisional_root = getattr(args, "upstream_root", None) or getattr(
+        args, "run_root", None
+    )
+    if provisional_root is None:
+        raise RuntimeError("PMNet requires output and upstream roots")
+    qualification = read_strict_json(
+        Path(provisional_root).resolve() / "qualification" / "gate.json"
+    )
     formal_config = qualification["config"]
     validate_formal_config(formal_config)
-    qualification = require_manifested_formal_qualification(
-        qualification,
-        formal_config,
-        dataset,
-        allow_nonscientific_fixture=True,
+    _output_run, upstream, authenticated = _resolve_run_roots(
+        args, dataset, formal_config, output
     )
+    qualification = read_strict_json(upstream / "qualification" / "gate.json")
+    if not authenticated.migrated:
+        qualification = require_manifested_formal_qualification(
+            qualification,
+            formal_config,
+            dataset,
+            allow_nonscientific_fixture=True,
+        )
 
     configure_reproducible_runtime()
     runtime = validate_runtime_provenance(runtime_provenance())
@@ -153,6 +167,37 @@ def run_adapter(args) -> dict:
     )
     write_json(output / "execution_manifest.json", execution)
     return execution
+
+
+def _resolve_run_roots(args, dataset, config, output):
+    run_root = getattr(args, "run_root", None)
+    output_run_root = getattr(args, "output_run_root", None)
+    upstream_root = getattr(args, "upstream_root", None)
+    if run_root is not None:
+        if output_run_root is not None or upstream_root is not None:
+            raise RuntimeError("PMNet roots cannot mix local and explicit modes")
+        local_root = Path(run_root).resolve()
+        if (local_root / "migration").exists():
+            raise RuntimeError("PMNet migration requires explicit output and upstream roots")
+        output_run_root = local_root
+        upstream_root = local_root
+    if output_run_root is None or upstream_root is None:
+        raise RuntimeError("PMNet requires output and upstream roots")
+    output_run = Path(output_run_root).resolve()
+    upstream = Path(upstream_root).resolve()
+    if output != output_run and output_run not in output.parents:
+        raise RuntimeError("PMNet output escapes the output run root")
+    from formal_v2.formal_upstream import resolve_authenticated_upstream
+
+    authenticated = resolve_authenticated_upstream(config, dataset, output_run)
+    expected_upstream = (
+        authenticated.migration.legacy_run_root
+        if authenticated.migrated
+        else authenticated.run_root
+    )
+    if authenticated.run_root != output_run or expected_upstream != upstream:
+        raise RuntimeError("PMNet output/upstream root binding mismatch")
+    return output_run, upstream, authenticated
 
 
 def _build_execution_manifest(

@@ -9,6 +9,7 @@ import torch
 
 from formal_v2.formal_claim_controls import (
     SHUFFLED_SYSTEMS,
+    _authenticated_qualification_gate,
     _registry_action_sha256,
     _validate_formal_checkpoint,
 )
@@ -48,7 +49,10 @@ def build_parser() -> argparse.ArgumentParser:
         description="First-party two-branch shuffled-pair training control"
     )
     parser.add_argument("--dataset", required=True)
-    parser.add_argument("--run-root", required=True)
+    roots = parser.add_mutually_exclusive_group(required=True)
+    roots.add_argument("--run-root")
+    roots.add_argument("--output-run-root")
+    parser.add_argument("--upstream-root")
     parser.add_argument("--output", required=True)
     parser.add_argument("--context", required=True)
     parser.add_argument("--control-seed", type=int, required=True)
@@ -63,15 +67,23 @@ def main(argv=None) -> int:
         args.output,
         args.context,
         control_seed=args.control_seed,
+        output_run_root=args.output_run_root,
+        upstream_root=args.upstream_root,
     )
     return 0
 
 
 def run_shuffled_pair_control(
-    dataset_path, run_root, output_root, context_path, *, control_seed
+    dataset_path,
+    run_root,
+    output_root,
+    context_path,
+    *,
+    control_seed,
+    output_run_root=None,
+    upstream_root=None,
 ) -> Path:
     configure_reproducible_runtime()
-    root = Path(run_root).resolve()
     output = Path(output_root).resolve()
     context = read_strict_json(context_path)
     if set(context) != {
@@ -119,7 +131,17 @@ def run_shuffled_pair_control(
         if context[key] != evidence[key]:
             raise RuntimeError(f"shuffled control context {key} mismatch")
 
-    qualification = read_strict_json(root / "qualification" / "gate.json")
+    output_run, upstream, authenticated = _resolve_run_roots(
+        dataset,
+        config,
+        output,
+        run_root=run_root,
+        output_run_root=output_run_root,
+        upstream_root=upstream_root,
+    )
+    qualification = _authenticated_qualification_gate(
+        config, dataset, authenticated
+    )
     teacher_path = Path(str(qualification["teacher_checkpoint"]))
     if (
         not teacher_path.is_file()
@@ -142,10 +164,10 @@ def run_shuffled_pair_control(
         route_normalization,
         normalization,
     )
-    pilot = read_strict_json(root / "factorial" / "frozen_pilot.json")
+    pilot = read_strict_json(upstream / "factorial" / "frozen_pilot.json")
     _validate_pilot(pilot)
 
-    checkpoint_index_path = root / "factorial" / "checkpoint_index.json"
+    checkpoint_index_path = upstream / "factorial" / "checkpoint_index.json"
     checkpoint_index = read_strict_json(checkpoint_index_path)
     matched_rows = {
         int(row["seed"]): row
@@ -154,6 +176,12 @@ def run_shuffled_pair_control(
     }
     if set(matched_rows) != set(map(int, config["seeds"])):
         raise RuntimeError("shuffled control requires every registered Full checkpoint")
+    if any(
+        row.get("teacher_checkpoint_sha256")
+        != qualification["teacher_checkpoint_sha256"]
+        for row in matched_rows.values()
+    ):
+        raise RuntimeError("shuffled control Full checkpoint teacher hash mismatch")
 
     pairing_by_seed = {}
     permutation_rows = []
@@ -250,18 +278,24 @@ def run_shuffled_pair_control(
         },
     )
 
-    registry_path = root / "evaluation" / "compatibility_pair_effects.csv"
+    registry_path = output_run / "evaluation" / "compatibility_pair_effects.csv"
     registry = _read_registry(registry_path)
     result_rows = []
     shuffled_hashes = {
         int(row["seed"]): row["sha256"] for row in shuffled_checkpoint_rows
     }
     for seed in map(int, config["seeds"]):
-        matched_path = root / "factorial" / matched_rows[seed]["path"]
+        matched_path = upstream / "factorial" / matched_rows[seed]["path"]
         if sha256_file(matched_path) != matched_rows[seed]["sha256"]:
             raise RuntimeError("shuffled control matched checkpoint hash mismatch")
         matched_payload = _validate_formal_checkpoint(
-            matched_path, matched_rows[seed], evidence
+            matched_path,
+            matched_rows[seed],
+            evidence,
+            teacher_checkpoint_sha256=qualification[
+                "teacher_checkpoint_sha256"
+            ],
+            legacy_runtime=authenticated.migrated,
         )
         matched_model = _model_from_payload(matched_payload)
         result_rows.extend(
@@ -301,6 +335,42 @@ def run_shuffled_pair_control(
         },
     )
     return result_path
+
+
+def _resolve_run_roots(
+    dataset,
+    config,
+    output,
+    *,
+    run_root=None,
+    output_run_root=None,
+    upstream_root=None,
+):
+    if run_root is not None:
+        if output_run_root is not None or upstream_root is not None:
+            raise RuntimeError("shuffled roots cannot mix local and explicit modes")
+        local_root = Path(run_root).resolve()
+        if (local_root / "migration").exists():
+            raise RuntimeError("shuffled migration requires explicit output and upstream roots")
+        output_run_root = local_root
+        upstream_root = local_root
+    if output_run_root is None or upstream_root is None:
+        raise RuntimeError("shuffled control requires output and upstream roots")
+    output_run = Path(output_run_root).resolve()
+    upstream = Path(upstream_root).resolve()
+    if output != output_run and output_run not in output.parents:
+        raise RuntimeError("shuffled output escapes the output run root")
+    from formal_v2.formal_upstream import resolve_authenticated_upstream
+
+    authenticated = resolve_authenticated_upstream(config, dataset, output_run)
+    expected_upstream = (
+        authenticated.migration.legacy_run_root
+        if authenticated.migrated
+        else authenticated.run_root
+    )
+    if authenticated.run_root != output_run or expected_upstream != upstream:
+        raise RuntimeError("shuffled output/upstream root binding mismatch")
+    return output_run, upstream, authenticated
 
 
 def _validate_pilot(pilot):

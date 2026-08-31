@@ -208,9 +208,29 @@ class AnonymousReleaseTests(unittest.TestCase):
         self.assertFalse(
             (release_root / "formal_v2/scripts/v6_trace_registry.py").exists()
         )
+        for relative in (
+            "formal_evaluation_subset_compare.py",
+            "formal_migration.py",
+            "formal_migration_evidence.py",
+        ):
+            with self.subTest(relative=relative):
+                self.assertFalse((release_root / "formal_v2" / relative).exists())
         self.assertFalse(
             (release_root / "formal_v2/tests/test_audit_artifacts.py").exists()
         )
+        for relative in (
+            "test_adapter_root_separation.py",
+            "test_cli_migration_control.py",
+            "test_evaluation_subset_compare.py",
+            "test_formal_migration.py",
+            "test_formal_upstream.py",
+            "test_migration_cli_acceptance.py",
+            "test_migration_evidence_tools.py",
+        ):
+            with self.subTest(relative=relative):
+                self.assertFalse(
+                    (release_root / "formal_v2/tests" / relative).exists()
+                )
         self.assertFalse(
             (
                 release_root

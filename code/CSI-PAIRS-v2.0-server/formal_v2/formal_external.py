@@ -45,6 +45,21 @@ C1_ELIGIBLE_STATUSES = {
 }
 
 
+def _external_gate_state(passed, engineering_failures):
+    if type(passed) is not bool or not isinstance(engineering_failures, list):
+        raise TypeError("external gate completion inputs are invalid")
+    engineering_complete = not engineering_failures
+    return {
+        "status": (
+            "INCOMPLETE_FAIL_CLOSED"
+            if not engineering_complete
+            else ("PASS" if passed else "BLOCKED")
+        ),
+        "passed": bool(passed and engineering_complete),
+        "engineering_complete": engineering_complete,
+    }
+
+
 def _lower_sha256(value):
     return (
         isinstance(value, str)
@@ -55,6 +70,7 @@ def _lower_sha256(value):
 
 def run_external_baselines(config, dataset, manifest_path, output_root):
     from .formal_data_verification import require_verified_roles_from_root
+    from .formal_upstream import resolve_authenticated_upstream
 
     project_root = Path(__file__).resolve().parents[1]
     resource_registry_path = Path(__file__).resolve().parent / "configs/waibu_resources_v1.json"
@@ -72,6 +88,7 @@ def run_external_baselines(config, dataset, manifest_path, output_root):
             "target",
         ),
     )
+    upstream = resolve_authenticated_upstream(config, dataset, output_root)
     manifest = read_strict_json(manifest_path)
     _validate_manifest(manifest)
     output_dir = Path(output_root) / "external_baselines"
@@ -127,6 +144,7 @@ def run_external_baselines(config, dataset, manifest_path, output_root):
     status_rows = []
     all_rows = []
     model_assessments = []
+    engineering_failures = []
     for adapter in manifest["adapters"]:
         adapter_output = output_dir / "adapters" / adapter["adapter_id"]
         adapter_output.mkdir(parents=True, exist_ok=True)
@@ -134,7 +152,8 @@ def run_external_baselines(config, dataset, manifest_path, output_root):
             adapter,
             dataset_path=dataset.source_path,
             output_path=adapter_output,
-            run_root=output_root,
+            output_run_root=upstream.run_root,
+            upstream_root=_upstream_run_root(upstream),
         )
         try:
             completed = subprocess.run(
@@ -151,6 +170,18 @@ def run_external_baselines(config, dataset, manifest_path, output_root):
         (adapter_output / "stderr.txt").write_text(completed.stderr, encoding="utf-8")
         result_path = adapter_output / "six_condition_results.csv"
         if completed.returncode != 0 or not result_path.is_file():
+            engineering_failures.append(
+                {
+                    "adapter_id": adapter["adapter_id"],
+                    "return_code": completed.returncode,
+                    "result_path": result_path.name,
+                    "reason": (
+                        "adapter exited nonzero"
+                        if completed.returncode != 0
+                        else "adapter omitted six_condition_results.csv"
+                    ),
+                }
+            )
             status_rows.append(
                 {
                     "adapter_id": adapter["adapter_id"],
@@ -182,6 +213,14 @@ def run_external_baselines(config, dataset, manifest_path, output_root):
                 }
             )
         except (ValueError, RuntimeError) as error:
+            engineering_failures.append(
+                {
+                    "adapter_id": adapter["adapter_id"],
+                    "return_code": completed.returncode,
+                    "result_path": result_path.name,
+                    "reason": f"evidence contract failed: {type(error).__name__}: {error}",
+                }
+            )
             status_rows.append(
                 {
                     "adapter_id": adapter["adapter_id"],
@@ -232,10 +271,11 @@ def run_external_baselines(config, dataset, manifest_path, output_root):
         and assessment_by_model[row["model_name"]]["passed"] is True
     }
     passed = len(c1_eligible_models) >= 2
+    gate_state = _external_gate_state(passed, engineering_failures)
     gate = {
         "schema_version": "csi-pairs-v6-external-baseline-gate-v3",
-        "status": "PASS" if passed else "BLOCKED",
-        "passed": passed,
+        **gate_state,
+        "engineering_failures": engineering_failures,
         **evidence,
         "gate_scope": "C1 six-condition domain evidence",
         "passing_map_conditioned_models": len(passed_models),
@@ -336,6 +376,7 @@ def _validate_manifest(manifest):
             raise ValueError(
                 "external adapter command must contain exactly one --config {adapter_config} binding"
             )
+        _require_explicit_root_bindings(adapter["command"])
         if not all(isinstance(adapter[key], str) and adapter[key].strip() for key in ("citation_key", "source_revision", "license_id")):
             raise ValueError("external adapter provenance fields must be nonempty")
         _verified_project_file(
@@ -433,7 +474,15 @@ def _adapter_environment(project_root):
     }
 
 
-def _resolve_adapter_command(adapter, *, dataset_path, output_path, run_root):
+def _resolve_adapter_command(
+    adapter,
+    *,
+    dataset_path,
+    output_path,
+    output_run_root=None,
+    upstream_root=None,
+    run_root=None,
+):
     adapter_source = _verified_project_file(
         adapter["adapter_source_path"],
         adapter["adapter_source_sha256"],
@@ -444,6 +493,13 @@ def _resolve_adapter_command(adapter, *, dataset_path, output_path, run_root):
         adapter["adapter_config_sha256"],
         "config",
     )
+    if run_root is not None:
+        if output_run_root is not None or upstream_root is not None:
+            raise ValueError("external adapter roots cannot mix legacy and explicit modes")
+        output_run_root = run_root
+        upstream_root = run_root
+    if output_run_root is None or upstream_root is None:
+        raise ValueError("external adapter requires output and upstream roots")
     command_digest = hashlib.sha256(
         json.dumps(
             adapter["command"], separators=(",", ":"), ensure_ascii=True
@@ -453,7 +509,8 @@ def _resolve_adapter_command(adapter, *, dataset_path, output_path, run_root):
         value.format(
             dataset=str(Path(dataset_path).resolve()),
             output=str(Path(output_path).resolve()),
-            run_root=str(Path(run_root).resolve()),
+            output_run_root=str(Path(output_run_root).resolve()),
+            upstream_root=str(Path(upstream_root).resolve()),
             project_root=str(Path(__file__).resolve().parents[1]),
             adapter_command_sha256=command_digest,
             adapter_id=adapter["adapter_id"],
@@ -466,6 +523,31 @@ def _resolve_adapter_command(adapter, *, dataset_path, output_path, run_root):
         for value in adapter["command"]
     ]
     return command_digest, command
+
+
+def _upstream_run_root(upstream):
+    if upstream.migrated:
+        return upstream.migration.legacy_run_root
+    return upstream.run_root
+
+
+def _require_explicit_root_bindings(command):
+    for option, placeholder in (
+        ("--output-run-root", "{output_run_root}"),
+        ("--upstream-root", "{upstream_root}"),
+    ):
+        positions = [index for index, value in enumerate(command) if value == option]
+        if (
+            len(positions) != 1
+            or positions[0] + 1 >= len(command)
+            or command[positions[0] + 1] != placeholder
+            or command.count(placeholder) != 1
+        ):
+            raise ValueError(
+                "external adapter command must bind output and upstream roots explicitly"
+            )
+    if "--run-root" in command or "{run_root}" in command:
+        raise ValueError("external adapter command cannot use the ambiguous run root")
 
 
 def _validate_six_condition_rows(
@@ -979,16 +1061,17 @@ def _expected_six_condition_units(config, dataset, output_root):
     from .formal_evidence import require_manifested_formal_qualification
     from .formal_routing import fit_route_normalization, route_dataset
     from .formal_teacher import load_teacher_bundle
+    from .formal_upstream import resolve_authenticated_upstream
 
-    qualification = read_strict_json(
-        Path(output_root) / "qualification" / "gate.json"
-    )
-    qualification = require_manifested_formal_qualification(
-        qualification,
-        config,
-        dataset,
-        allow_nonscientific_fixture=True,
-    )
+    upstream = resolve_authenticated_upstream(config, dataset, output_root)
+    qualification = read_strict_json(upstream.qualification_gate)
+    if not upstream.migrated:
+        qualification = require_manifested_formal_qualification(
+            qualification,
+            config,
+            dataset,
+            allow_nonscientific_fixture=True,
+        )
     teacher = load_teacher_bundle(qualification["teacher_checkpoint"], config)
     normalization = fit_route_normalization(dataset, teacher)
     scenes = np.concatenate(

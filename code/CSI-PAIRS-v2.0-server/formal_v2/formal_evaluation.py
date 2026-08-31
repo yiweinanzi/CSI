@@ -16,6 +16,15 @@ from .formal_evidence import (
     require_manifested_formal_qualification,
     require_stage_manifested_gate,
 )
+from .formal_evaluation_batch import (
+    DEFAULT_EVALUATION_BATCH_SIZE,
+    batched_action_predictions_from_encoded,
+    batched_masked_states_from_context,
+    batched_model_states_from_context,
+    encode_action_bank,
+    encode_context_bank,
+    gather_query_states,
+)
 from .formal_factorial import (
     _canonical_bank_digest,
     _normalized_action,
@@ -653,10 +662,28 @@ def _validate_checkpoint_index(index, config, dataset, qualification_gate):
 
 
 def _compatibility_dataset(
-    model, dataset, teacher, config, normalization, scenes, active_only=True
+    model,
+    dataset,
+    teacher,
+    config,
+    normalization,
+    scenes,
+    active_only=True,
+    *,
+    route_normalization=None,
+    routed=None,
+    batch_size=DEFAULT_EVALUATION_BATCH_SIZE,
 ):
-    route_norm = fit_route_normalization(dataset, teacher)
-    routed = route_dataset(dataset, teacher, config, scenes, normalization=route_norm)
+    route_norm = (
+        fit_route_normalization(dataset, teacher)
+        if route_normalization is None
+        else route_normalization
+    )
+    routed = (
+        route_dataset(dataset, teacher, config, scenes, normalization=route_norm)
+        if routed is None
+        else routed
+    )
     features = []
     without_map_features = []
     labels = []
@@ -685,13 +712,11 @@ def _compatibility_dataset(
     edit_status_xor_shortcut_features = []
     variant_id_match_shortcut_features = []
     zero = zero_typed_edit((1,), dataset.maps.shape[-1], int(dataset.metadata["assets"]["material_category_count"]))
-    zero_tensor = tensor_for_module(
-        model,
-        _normalized_action(normalization, zero),
-        dtype=torch.float32,
-    )
+    zero_values = _normalized_action(normalization, zero)
+    encoded_zero_action = encode_action_bank(model, zero_values)
     for scene_value in scenes:
         scene = int(scene_value)
+        context_cache = {}
         for edge in dataset.directed_edges(scene):
             if edge.source_world >= edge.target_world:
                 continue
@@ -715,17 +740,27 @@ def _compatibility_dataset(
                             normalization, dataset.radio_config[scene], dataset.bs_pose[scene]
                         )[None, ...]
                         with torch.no_grad():
-                            patch_tensor = tensor_for_module(
-                                model, patches[None, ...], dtype=torch.float32
+                            encoded_context = _cached_encoded_context(
+                                model,
+                                context_cache,
+                                ("map", int(supplied_world)),
+                                maps,
+                                radio,
                             )
-                            map_tensor = tensor_for_module(model, maps, dtype=torch.float32)
-                            radio_tensor = tensor_for_module(model, radio, dtype=torch.float32)
+                            no_map_values = np.zeros_like(maps)
+                            encoded_no_map_context = _cached_encoded_context(
+                                model,
+                                context_cache,
+                                ("zero-map",),
+                                no_map_values,
+                                radio,
+                            )
                             representation, training_score = _masked_alignment_state_and_score(
                                 model,
-                                patch_tensor,
-                                map_tensor,
-                                radio_tensor,
-                                zero_tensor,
+                                patches[None, ...],
+                                maps,
+                                radio,
+                                zero_values,
                                 tuple(
                                     entry
                                     for entry in teacher.mask_bank
@@ -734,13 +769,16 @@ def _compatibility_dataset(
                                 routed.teacher_latent[scene][csi_world, position],
                                 patches,
                                 normalization,
+                                encoded_context=encoded_context,
+                                encoded_zero_action=encoded_zero_action,
+                                batch_size=batch_size,
                             )
                             no_map_representation, _ = _masked_alignment_state_and_score(
                                 model,
-                                patch_tensor,
-                                torch.zeros_like(map_tensor),
-                                radio_tensor,
-                                zero_tensor,
+                                patches[None, ...],
+                                no_map_values,
+                                radio,
+                                zero_values,
                                 tuple(
                                     entry
                                     for entry in teacher.mask_bank
@@ -749,13 +787,16 @@ def _compatibility_dataset(
                                 routed.teacher_latent[scene][csi_world, position],
                                 patches,
                                 normalization,
+                                encoded_context=encoded_no_map_context,
+                                encoded_zero_action=encoded_zero_action,
+                                batch_size=batch_size,
                             )
                             _, audit_score = _masked_alignment_state_and_score(
                                 model,
-                                patch_tensor,
-                                map_tensor,
-                                radio_tensor,
-                                zero_tensor,
+                                patches[None, ...],
+                                maps,
+                                radio,
+                                zero_values,
                                 tuple(
                                     entry
                                     for entry in teacher.audit_mask_bank
@@ -764,6 +805,9 @@ def _compatibility_dataset(
                                 routed.teacher_latent[scene][csi_world, position],
                                 patches,
                                 normalization,
+                                encoded_context=encoded_context,
+                                encoded_zero_action=encoded_zero_action,
+                                batch_size=batch_size,
                             )
                         features.append(representation)
                         without_map_features.append(no_map_representation)
@@ -897,6 +941,134 @@ def _stable_token_features(value, width=16):
     return values / 127.5 - 1.0
 
 
+def _cached_encoded_context(model, cache, key, maps, radio):
+    if key not in cache:
+        cache[key] = encode_context_bank(model, maps, radio)
+    return cache[key]
+
+
+def _batched_masked_states(
+    model,
+    patches,
+    mask_bank,
+    encoded_context,
+    *,
+    batch_size=DEFAULT_EVALUATION_BATCH_SIZE,
+):
+    entries = tuple(mask_bank)
+    patch_values = torch.as_tensor(patches).detach().to(device="cpu")
+    if patch_values.ndim == 3 and patch_values.shape[0] == 1:
+        patch_values = patch_values[0]
+    if patch_values.ndim != 2:
+        raise ValueError("masked evaluation patches must have shape [patch, feature]")
+    masks = torch.as_tensor(
+        np.asarray([entry.mask for entry in entries], dtype=bool),
+        dtype=torch.bool,
+        device="cpu",
+    )
+    if not entries:
+        masks = torch.empty(
+            (0, patch_values.shape[0]), dtype=torch.bool, device="cpu"
+        )
+    visible = patch_values.unsqueeze(0).expand(len(entries), -1, -1).clone()
+    visible[masks] = 0.0
+    queries = np.asarray([int(entry.query) for entry in entries], dtype=np.int64)
+    states = batched_model_states_from_context(
+        model,
+        visible,
+        masks,
+        encoded_context,
+        batch_size=batch_size,
+    )
+    return states, queries
+
+
+def _batched_masked_patch_bank_states(
+    model,
+    patch_bank,
+    mask_bank,
+    patch_indices,
+    encoded_context,
+    *,
+    batch_size=DEFAULT_EVALUATION_BATCH_SIZE,
+):
+    entries = tuple(mask_bank)
+    patch_values = torch.as_tensor(patch_bank).detach().to(device="cpu")
+    if patch_values.ndim != 3:
+        raise ValueError(
+            "masked evaluation patch bank must have shape [position, patch, feature]"
+        )
+    masks = torch.as_tensor(
+        np.asarray([entry.mask for entry in entries], dtype=bool),
+        dtype=torch.bool,
+        device="cpu",
+    )
+    if not entries:
+        masks = torch.empty(
+            (0, patch_values.shape[1]), dtype=torch.bool, device="cpu"
+        )
+    queries = np.asarray([int(entry.query) for entry in entries], dtype=np.int64)
+    states = batched_masked_states_from_context(
+        model,
+        patch_values,
+        masks,
+        encoded_context,
+        patch_indices=patch_indices,
+        batch_size=batch_size,
+    )
+    return states, queries
+
+
+def _batched_action_variants(
+    model,
+    states,
+    queries,
+    encoded_actions,
+    *,
+    batch_size=DEFAULT_EVALUATION_BATCH_SIZE,
+):
+    state_values = torch.as_tensor(states).detach().to(device="cpu")
+    action_values = torch.as_tensor(encoded_actions).detach().to(device="cpu")
+    row_count = int(state_values.shape[0])
+    variant_count = int(action_values.shape[0])
+    query_values = torch.as_tensor(
+        queries, dtype=torch.long, device=state_values.device
+    )
+    expanded_states = state_values.repeat((variant_count, 1, 1))
+    expanded_queries = query_values.repeat(variant_count)
+    action_indices = torch.arange(
+        variant_count, dtype=torch.long, device=state_values.device
+    ).repeat_interleave(row_count)
+    latent, physical = batched_action_predictions_from_encoded(
+        model,
+        expanded_states,
+        action_values,
+        expanded_queries,
+        action_indices=action_indices,
+        batch_size=batch_size,
+    )
+    return (
+        latent.reshape(variant_count, row_count, -1),
+        physical.reshape(variant_count, row_count, -1),
+    )
+
+
+def _encode_native_fixed_actions(
+    model,
+    action_values,
+    *,
+    batch_size=DEFAULT_EVALUATION_BATCH_SIZE,
+):
+    """Encode the action and zero-action rows under the frozen batch contract."""
+
+    values = np.asarray(action_values)
+    return encode_action_bank(
+        model,
+        np.concatenate((values, np.zeros_like(values)), axis=0),
+        batch_size=batch_size,
+    )
+
+
 def _masked_alignment_state_and_score(
     model,
     patch_tensor,
@@ -907,38 +1079,57 @@ def _masked_alignment_state_and_score(
     latent_targets,
     physical_targets,
     normalization,
+    *,
+    encoded_context=None,
+    encoded_zero_action=None,
+    batch_size=DEFAULT_EVALUATION_BATCH_SIZE,
 ):
-    representations = []
-    errors = []
-    for entry in mask_bank:
-        visible = patch_tensor.clone()
-        visible[:, entry.mask] = 0.0
-        masks = tensor_for_module(model, entry.mask[None, :], dtype=torch.bool)
-        state = model.state(visible, map_tensor, radio_tensor, masks)
-        query = tensor_for_module(model, [entry.query], dtype=torch.long)
-        prediction_z, prediction_y = model.predict(state, zero_tensor, query)
-        target_z = (
-            latent_targets[entry.query] - normalization.latent_mean
-        ) / normalization.latent_scale
-        errors.append(
-            endpoint_per_sample(
-                prediction_z,
-                prediction_y,
-                tensor_for_module(model, target_z[None, :], dtype=torch.float32),
-                tensor_for_module(
-                    model,
-                    physical_targets[entry.query][None, :],
-                    dtype=torch.float32,
-                ),
-                1.0,
-            )[0]
-        )
-        representations.append(state[0].mean(dim=0))
+    entries = tuple(mask_bank)
+    context = (
+        encode_context_bank(model, map_tensor, radio_tensor)
+        if encoded_context is None
+        else encoded_context
+    )
+    action = (
+        encode_action_bank(model, zero_tensor)
+        if encoded_zero_action is None
+        else encoded_zero_action
+    )
+    states, queries = _batched_masked_states(
+        model,
+        patch_tensor,
+        entries,
+        context,
+        batch_size=batch_size,
+    )
+    prediction_z, prediction_y = batched_action_predictions_from_encoded(
+        model,
+        states,
+        action,
+        queries,
+        batch_size=batch_size,
+    )
+    target_z = (
+        np.asarray(latent_targets)[queries] - normalization.latent_mean
+    ) / normalization.latent_scale
+    errors = endpoint_per_sample(
+        prediction_z,
+        prediction_y,
+        torch.as_tensor(
+            target_z, dtype=torch.float32, device=prediction_z.device
+        ),
+        torch.as_tensor(
+            np.asarray(physical_targets)[queries],
+            dtype=torch.float32,
+            device=prediction_y.device,
+        ),
+        1.0,
+    )
     if {int(entry.query) for entry in mask_bank} != set(range(patch_tensor.shape[1])):
         raise RuntimeError("alignment mask bank must cover every query exactly once")
     return (
-        torch.mean(torch.stack(representations), dim=0).cpu().numpy(),
-        -float(torch.mean(torch.stack(errors)).cpu()),
+        torch.mean(states.mean(dim=1), dim=0).cpu().numpy(),
+        -float(torch.mean(errors).cpu()),
     )
 
 
@@ -960,16 +1151,43 @@ def _evaluation_scope(dataset, scene):
     raise RuntimeError(f"unsupported evaluation scene role: {role}")
 
 
+def _stable_pair_groups(pair_ids, *, stringify=False):
+    """Return np.unique-ordered groups with stable original row order."""
+    identifiers = np.asarray(pair_ids)
+    if stringify:
+        identifiers = identifiers.astype(str)
+    if identifiers.size == 0:
+        empty = np.empty(0, dtype=np.intp)
+        return identifiers, identifiers.copy(), empty, empty, empty
+
+    order = np.argsort(identifiers, kind="stable")
+    sorted_identifiers = identifiers[order]
+    starts = np.r_[
+        0,
+        np.flatnonzero(sorted_identifiers[1:] != sorted_identifiers[:-1]) + 1,
+    ].astype(np.intp, copy=False)
+    stops = np.r_[starts[1:], identifiers.size].astype(np.intp, copy=False)
+    return identifiers, sorted_identifiers[starts], order, starts, stops
+
+
+def _paired_score_difference(values, targets, positions):
+    group_targets = targets[positions]
+    if positions.size != 2 or set(group_targets.tolist()) != {0, 1}:
+        raise RuntimeError("compatibility pair must contain one matched and one alternative score")
+    matched = positions[np.flatnonzero(group_targets == 1)[0]]
+    alternative = positions[np.flatnonzero(group_targets == 0)[0]]
+    return float(values[matched] - values[alternative])
+
+
 def _paired_score_differences(scores, labels, pair_ids):
     values = np.asarray(scores, dtype=np.float64)
     targets = np.asarray(labels, dtype=np.int64)
-    identifiers = np.asarray(pair_ids).astype(str)
+    _, _, order, starts, stops = _stable_pair_groups(pair_ids, stringify=True)
     differences = []
-    for pair_id in np.unique(identifiers):
-        mask = identifiers == pair_id
-        if int(np.sum(mask)) != 2 or set(targets[mask].tolist()) != {0, 1}:
-            raise RuntimeError("compatibility pair must contain one matched and one alternative score")
-        differences.append(float(values[mask & (targets == 1)][0] - values[mask & (targets == 0)][0]))
+    for start, stop in zip(starts, stops):
+        differences.append(
+            _paired_score_difference(values, targets, order[start:stop])
+        )
     if not differences:
         raise RuntimeError("compatibility route has no complete paired scores")
     return np.asarray(differences, dtype=np.float64)
@@ -978,19 +1196,31 @@ def _paired_score_differences(scores, labels, pair_ids):
 def _active_effect_bin_rows(
     seed, arm, bank, city, evaluation_scope, scores, labels, pair_ids, distances
 ):
-    identifiers = np.asarray(pair_ids).astype(str)
-    pair_order = np.unique(identifiers)
+    identifiers, pair_order, order, starts, stops = _stable_pair_groups(
+        pair_ids, stringify=True
+    )
     if pair_order.size < 4:
         raise RuntimeError("active CGS effect-bin report requires at least four paired units per bank")
+    distance_values = np.asarray(distances)
     pair_distance = np.asarray(
-        [float(np.mean(np.asarray(distances)[identifiers == pair])) for pair in pair_order]
+        [
+            float(np.mean(distance_values[order[start:stop]]))
+            for start, stop in zip(starts, stops)
+        ]
     )
     ranked = np.argsort(np.argsort(pair_distance, kind="stable"), kind="stable")
     bins = np.minimum(3, (4 * ranked) // pair_order.size)
+    group_for_position = np.empty(identifiers.size, dtype=np.intp)
+    group_for_position[order] = np.repeat(
+        np.arange(pair_order.size, dtype=np.intp), stops - starts
+    )
+    position_bins = bins[group_for_position]
+    score_values = np.asarray(scores)
+    label_values = np.asarray(labels)
     rows = []
     for bin_index, label in enumerate(("low", "medium_low", "medium_high", "high")):
         selected_pairs = pair_order[bins == bin_index]
-        selected = np.isin(identifiers, selected_pairs)
+        selected = position_bins == bin_index
         if not np.any(selected):
             raise RuntimeError("active CGS effect bin is empty")
         rows.append(
@@ -1002,9 +1232,9 @@ def _active_effect_bin_rows(
                 "evaluation_scope": str(evaluation_scope),
                 "effect_bin": label,
                 "pair_count": int(selected_pairs.size),
-                "physical_distance_min": float(np.min(np.asarray(distances)[selected])),
-                "physical_distance_max": float(np.max(np.asarray(distances)[selected])),
-                "cgs_auroc": binary_auroc(np.asarray(labels)[selected], np.asarray(scores)[selected]),
+                "physical_distance_min": float(np.min(distance_values[selected])),
+                "physical_distance_max": float(np.max(distance_values[selected])),
+                "cgs_auroc": binary_auroc(label_values[selected], score_values[selected]),
             }
         )
     return rows
@@ -1020,44 +1250,29 @@ def _alignment_shortcut_rows(
     evaluated,
     mask,
     config,
+    prepared=None,
 ):
-    definitions = {
-        "constant": ("constant_shortcut_features", "legal_no_input_control"),
-        "csi_only": ("csi_only_shortcut_features", "legal_single_modality_control"),
-        "map_only": ("map_only_shortcut_features", "legal_single_modality_control"),
-        "scene_id_only": (
-            "scene_id_only_shortcut_features",
-            "forbidden_bank_identity_probe",
-        ),
-        "edit_status_xor": (
-            "edit_status_xor_shortcut_features",
-            "forbidden_separate_edit_metadata_probe",
-        ),
-        "variant_id_matcher": (
-            "variant_id_match_shortcut_features",
-            "forbidden_separate_variant_token_probe",
-        ),
-    }
+    definitions = _alignment_shortcut_definitions()
+    prepared_probes = (
+        _prepare_alignment_shortcut_probes(
+            seed,
+            source_train,
+            source_selection,
+            config,
+        )
+        if prepared is None
+        else prepared
+    )
+    if tuple(prepared_probes) != tuple(definitions):
+        raise RuntimeError("alignment shortcut probe cache does not match the contract")
     rows = []
-    for offset, (name, (field, input_class)) in enumerate(definitions.items()):
+    for name, (field, input_class) in definitions.items():
+        cached = prepared_probes[name]
         if name == "constant":
-            source_scores = np.zeros(len(source_train["labels"]), dtype=np.float64)
             unseen_scores = np.zeros(int(np.sum(mask)), dtype=np.float64)
-            selected_family = "constant"
         else:
-            probe, selection = fit_select_compatibility_probe(
-                source_train[field],
-                source_train["labels"],
-                source_selection[field],
-                source_selection["labels"],
-                config,
-                seed=int(seed) + 33001 + offset,
-            )
-            source_scores = predict_binary_probe(probe, source_train[field])
             unseen_features = evaluated[field][mask]
-            unseen_scores = predict_binary_probe(probe, unseen_features)
-            selected_family = selection["selected_family"]
-        source_auroc = binary_auroc(source_train["labels"], source_scores)
+            unseen_scores = predict_binary_probe(cached["probe"], unseen_features)
         rows.append(
             {
                 "seed": int(seed),
@@ -1074,7 +1289,7 @@ def _alignment_shortcut_rows(
                 "evaluation_scope": str(evaluation_scope),
                 "baseline": name,
                 "input_class": input_class,
-                "source_train_auroc": source_auroc,
+                "source_train_auroc": cached["source_train_auroc"],
                 "unseen_bank_auroc": binary_auroc(
                     evaluated["labels"][mask], unseen_scores
                 ),
@@ -1086,7 +1301,7 @@ def _alignment_shortcut_rows(
                         "variant_id_matcher": "separate_stable_hashed_variant_tokens_no_match_or_unk_override",
                     }.get(name, "not_applicable")
                 ),
-                "probe_family": selected_family,
+                "probe_family": cached["selected_family"],
                 "fit_role": "source_probe_train",
                 "selection_role": "source_probe_selection",
                 "n": int(np.sum(mask)),
@@ -1095,15 +1310,72 @@ def _alignment_shortcut_rows(
     return rows
 
 
+def _alignment_shortcut_definitions():
+    return {
+        "constant": ("constant_shortcut_features", "legal_no_input_control"),
+        "csi_only": ("csi_only_shortcut_features", "legal_single_modality_control"),
+        "map_only": ("map_only_shortcut_features", "legal_single_modality_control"),
+        "scene_id_only": (
+            "scene_id_only_shortcut_features",
+            "forbidden_bank_identity_probe",
+        ),
+        "edit_status_xor": (
+            "edit_status_xor_shortcut_features",
+            "forbidden_separate_edit_metadata_probe",
+        ),
+        "variant_id_matcher": (
+            "variant_id_match_shortcut_features",
+            "forbidden_separate_variant_token_probe",
+        ),
+    }
+
+
+def _prepare_alignment_shortcut_probes(
+    seed,
+    source_train,
+    source_selection,
+    config,
+):
+    prepared = {}
+    for offset, (name, (field, _input_class)) in enumerate(
+        _alignment_shortcut_definitions().items()
+    ):
+        if name == "constant":
+            source_scores = np.zeros(len(source_train["labels"]), dtype=np.float64)
+            probe = None
+            selected_family = "constant"
+        else:
+            probe, selection = fit_select_compatibility_probe(
+                source_train[field],
+                source_train["labels"],
+                source_selection[field],
+                source_selection["labels"],
+                config,
+                seed=int(seed) + 33001 + offset,
+            )
+            source_scores = predict_binary_probe(probe, source_train[field])
+            selected_family = selection["selected_family"]
+        prepared[name] = {
+            "probe": probe,
+            "selected_family": selected_family,
+            "source_train_auroc": binary_auroc(
+                source_train["labels"], source_scores
+            ),
+        }
+    return prepared
+
+
 def _compatibility_effect_rows(seed, arm, evaluated, probabilities):
     rows = []
-    pair_ids = evaluated["pair_ids"]
-    for pair_id in np.unique(pair_ids):
-        mask = pair_ids == pair_id
-        difference = _paired_score_differences(
-            probabilities[mask], evaluated["labels"][mask], pair_ids[mask]
-        )[0]
-        first = int(np.flatnonzero(mask)[0])
+    _, pair_order, order, starts, stops = _stable_pair_groups(evaluated["pair_ids"])
+    if pair_order.size == 0:
+        return rows
+    values = np.asarray(probabilities, dtype=np.float64)
+    targets = np.asarray(evaluated["labels"], dtype=np.int64)
+    for pair_id, start, stop in zip(pair_order, starts, stops):
+        positions = order[start:stop]
+        difference = _paired_score_difference(values, targets, positions)
+        first = int(positions[0])
         rows.append(
             {
                 "seed": int(seed),
@@ -1146,11 +1418,31 @@ def _native_response_route_is_active(routed, key) -> bool:
     return routed.alignment_route[key] == 2
 
 
-def _response_probe_dataset(model, dataset, teacher, config, normalization, scenes, active_only):
+def _response_probe_dataset(
+    model,
+    dataset,
+    teacher,
+    config,
+    normalization,
+    scenes,
+    active_only,
+    *,
+    route_normalization=None,
+    routed=None,
+    batch_size=DEFAULT_EVALUATION_BATCH_SIZE,
+):
     from .formal_qualification import _select_wrong_action
 
-    route_norm = fit_route_normalization(dataset, teacher)
-    routed = route_dataset(dataset, teacher, config, scenes, normalization=route_norm)
+    route_norm = (
+        fit_route_normalization(dataset, teacher)
+        if route_normalization is None
+        else route_normalization
+    )
+    routed = (
+        route_dataset(dataset, teacher, config, scenes, normalization=route_norm)
+        if routed is None
+        else routed
+    )
     features = []
     action_swap_features = []
     no_action_features = []
@@ -1181,6 +1473,7 @@ def _response_probe_dataset(model, dataset, teacher, config, normalization, scen
     material_categories = int(dataset.metadata["assets"]["material_category_count"])
     for scene_value in scenes:
         scene = int(scene_value)
+        context_cache = {}
         for edge in dataset.directed_edges(scene):
             action = typed_signed_edit(
                 dataset.maps[scene, edge.source_world],
@@ -1192,6 +1485,13 @@ def _response_probe_dataset(model, dataset, teacher, config, normalization, scen
                 _normalized_action(normalization, action)
             )
             no_action_vector = np.zeros_like(action_features)
+            edge_patch_bank = []
+            edge_patch_indices = []
+            edge_mask_entries = []
+            edge_rows = []
+            encoded_context = None
+            encoded_no_map_context = None
+            encoded_swapped_context = None
             for position in _eligible_evaluation_positions(dataset, scene):
                 swap_action, swap_status, swap_world = _select_wrong_action(
                     dataset,
@@ -1222,116 +1522,193 @@ def _response_probe_dataset(model, dataset, teacher, config, normalization, scen
                 radio = _normalized_radio(
                     normalization, dataset.radio_config[scene], dataset.bs_pose[scene]
                 )[None, ...]
+                selected_queries = []
+                mask_entries = []
                 for query in range(teacher.patch_spec.patch_count):
                     key = (scene, edge.source_world, edge.target_world, position, query)
                     if active_only and not _unified_response_route_is_active(routed, key):
                         continue
-                    query_onehot = np.zeros(teacher.patch_spec.patch_count)
-                    query_onehot[query] = 1.0
-                    entry = next(item for item in teacher.mask_bank if item.query == query)
-                    visible = source_patches.copy()
-                    visible[entry.mask] = 0.0
-                    with torch.no_grad():
-                        state = model.state(
-                            tensor_for_module(model, visible[None, ...], dtype=torch.float32),
-                            tensor_for_module(model, maps, dtype=torch.float32),
-                            tensor_for_module(model, radio, dtype=torch.float32),
-                            tensor_for_module(model, entry.mask[None, :], dtype=torch.bool),
-                        )[0, query].cpu().numpy()
-                        no_map_state = model.state(
-                            tensor_for_module(model, visible[None, ...], dtype=torch.float32),
-                            torch.zeros_like(tensor_for_module(model, maps, dtype=torch.float32)),
-                            tensor_for_module(model, radio, dtype=torch.float32),
-                            tensor_for_module(model, entry.mask[None, :], dtype=torch.bool),
-                        )[0, query].cpu().numpy()
-                        map_swap_state = model.state(
-                            tensor_for_module(model, visible[None, ...], dtype=torch.float32),
-                            tensor_for_module(model, swapped_maps, dtype=torch.float32),
-                            tensor_for_module(model, radio, dtype=torch.float32),
-                            tensor_for_module(model, entry.mask[None, :], dtype=torch.bool),
-                        )[0, query].cpu().numpy()
-                        map_only_state = model.state(
-                            torch.zeros_like(
-                                tensor_for_module(model, visible[None, ...], dtype=torch.float32)
-                            ),
-                            tensor_for_module(model, maps, dtype=torch.float32),
-                            tensor_for_module(model, radio, dtype=torch.float32),
-                            tensor_for_module(model, entry.mask[None, :], dtype=torch.bool),
-                        )[0, query].cpu().numpy()
-                    features.append(np.concatenate((state, action_features, query_onehot)))
-                    action_swap_features.append(
-                        np.concatenate((state, swap_action_features, query_onehot))
+                    selected_queries.append(query)
+                    mask_entries.append(
+                        next(item for item in teacher.mask_bank if item.query == query)
                     )
-                    no_action_features.append(
-                        np.concatenate((state, no_action_vector, query_onehot))
+                if not selected_queries:
+                    continue
+                encoded_context = _cached_encoded_context(
+                    model,
+                    context_cache,
+                    ("map", int(edge.source_world)),
+                    maps,
+                    radio,
+                )
+                encoded_no_map_context = _cached_encoded_context(
+                    model,
+                    context_cache,
+                    ("zero-map",),
+                    np.zeros_like(maps),
+                    radio,
+                )
+                encoded_swapped_context = _cached_encoded_context(
+                    model,
+                    context_cache,
+                    ("map", int(edge.target_world)),
+                    swapped_maps,
+                    radio,
+                )
+                target_patches = _normalized_scene_patches(
+                    dataset,
+                    normalization,
+                    teacher.patch_spec,
+                    scene,
+                    edge.target_world,
+                    position,
+                )
+                normalized_position = (
+                    dataset.positions[scene, position] - normalization.position_mean
+                ) / normalization.position_scale
+                patch_index = len(edge_patch_bank)
+                edge_patch_bank.append(source_patches)
+                for query, mask_entry in zip(
+                    selected_queries, mask_entries, strict=True
+                ):
+                    edge_patch_indices.append(patch_index)
+                    edge_mask_entries.append(mask_entry)
+                    edge_rows.append(
+                        {
+                            "position": position,
+                            "query": query,
+                            "source_patches": source_patches,
+                            "target_patches": target_patches,
+                            "normalized_position": normalized_position,
+                            "swap_action_features": swap_action_features,
+                            "swap_status": swap_status,
+                            "swap_world": swap_world,
+                        }
                     )
-                    without_map_features.append(
-                        np.concatenate((no_map_state, action_features, query_onehot))
-                    )
-                    without_map_zero_action_features.append(
-                        np.concatenate((no_map_state, no_action_vector, query_onehot))
-                    )
-                    map_swap_features.append(
-                        np.concatenate((map_swap_state, action_features, query_onehot))
-                    )
-                    edit_only_features.append(
-                        np.concatenate((map_only_state, action_features, query_onehot))
-                    )
-                    edit_only_zero_action_features.append(
-                        np.concatenate((map_only_state, no_action_vector, query_onehot))
-                    )
-                    csi_only_features.append(
-                        np.concatenate((no_map_state, no_action_vector, query_onehot))
-                    )
-                    normalized_position = (
-                        dataset.positions[scene, position] - normalization.position_mean
-                    ) / normalization.position_scale
-                    oracle_x_features.append(
-                        np.concatenate(
-                            (state, action_features, query_onehot, normalized_position)
+            if not edge_rows:
+                continue
+            patch_bank = np.asarray(edge_patch_bank)
+            states, query_values = _batched_masked_patch_bank_states(
+                model,
+                patch_bank,
+                edge_mask_entries,
+                edge_patch_indices,
+                encoded_context,
+                batch_size=batch_size,
+            )
+            state_values = gather_query_states(states, query_values).numpy()
+            del states
+            no_map_states, _ = _batched_masked_patch_bank_states(
+                model,
+                patch_bank,
+                edge_mask_entries,
+                edge_patch_indices,
+                encoded_no_map_context,
+                batch_size=batch_size,
+            )
+            no_map_state_values = gather_query_states(
+                no_map_states, query_values
+            ).numpy()
+            del no_map_states
+            map_swap_states, _ = _batched_masked_patch_bank_states(
+                model,
+                patch_bank,
+                edge_mask_entries,
+                edge_patch_indices,
+                encoded_swapped_context,
+                batch_size=batch_size,
+            )
+            map_swap_state_values = gather_query_states(
+                map_swap_states, query_values
+            ).numpy()
+            del map_swap_states
+            map_only_states, _ = _batched_masked_patch_bank_states(
+                model,
+                np.zeros_like(patch_bank),
+                edge_mask_entries,
+                edge_patch_indices,
+                encoded_context,
+                batch_size=batch_size,
+            )
+            map_only_state_values = gather_query_states(
+                map_only_states, query_values
+            ).numpy()
+            del map_only_states
+            for row_index, row in enumerate(edge_rows):
+                position = row["position"]
+                query = row["query"]
+                key = (scene, edge.source_world, edge.target_world, position, query)
+                query_onehot = np.zeros(teacher.patch_spec.patch_count)
+                query_onehot[query] = 1.0
+                state = state_values[row_index]
+                no_map_state = no_map_state_values[row_index]
+                map_swap_state = map_swap_state_values[row_index]
+                map_only_state = map_only_state_values[row_index]
+                features.append(np.concatenate((state, action_features, query_onehot)))
+                action_swap_features.append(
+                    np.concatenate((state, row["swap_action_features"], query_onehot))
+                )
+                no_action_features.append(
+                    np.concatenate((state, no_action_vector, query_onehot))
+                )
+                without_map_features.append(
+                    np.concatenate((no_map_state, action_features, query_onehot))
+                )
+                without_map_zero_action_features.append(
+                    np.concatenate((no_map_state, no_action_vector, query_onehot))
+                )
+                map_swap_features.append(
+                    np.concatenate((map_swap_state, action_features, query_onehot))
+                )
+                edit_only_features.append(
+                    np.concatenate((map_only_state, action_features, query_onehot))
+                )
+                edit_only_zero_action_features.append(
+                    np.concatenate((map_only_state, no_action_vector, query_onehot))
+                )
+                csi_only_features.append(
+                    np.concatenate((no_map_state, no_action_vector, query_onehot))
+                )
+                oracle_x_features.append(
+                    np.concatenate(
+                        (
+                            state,
+                            action_features,
+                            query_onehot,
+                            row["normalized_position"],
                         )
                     )
-                    oracle_x_zero_action_features.append(
-                        np.concatenate(
-                            (state, no_action_vector, query_onehot, normalized_position)
+                )
+                oracle_x_zero_action_features.append(
+                    np.concatenate(
+                        (
+                            state,
+                            no_action_vector,
+                            query_onehot,
+                            row["normalized_position"],
                         )
                     )
-                    targets.append(
-                        _normalized_scene_patches(
-                            dataset,
-                            normalization,
-                            teacher.patch_spec,
-                            scene,
-                            edge.target_world,
-                            position,
-                        )[query]
-                    )
-                    source_targets.append(
-                        _normalized_scene_patches(
-                            dataset,
-                            normalization,
-                            teacher.patch_spec,
-                            scene,
-                            edge.source_world,
-                            position,
-                        )[query]
-                    )
-                    bank_ids.append(str(dataset.bank_ids[scene]))
-                    city_ids.append(str(dataset.city_ids[scene]))
-                    routes.append(str(ROUTE_NAMES[routed.response_route[key]]))
-                    pair_ids.append(
-                        f"{dataset.bank_ids[scene]}:{edge.source_world}:{edge.target_world}:{position}:{query}"
-                    )
-                    scene_indices.append(scene)
-                    source_worlds.append(edge.source_world)
-                    target_worlds.append(edge.target_world)
-                    positions.append(position)
-                    queries.append(query)
-                    cluster_ids.append(str(dataset.base_map_cluster_ids[scene]))
-                    canonical_cluster_ids.append(dataset.canonical_base_map_digest(scene))
-                    canonical_bank_ids.append(_canonical_bank_digest(dataset, scene))
-                    wrong_action_match_statuses.append(swap_status)
-                    wrong_action_worlds.append(-1 if swap_world is None else int(swap_world))
+                )
+                targets.append(row["target_patches"][query])
+                source_targets.append(row["source_patches"][query])
+                bank_ids.append(str(dataset.bank_ids[scene]))
+                city_ids.append(str(dataset.city_ids[scene]))
+                routes.append(str(ROUTE_NAMES[routed.response_route[key]]))
+                pair_ids.append(
+                    f"{dataset.bank_ids[scene]}:{edge.source_world}:{edge.target_world}:{position}:{query}"
+                )
+                scene_indices.append(scene)
+                source_worlds.append(edge.source_world)
+                target_worlds.append(edge.target_world)
+                positions.append(position)
+                queries.append(query)
+                cluster_ids.append(str(dataset.base_map_cluster_ids[scene]))
+                canonical_cluster_ids.append(dataset.canonical_base_map_digest(scene))
+                canonical_bank_ids.append(_canonical_bank_digest(dataset, scene))
+                wrong_action_match_statuses.append(row["swap_status"])
+                wrong_action_worlds.append(
+                    -1 if row["swap_world"] is None else int(row["swap_world"])
+                )
     if not features:
         raise RuntimeError("response probe dataset has no eligible patches")
     return {
@@ -1376,25 +1753,35 @@ def _response_effect_rows(
     seed, arm, evaluated, prediction, action_swap_prediction, no_action_prediction
 ):
     rows = []
-    for pair_id in np.unique(evaluated["pair_ids"]):
-        mask = evaluated["pair_ids"] == pair_id
-        first = int(np.flatnonzero(mask)[0])
-        prediction_error = float(np.mean((prediction[mask] - evaluated["targets"][mask]) ** 2))
+    _, pair_order, order, starts, stops = _stable_pair_groups(evaluated["pair_ids"])
+    if pair_order.size == 0:
+        return rows
+    prediction_values = np.asarray(prediction)
+    action_swap_values = np.asarray(action_swap_prediction)
+    no_action_values = np.asarray(no_action_prediction)
+    target_values = np.asarray(evaluated["targets"])
+    source_target_values = np.asarray(evaluated["source_targets"])
+    for pair_id, start, stop in zip(pair_order, starts, stops):
+        positions = order[start:stop]
+        first = int(positions[0])
+        prediction_error = float(
+            np.mean((prediction_values[positions] - target_values[positions]) ** 2)
+        )
         copy_error = float(
-            np.mean((evaluated["source_targets"][mask] - evaluated["targets"][mask]) ** 2)
+            np.mean((source_target_values[positions] - target_values[positions]) ** 2)
         )
         swap_status = str(evaluated["wrong_action_match_status"][first])
         action_swap_error = (
             float(
                 np.mean(
-                    (action_swap_prediction[mask] - evaluated["targets"][mask]) ** 2
+                    (action_swap_values[positions] - target_values[positions]) ** 2
                 )
             )
             if swap_status == "exact"
             else None
         )
         no_action_error = float(
-            np.mean((no_action_prediction[mask] - evaluated["targets"][mask]) ** 2)
+            np.mean((no_action_values[positions] - target_values[positions]) ** 2)
         )
         rows.append(
             {
@@ -1569,15 +1956,41 @@ def _protocol_transition_skill(latent_prediction, latent_source, latent_target, 
     return float(1.0 - numer / denom)
 
 
-def _native_mask_cover_metrics(model, dataset, teacher, config, normalization, scenes, bank_id):
+def _native_mask_cover_metrics(
+    model,
+    dataset,
+    teacher,
+    config,
+    normalization,
+    scenes,
+    bank_id,
+    *,
+    route_normalization=None,
+    routed=None,
+    batch_size=DEFAULT_EVALUATION_BATCH_SIZE,
+):
     from .formal_qualification import _select_wrong_action
 
     scene_matches = [int(scene) for scene in scenes if str(dataset.bank_ids[int(scene)]) == bank_id]
     if len(scene_matches) != 1:
         raise RuntimeError("native response bank join is not unique")
     scene = scene_matches[0]
-    route_norm = fit_route_normalization(dataset, teacher)
-    routed = route_dataset(dataset, teacher, config, np.asarray([scene]), normalization=route_norm)
+    route_norm = (
+        fit_route_normalization(dataset, teacher)
+        if route_normalization is None
+        else route_normalization
+    )
+    routed = (
+        route_dataset(
+            dataset,
+            teacher,
+            config,
+            np.asarray([scene]),
+            normalization=route_norm,
+        )
+        if routed is None
+        else routed
+    )
     material_categories = int(dataset.metadata["assets"]["material_category_count"])
     predictions = []
     latent_predictions = []
@@ -1598,6 +2011,7 @@ def _native_mask_cover_metrics(model, dataset, teacher, config, normalization, s
     audit_entries = [
         entry for entry in teacher.audit_mask_bank if entry.mode == "random_75"
     ]
+    context_cache = {}
     for edge in dataset.directed_edges(scene):
         action = typed_signed_edit(
             dataset.maps[scene, edge.source_world],
@@ -1605,16 +2019,18 @@ def _native_mask_cover_metrics(model, dataset, teacher, config, normalization, s
             dataset.map_channel_names,
             material_categories,
         )
-        action_tensor = tensor_for_module(
-            model,
-            _normalized_action(normalization, action[None, ...]),
-            dtype=torch.float32,
-        )
-        zero_action_tensor = torch.zeros_like(action_tensor)
+        action_values = _normalized_action(normalization, action[None, ...])
+        encoded_fixed_actions = None
         for position in _eligible_evaluation_positions(dataset, scene):
             akey = (scene, edge.source_world, edge.target_world, position)
             if not _native_response_route_is_active(routed, akey):
                 continue
+            if encoded_fixed_actions is None:
+                encoded_fixed_actions = _encode_native_fixed_actions(
+                    model,
+                    action_values,
+                    batch_size=batch_size,
+                )
             swap_action, swap_status, _ = _select_wrong_action(
                 dataset,
                 scene,
@@ -1624,10 +2040,10 @@ def _native_mask_cover_metrics(model, dataset, teacher, config, normalization, s
                 material_categories,
                 receiver_position=dataset.positions[scene, position],
             )
-            swap_action_tensor = tensor_for_module(
+            encoded_swap_action = encode_action_bank(
                 model,
                 _normalized_action(normalization, swap_action[None, ...]),
-                dtype=torch.float32,
+                batch_size=batch_size,
             )
             source = _normalized_scene_patches(
                 dataset, normalization, teacher.patch_spec, scene, edge.source_world, position
@@ -1644,40 +2060,47 @@ def _native_mask_cover_metrics(model, dataset, teacher, config, normalization, s
             predicted_latent_no_action = np.zeros_like(predicted_latent)
             predicted_action_swap = np.zeros_like(target)
             predicted_latent_action_swap = np.zeros_like(predicted_latent)
+            mask_entries = tuple(
+                next(item for item in audit_entries if item.query == query)
+                for query in range(teacher.patch_spec.patch_count)
+            )
+            maps = _normalized_map(
+                normalization, dataset.maps[scene, edge.source_world]
+            )[None, ...]
+            radio = _normalized_radio(
+                normalization, dataset.radio_config[scene], dataset.bs_pose[scene]
+            )[None, ...]
+            encoded_context = _cached_encoded_context(
+                model,
+                context_cache,
+                ("map", int(edge.source_world)),
+                maps,
+                radio,
+            )
+            states, query_values = _batched_masked_states(
+                model,
+                source,
+                mask_entries,
+                encoded_context,
+                batch_size=batch_size,
+            )
+            encoded_actions = torch.cat(
+                (encoded_fixed_actions, encoded_swap_action), dim=0
+            )
+            latent_values, physical_values = _batched_action_variants(
+                model,
+                states,
+                query_values,
+                encoded_actions,
+                batch_size=batch_size,
+            )
+            predicted[:] = physical_values[0].cpu().numpy()
+            predicted_latent[:] = latent_values[0].cpu().numpy()
+            predicted_no_action[:] = physical_values[1].cpu().numpy()
+            predicted_latent_no_action[:] = latent_values[1].cpu().numpy()
+            predicted_action_swap[:] = physical_values[2].cpu().numpy()
+            predicted_latent_action_swap[:] = latent_values[2].cpu().numpy()
             for query in range(teacher.patch_spec.patch_count):
-                entry = next(item for item in audit_entries if item.query == query)
-                visible = source.copy()
-                visible[entry.mask] = 0.0
-                maps = _normalized_map(normalization, dataset.maps[scene, edge.source_world])[None, ...]
-                radio = _normalized_radio(
-                    normalization, dataset.radio_config[scene], dataset.bs_pose[scene]
-                )[None, ...]
-                with torch.no_grad():
-                    state = model.state(
-                        tensor_for_module(model, visible[None, ...], dtype=torch.float32),
-                        tensor_for_module(model, maps, dtype=torch.float32),
-                        tensor_for_module(model, radio, dtype=torch.float32),
-                        tensor_for_module(model, entry.mask[None, :], dtype=torch.bool),
-                    )
-                    latent_value, value = model.predict(
-                        state, action_tensor, tensor_for_module(model, [query], dtype=torch.long)
-                    )
-                    latent_no_action, no_action_value = model.predict(
-                        state,
-                        zero_action_tensor,
-                        tensor_for_module(model, [query], dtype=torch.long),
-                    )
-                    latent_swap, swap_value = model.predict(
-                        state,
-                        swap_action_tensor,
-                        tensor_for_module(model, [query], dtype=torch.long),
-                    )
-                predicted[query] = value[0].cpu().numpy()
-                predicted_latent[query] = latent_value[0].cpu().numpy()
-                predicted_no_action[query] = no_action_value[0].cpu().numpy()
-                predicted_latent_no_action[query] = latent_no_action[0].cpu().numpy()
-                predicted_action_swap[query] = swap_value[0].cpu().numpy()
-                predicted_latent_action_swap[query] = latent_swap[0].cpu().numpy()
                 rkey = (scene, edge.source_world, edge.target_world, int(position), query)
                 if routed.response_route[rkey] == 0:
                     null_delta_norms.append(
@@ -2756,16 +3179,15 @@ def _effect_bins_complete(cgs_rows, effect_bin_rows):
         (int(row["seed"]), str(row["arm"]), str(row["bank_id"]))
         for row in cgs_rows
     }
+    if not expected:
+        return False
     bins = ("low", "medium_low", "medium_high", "high")
-    return bool(expected) and all(
-        {
-            row["effect_bin"]
-            for row in effect_bin_rows
-            if (int(row["seed"]), str(row["arm"]), str(row["bank_id"])) == key
-        }
-        == set(bins)
-        for key in expected
-    )
+    observed = {}
+    for row in effect_bin_rows:
+        key = (int(row["seed"]), str(row["arm"]), str(row["bank_id"]))
+        observed.setdefault(key, set()).add(row["effect_bin"])
+    required_bins = set(bins)
+    return all(observed.get(key, set()) == required_bins for key in expected)
 
 
 def _null_safety_by_arm(config, route_rows):

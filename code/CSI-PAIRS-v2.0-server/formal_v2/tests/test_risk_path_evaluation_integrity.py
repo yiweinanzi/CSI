@@ -25,12 +25,13 @@ from formal_v2.formal_factorial import (
     _canonical_bank_digest,
     _city_budget_arm_interval,
 )
-from formal_v2.formal_io import artifact_manifest, write_json
+from formal_v2.formal_io import artifact_manifest, write_csv, write_json
 from formal_v2.formal_metrics import risk_coverage
 from formal_v2.formal_path import (
     _cluster_slope_interval,
     _effect_row_identity,
     _exact_path_match,
+    _localization_rows,
     _mechanism_gate,
     _require_manifested_stage_artifact,
 )
@@ -711,6 +712,78 @@ class RiskPathEvaluationIntegrityTests(unittest.TestCase):
             artifact.write_text("value\n999\n", encoding="utf-8")
             with self.assertRaisesRegex(RuntimeError, "sha256 mismatch"):
                 _require_manifested_stage_artifact(artifact, evidence)
+
+    def test_migrated_localization_rows_use_authenticated_legacy_evidence(self):
+        legacy_evidence = {
+            "artifact_label": "legacy",
+            "dataset_sha256": "1" * 64,
+            "config_sha256": "2" * 64,
+            "fixture": False,
+            "scientific_use": "CANDIDATE_NOT_CLAIM",
+            "source_tree_sha256": "3" * 64,
+        }
+        current_evidence = {
+            **legacy_evidence,
+            "source_tree_sha256": "4" * 64,
+        }
+        dataset = SimpleNamespace(
+            bank_ids=np.asarray(["bank"]),
+            city_ids=np.asarray(["city"]),
+            base_map_cluster_ids=np.asarray(["cluster"]),
+            scene_roles=np.asarray(["target"]),
+            position_roles=np.asarray([["query"]]),
+            position_ids=np.asarray([["position"]]),
+            positions=np.asarray([[[1.0, 2.0]]], dtype=np.float64),
+            natural_world_index=np.asarray([0]),
+            canonical_base_map_digest=lambda _scene: "foundation",
+        )
+        row = {
+            "seed": 1,
+            "arm": "full",
+            "city_id": "city",
+            "bank_id": "bank",
+            "base_map_cluster_id": "cluster",
+            "canonical_base_map_digest": "foundation",
+            "canonical_bank_digest": "bank-digest",
+            "budget": 0,
+            "draw": 0,
+            "position_id": "position",
+            "true_x": 1.0,
+            "true_y": 2.0,
+            "error_m": 0.5,
+            **legacy_evidence,
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "localization_per_sample.csv"
+            write_csv(path, [row])
+            with (
+                patch(
+                    "formal_v2.formal_path._canonical_bank_digest",
+                    return_value="bank-digest",
+                ),
+                patch(
+                    "formal_v2.formal_path.localization_path_incidence",
+                    return_value=0.25,
+                ),
+            ):
+                observed = _localization_rows(
+                    path,
+                    dataset,
+                    epsilon=0.1,
+                    power_coverage=0.9,
+                    evidence=legacy_evidence,
+                )
+                self.assertEqual(len(observed), 1)
+                self.assertEqual(observed[0]["a_path_loc"], 0.25)
+                self.assertNotIn("source_tree_sha256", observed[0])
+                with self.assertRaisesRegex(RuntimeError, "source_tree_sha256 mismatch"):
+                    _localization_rows(
+                        path,
+                        dataset,
+                        epsilon=0.1,
+                        power_coverage=0.9,
+                        evidence=current_evidence,
+                    )
 
     def test_path_recomputes_effect_row_identity_from_dataset(self):
         dataset = SimpleNamespace(

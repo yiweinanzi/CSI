@@ -55,7 +55,10 @@ def build_parser() -> argparse.ArgumentParser:
     run = subparsers.add_parser("run")
     run.add_argument("--control-id", required=True, choices=tuple(CONTROL_ROLES))
     run.add_argument("--dataset", required=True)
-    run.add_argument("--run-root", required=True)
+    roots = run.add_mutually_exclusive_group(required=True)
+    roots.add_argument("--run-root")
+    roots.add_argument("--output-run-root")
+    run.add_argument("--upstream-root")
     run.add_argument("--output", required=True)
     run.add_argument("--architecture-spec", required=True)
     replay = subparsers.add_parser("replay")
@@ -75,6 +78,8 @@ def main(argv=None) -> int:
             args.run_root,
             args.output,
             args.architecture_spec,
+            output_run_root=args.output_run_root,
+            upstream_root=args.upstream_root,
         )
     else:
         replay_control(
@@ -86,20 +91,42 @@ def main(argv=None) -> int:
     return 0
 
 
-def run_control(control_id, dataset_path, run_root, output_root, architecture_path):
-    root = Path(run_root).resolve()
+def run_control(
+    control_id,
+    dataset_path,
+    run_root,
+    output_root,
+    architecture_path,
+    *,
+    output_run_root=None,
+    upstream_root=None,
+):
     output = Path(output_root).resolve()
     output.mkdir(parents=True, exist_ok=True)
     architecture_path = Path(architecture_path).resolve()
     architecture = read_strict_json(architecture_path)
     if architecture.get("control_id") != control_id:
         raise RuntimeError("resource-control architecture identity mismatch")
-    qualification = read_strict_json(root / "qualification" / "gate.json")
+    provisional_root = upstream_root if upstream_root is not None else run_root
+    if provisional_root is None:
+        raise RuntimeError("resource control requires output and upstream roots")
+    qualification = read_strict_json(
+        Path(provisional_root).resolve() / "qualification" / "gate.json"
+    )
     config = qualification["config"]
     dataset = FormalDataset.load(
         dataset_path,
         require_clean_csi=bool(config["data"]["require_clean_csi"]),
     )
+    _output_run, upstream, _authenticated = _resolve_run_roots(
+        dataset,
+        config,
+        output,
+        run_root=run_root,
+        output_run_root=output_run_root,
+        upstream_root=upstream_root,
+    )
+    qualification = read_strict_json(upstream / "qualification" / "gate.json")
     evidence = evidence_context(
         config, dataset, "FORBIDDEN" if dataset.is_fixture else "CANDIDATE_NOT_CLAIM"
     )
@@ -122,8 +149,10 @@ def run_control(control_id, dataset_path, run_root, output_root, architecture_pa
         route_normalization,
         normalization,
     )
-    pilot = read_strict_json(root / "factorial" / "frozen_pilot.json")
-    training_rows = _factorial_training_rows(root / "factorial" / "training_summary.csv")
+    pilot = read_strict_json(upstream / "factorial" / "frozen_pilot.json")
+    training_rows = _factorial_training_rows(
+        upstream / "factorial" / "training_summary.csv"
+    )
     model_specs, step_counts = _select_control_design(
         control_id, architecture, config, corpus, pilot, training_rows
     )
@@ -338,6 +367,44 @@ def run_control(control_id, dataset_path, run_root, output_root, architecture_pa
     }
     write_json(output / "resource_index.json", index)
     return index
+
+
+def _resolve_run_roots(
+    dataset,
+    config,
+    output,
+    *,
+    run_root=None,
+    output_run_root=None,
+    upstream_root=None,
+):
+    if run_root is not None:
+        if output_run_root is not None or upstream_root is not None:
+            raise RuntimeError("resource-control roots cannot mix local and explicit modes")
+        local_root = Path(run_root).resolve()
+        if (local_root / "migration").exists():
+            raise RuntimeError(
+                "resource-control migration requires explicit output and upstream roots"
+            )
+        output_run_root = local_root
+        upstream_root = local_root
+    if output_run_root is None or upstream_root is None:
+        raise RuntimeError("resource control requires output and upstream roots")
+    output_run = Path(output_run_root).resolve()
+    upstream = Path(upstream_root).resolve()
+    if output != output_run and output_run not in output.parents:
+        raise RuntimeError("resource-control output escapes the output run root")
+    from formal_v2.formal_upstream import resolve_authenticated_upstream
+
+    authenticated = resolve_authenticated_upstream(config, dataset, output_run)
+    expected_upstream = (
+        authenticated.migration.legacy_run_root
+        if authenticated.migrated
+        else authenticated.run_root
+    )
+    if authenticated.run_root != output_run or expected_upstream != upstream:
+        raise RuntimeError("resource-control output/upstream root binding mismatch")
+    return output_run, upstream, authenticated
 
 
 def replay_control(control_id, output_root, architecture_path, replay_output):

@@ -5,15 +5,17 @@
     "{adapter_source}",
     "--dataset",
     "{dataset}",
-    "--run-root",
-    "{run_root}",
+    "--output-run-root",
+    "{output_run_root}",
+    "--upstream-root",
+    "{upstream_root}",
     "--output",
     "{output}",
     "--context",
     "{context}"
   ],
-  "implementation_revision": "eef860afeb150a1027d34cdc57ebef80cb4c6704c73f066ea9fe57849485ca33",
+  "implementation_revision": "35d752b810168bb41a1e584796f389a467a552c1e8314911149b010c76083305",
   "control_seed": 20270807,
   "adapter_source_path": "retention_control.py",
-  "adapter_source_sha256": "eef860afeb150a1027d34cdc57ebef80cb4c6704c73f066ea9fe57849485ca33"
+  "adapter_source_sha256": "35d752b810168bb41a1e584796f389a467a552c1e8314911149b010c76083305"
 }

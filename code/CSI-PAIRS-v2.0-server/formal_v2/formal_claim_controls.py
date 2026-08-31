@@ -10,7 +10,14 @@ from pathlib import Path
 
 import numpy as np
 
-from .formal_evidence import evidence_context
+from .formal_evidence import (
+    EVIDENCE_AUTH_KEYS,
+    RUNTIME_PROVENANCE_FIELDS,
+    RUNTIME_PROVENANCE_SCHEMA,
+    TORCH_RUNTIME_FIELDS,
+    evidence_context,
+)
+from .formal_config import ARMS
 from .formal_io import artifact_manifest, read_strict_json, sha256_file, write_json
 from .formal_statistics import (
     holm_adjust,
@@ -34,8 +41,79 @@ SHUFFLED_METRICS = ("alignment_cgs", "response_probe")
 PAIR_LABELS = ("positive", "negative")
 RETENTION_CONDITIONS = ("correct", "map_swap", "map_removed")
 
+_CHECKPOINT_EVIDENCE_LEGACY_V1 = "legacy-v1"
+_CHECKPOINT_EVIDENCE_MIGRATED_LEGACY_V1 = "migrated-legacy-v1"
+_CHECKPOINT_EVIDENCE_RECORDED_RUNTIME_V3 = "recorded-runtime-v3"
+_CHECKPOINT_COMMON_EVIDENCE_FIELDS = frozenset(
+    {
+        "artifact_label",
+        "dataset_sha256",
+        "config_sha256",
+        "fixture",
+        "scientific_use",
+    }
+)
+_CHECKPOINT_PROVENANCE_BINDING_FIELDS = frozenset(
+    {
+        "source_tree_sha256",
+        "requirements_lock_sha256",
+        "runtime_provenance_sha256",
+    }
+)
+_CHECKPOINT_PROVENANCE_PAYLOAD_FIELDS = frozenset(
+    {*_CHECKPOINT_PROVENANCE_BINDING_FIELDS, "runtime_provenance"}
+)
+_CHECKPOINT_EVIDENCE_FIELDS_BY_VERSION = {
+    _CHECKPOINT_EVIDENCE_LEGACY_V1: frozenset(),
+    _CHECKPOINT_EVIDENCE_MIGRATED_LEGACY_V1: _CHECKPOINT_PROVENANCE_PAYLOAD_FIELDS,
+    _CHECKPOINT_EVIDENCE_RECORDED_RUNTIME_V3: (
+        _CHECKPOINT_PROVENANCE_PAYLOAD_FIELDS
+    ),
+}
+_FORMAL_CHECKPOINT_BASE_FIELDS = frozenset(
+    {
+        "schema_version",
+        "arm",
+        "seed",
+        "model_spec",
+        "normalization",
+        "teacher_checkpoint_sha256",
+        "checkpoint_rule",
+        "state_dict",
+        *_CHECKPOINT_COMMON_EVIDENCE_FIELDS,
+    }
+)
+_SHUFFLED_CHECKPOINT_BASE_FIELDS = frozenset(
+    {
+        *_FORMAL_CHECKPOINT_BASE_FIELDS,
+        "pairing_breaks",
+        "training_provenance_sha256",
+    }
+)
+_FORMAL_CHECKPOINT_INDEX_FIELDS = frozenset(
+    {"schema_version", "scientific_use", "checkpoints", *EVIDENCE_AUTH_KEYS}
+)
+_FORMAL_CHECKPOINT_ROW_BASE_FIELDS = frozenset(
+    {
+        "seed",
+        "arm",
+        "path",
+        "sha256",
+        "parameters",
+        "measured_flops_per_step",
+        "execution_device",
+        "teacher_checkpoint_sha256",
+    }
+)
+
 
 def run_shuffled_pair_control(config, dataset, manifest_path, output_root):
+    from .formal_upstream import resolve_authenticated_upstream
+
+    upstream = resolve_authenticated_upstream(config, dataset, output_root)
+    qualification_teacher_sha256 = _authenticated_qualification_gate(
+        config, dataset, upstream
+    )["teacher_checkpoint_sha256"]
     from .formal_data_verification import require_verified_roles_from_root
 
     require_verified_roles_from_root(
@@ -52,6 +130,8 @@ def run_shuffled_pair_control(config, dataset, manifest_path, output_root):
         output_dir,
         "csi-pairs-v6-shuffled-pair-adapter-v3",
         "results.json",
+        output_run_root=upstream.run_root,
+        upstream_root=_upstream_run_root(upstream),
     )
     required = {
         "schema_version", "dataset_sha256", "config_sha256", "fixture",
@@ -72,7 +152,13 @@ def run_shuffled_pair_control(config, dataset, manifest_path, output_root):
     )
     checkpoints = _verify_checkpoint_index_binding(config, dataset, output_root, result)
     shuffled_checkpoints = _verify_shuffled_training_binding(
-        config, dataset, output_dir, result, checkpoints, manifest["control_seed"]
+        config,
+        dataset,
+        output_dir,
+        result,
+        checkpoints,
+        manifest["control_seed"],
+        qualification_teacher_sha256,
     )
     registry = _read_active_pair_registry(output_root, result, evidence, dataset)
     rows = _read_bound_rows(output_dir, result, "per_unit_results", _shuffled_columns())
@@ -107,7 +193,9 @@ def run_shuffled_pair_control(config, dataset, manifest_path, output_root):
 
 def run_retention_audit(config, dataset, manifest_path, output_root):
     from .formal_data_verification import require_verified_roles_from_root
+    from .formal_upstream import resolve_authenticated_upstream
 
+    upstream = resolve_authenticated_upstream(config, dataset, output_root)
     require_verified_roles_from_root(
         output_root,
         config,
@@ -122,6 +210,8 @@ def run_retention_audit(config, dataset, manifest_path, output_root):
         output_dir,
         "csi-pairs-v6-retention-adapter-v3",
         "results.json",
+        output_run_root=upstream.run_root,
+        upstream_root=_upstream_run_root(upstream),
     )
     required = {
         "schema_version", "dataset_sha256", "config_sha256", "fixture",
@@ -169,7 +259,17 @@ def run_retention_audit(config, dataset, manifest_path, output_root):
     return gate
 
 
-def _run_adapter(config, dataset, manifest_path, output_dir, schema, result_name):
+def _run_adapter(
+    config,
+    dataset,
+    manifest_path,
+    output_dir,
+    schema,
+    result_name,
+    *,
+    output_run_root=None,
+    upstream_root=None,
+):
     from .formal_config import public_formal_config
 
     manifest_path = Path(manifest_path).resolve()
@@ -202,6 +302,11 @@ def _run_adapter(config, dataset, manifest_path, output_dir, schema, result_name
         raise ValueError(
             "claim-control command must execute the authenticated adapter source directly"
         )
+    _require_explicit_root_bindings(manifest["command"])
+    if output_run_root is None or upstream_root is None:
+        local_root = Path(output_dir).parents[1].resolve()
+        output_run_root = local_root
+        upstream_root = local_root
     output_dir.mkdir(parents=True, exist_ok=True)
     source_copy = output_dir / f"adapter_source{source.suffix or '.bin'}"
     shutil.copyfile(source, source_copy)
@@ -224,7 +329,9 @@ def _run_adapter(config, dataset, manifest_path, output_dir, schema, result_name
     command = [
         value.format(
             dataset=str(dataset.source_path), output=str(output_dir), python=sys.executable,
-            adapter_source=str(source), run_root=str(Path(output_dir).parents[1]),
+            adapter_source=str(source),
+            output_run_root=str(Path(output_run_root).resolve()),
+            upstream_root=str(Path(upstream_root).resolve()),
             context=str(context_path),
         )
         for value in manifest["command"]
@@ -238,6 +345,32 @@ def _run_adapter(config, dataset, manifest_path, output_dir, schema, result_name
     return read_strict_json(path), manifest, source_hash
 
 
+def _upstream_run_root(upstream):
+    if upstream.migrated:
+        return upstream.migration.legacy_run_root
+    return upstream.run_root
+
+
+def _require_explicit_root_bindings(command):
+    bindings = {
+        "--output-run-root": "{output_run_root}",
+        "--upstream-root": "{upstream_root}",
+    }
+    for option, placeholder in bindings.items():
+        positions = [index for index, value in enumerate(command) if value == option]
+        if (
+            len(positions) != 1
+            or positions[0] + 1 >= len(command)
+            or command[positions[0] + 1] != placeholder
+            or command.count(placeholder) != 1
+        ):
+            raise ValueError(
+                "claim-control command must bind output and upstream roots explicitly"
+            )
+    if "--run-root" in command or "{run_root}" in command:
+        raise ValueError("claim-control command cannot use the ambiguous run root")
+
+
 def _validate_result_evidence(config, dataset, result):
     evidence = evidence_context(
         config, dataset, "FORBIDDEN" if dataset.is_fixture else "CANDIDATE_NOT_CLAIM"
@@ -248,22 +381,140 @@ def _validate_result_evidence(config, dataset, result):
     return evidence
 
 
+def _authenticated_qualification_gate(config, dataset, upstream):
+    gate_path = Path(upstream.qualification_gate)
+    if gate_path.is_symlink() or not gate_path.is_file():
+        raise RuntimeError("claim-control qualification gate is missing or invalid")
+    gate = read_strict_json(gate_path)
+    if upstream.migrated:
+        authenticated_evidence = upstream.qualification_evidence
+        if not isinstance(authenticated_evidence, dict):
+            raise RuntimeError(
+                "claim-control migrated qualification evidence is unavailable"
+            )
+        for key in (*EVIDENCE_AUTH_KEYS, "scientific_use"):
+            if gate.get(key) != authenticated_evidence.get(key):
+                raise RuntimeError(
+                    f"claim-control migrated qualification {key} mismatch"
+                )
+    else:
+        from .formal_evidence import (
+            QUALIFICATION_SCHEMA,
+            require_formal_qualification,
+            require_stage_manifested_gate,
+        )
+
+        gate = require_formal_qualification(
+            gate,
+            config,
+            dataset,
+            allow_nonscientific_fixture=True,
+        )
+        gate = require_stage_manifested_gate(
+            gate_path,
+            gate,
+            config,
+            dataset,
+            schema_version=QUALIFICATION_SCHEMA,
+        )
+
+    teacher_sha256 = gate.get("teacher_checkpoint_sha256")
+    teacher_source = Path(str(gate.get("teacher_checkpoint", "")))
+    teacher_path = teacher_source.resolve()
+    qualification_root = Path(upstream.qualification_root).resolve()
+    if (
+        not _lower_sha256(teacher_sha256)
+        or teacher_source.is_symlink()
+        or qualification_root not in teacher_path.parents
+        or not teacher_path.is_file()
+        or sha256_file(teacher_path) != teacher_sha256
+    ):
+        raise RuntimeError(
+            "claim-control qualification teacher checkpoint is not authenticated"
+        )
+    return gate
+
+
 def _verify_checkpoint_index_binding(config, dataset, output_root, result):
-    path = Path(output_root) / "factorial" / "checkpoint_index.json"
+    from .formal_upstream import resolve_authenticated_upstream
+
+    upstream = resolve_authenticated_upstream(config, dataset, output_root)
+    path = upstream.checkpoint_index
     if not path.is_file() or result["checkpoint_index_sha256"] != sha256_file(path):
         raise RuntimeError("claim-control result does not bind the executed checkpoint index")
     index = read_strict_json(path)
     evidence = evidence_context(
         config, dataset, "FORBIDDEN" if dataset.is_fixture else "CANDIDATE_NOT_CLAIM"
     )
-    if index.get("schema_version") != "csi-pairs-formal-checkpoint-index-v2.1-v6":
+    if not isinstance(index, dict) or set(index) != _FORMAL_CHECKPOINT_INDEX_FIELDS:
+        raise RuntimeError("claim-control checkpoint index fields must be exact")
+    if index["schema_version"] != "csi-pairs-formal-checkpoint-index-v2.1-v6":
         raise RuntimeError("claim-control checkpoint index schema mismatch")
-    for key in ("dataset_sha256", "config_sha256", "fixture"):
-        if index.get(key) != evidence[key]:
+    authenticated_evidence = (
+        upstream.factorial_evidence if upstream.migrated else evidence
+    )
+    if not isinstance(authenticated_evidence, dict):
+        raise RuntimeError("claim-control checkpoint index evidence is unavailable")
+    for key in (*EVIDENCE_AUTH_KEYS, "scientific_use"):
+        if index[key] != authenticated_evidence.get(key):
             raise RuntimeError(f"claim-control checkpoint index {key} mismatch")
+    for key in _CHECKPOINT_COMMON_EVIDENCE_FIELDS:
+        if index[key] != evidence[key]:
+            raise RuntimeError(f"claim-control checkpoint index {key} mismatch")
+
+    scalar_evidence = {
+        key: index[key]
+        for key in (*EVIDENCE_AUTH_KEYS, "scientific_use")
+        if not isinstance(index[key], (dict, list))
+    }
+    expected_row_fields = set(_FORMAL_CHECKPOINT_ROW_BASE_FIELDS).union(
+        scalar_evidence
+    )
+    rows = index["checkpoints"]
+    if not isinstance(rows, list) or any(
+        not isinstance(row, dict) or set(row) != expected_row_fields
+        for row in rows
+    ):
+        raise RuntimeError("claim-control checkpoint index row fields must be exact")
+    qualification_teacher_sha256 = _authenticated_qualification_gate(
+        config, dataset, upstream
+    )["teacher_checkpoint_sha256"]
+    expected_cells = [
+        (int(seed), arm) for seed in config["seeds"] for arm in ARMS
+    ]
+    if len(rows) != len(expected_cells):
+        raise RuntimeError("claim-control checkpoint index cell inventory is incomplete")
+    for row, (expected_seed, expected_arm) in zip(rows, expected_cells):
+        if type(row["seed"]) is not int or (
+            row["seed"], row["arm"]
+        ) != (expected_seed, expected_arm):
+            raise RuntimeError("claim-control checkpoint index cell order changed")
+        for key, value in scalar_evidence.items():
+            if row[key] != value:
+                raise RuntimeError(
+                    f"claim-control checkpoint row {key} evidence mismatch"
+                )
+        if (
+            not isinstance(row["path"], str)
+            or not row["path"]
+            or not _lower_sha256(row["sha256"])
+            or type(row["parameters"]) is not int
+            or row["parameters"] <= 0
+            or type(row["measured_flops_per_step"]) is not int
+            or row["measured_flops_per_step"] <= 0
+            or not isinstance(row["execution_device"], str)
+            or not row["execution_device"]
+            or not _lower_sha256(row["teacher_checkpoint_sha256"])
+        ):
+            raise RuntimeError("claim-control checkpoint index row metadata is invalid")
+        if row["teacher_checkpoint_sha256"] != qualification_teacher_sha256:
+            raise RuntimeError(
+                "claim-control checkpoint index teacher hash mismatch"
+            )
+
     root = path.parent.resolve()
     full_by_seed = {}
-    for row in index.get("checkpoints", []):
+    for row in rows:
         checkpoint_path = (root / row["path"]).resolve()
         if root not in checkpoint_path.parents or not checkpoint_path.is_file():
             raise RuntimeError("claim-control checkpoint index contains a missing checkpoint")
@@ -272,7 +523,13 @@ def _verify_checkpoint_index_binding(config, dataset, output_root, result):
             raise RuntimeError("claim-control checkpoint index contains a mismatched checkpoint")
         if row.get("arm") != "full":
             continue
-        payload = _validate_formal_checkpoint(checkpoint_path, row, evidence)
+        payload = _validate_formal_checkpoint(
+            checkpoint_path,
+            row,
+            evidence,
+            teacher_checkpoint_sha256=qualification_teacher_sha256,
+            legacy_runtime=upstream.migrated,
+        )
         seed = int(payload["seed"])
         if seed in full_by_seed:
             raise RuntimeError("claim-control checkpoint index duplicates a full-arm seed")
@@ -283,7 +540,13 @@ def _verify_checkpoint_index_binding(config, dataset, output_root, result):
 
 
 def _verify_shuffled_training_binding(
-    config, dataset, output_dir, result, matched_checkpoints, control_seed
+    config,
+    dataset,
+    output_dir,
+    result,
+    matched_checkpoints,
+    control_seed,
+    teacher_checkpoint_sha256,
 ):
     evidence = evidence_context(
         config, dataset, "FORBIDDEN" if dataset.is_fixture else "CANDIDATE_NOT_CLAIM"
@@ -383,7 +646,11 @@ def _verify_shuffled_training_binding(
             matched_checkpoints[seed], row["sha256"]
         )
         _validate_shuffled_checkpoint(
-            path, row, evidence, result["training_provenance_sha256"]
+            path,
+            row,
+            evidence,
+            result["training_provenance_sha256"],
+            teacher_checkpoint_sha256,
         )
         shuffled[seed] = row["sha256"]
     if set(shuffled) != set(matched_checkpoints):
@@ -465,7 +732,145 @@ def _validate_shuffled_training_summary(path, expected_seeds, expected_steps):
             raise RuntimeError("shuffled training summary violates the full-arm contract")
 
 
-def _validate_shuffled_checkpoint(path, row, evidence, provenance_sha256):
+def _checkpoint_evidence_version(binding, label, *, legacy_runtime=False):
+    if not isinstance(binding, dict):
+        raise RuntimeError(f"{label} provenance binding must be an object")
+    present = _CHECKPOINT_PROVENANCE_PAYLOAD_FIELDS.intersection(binding)
+    if not present:
+        return _CHECKPOINT_EVIDENCE_LEGACY_V1
+    if not _CHECKPOINT_PROVENANCE_BINDING_FIELDS.issubset(binding):
+        raise RuntimeError(f"{label} provenance binding is incomplete")
+    if legacy_runtime:
+        return _CHECKPOINT_EVIDENCE_MIGRATED_LEGACY_V1
+    return _CHECKPOINT_EVIDENCE_RECORDED_RUNTIME_V3
+
+
+def _recorded_runtime_sha256(runtime, label):
+    try:
+        encoded = json.dumps(
+            runtime,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=True,
+            allow_nan=False,
+        ).encode("utf-8")
+    except (TypeError, ValueError) as error:
+        raise RuntimeError(f"{label} runtime provenance is not canonical JSON") from error
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _validate_recorded_runtime_provenance(runtime, label):
+    if (
+        not isinstance(runtime, dict)
+        or set(runtime) != RUNTIME_PROVENANCE_FIELDS
+        or runtime.get("schema_version") != RUNTIME_PROVENANCE_SCHEMA
+    ):
+        raise RuntimeError(f"{label} runtime provenance fields are not exact")
+    for key in (
+        "source_tree_sha256",
+        "requirements_lock_sha256",
+        "installer_report_sha256",
+        "reviewed_wheelhouse_sha256",
+        "reviewed_wheel_manifest_sha256",
+    ):
+        if not _lower_sha256(runtime.get(key)):
+            raise RuntimeError(f"{label} runtime provenance {key} is invalid")
+    if runtime.get("python_dont_write_bytecode") is not True:
+        raise RuntimeError(f"{label} runtime provenance permits Python bytecode")
+    torch_record = runtime.get("torch")
+    if not isinstance(torch_record, dict) or set(torch_record) != TORCH_RUNTIME_FIELDS:
+        raise RuntimeError(f"{label} runtime torch provenance fields are not exact")
+    installed = runtime.get("installed_distributions")
+    if not isinstance(installed, dict):
+        raise RuntimeError(f"{label} runtime distribution provenance is invalid")
+    for name, record in installed.items():
+        if (
+            not isinstance(name, str)
+            or not name
+            or not isinstance(record, dict)
+            or set(record) != {"version", "record_sha256", "wheel_sha256"}
+            or not isinstance(record["version"], str)
+            or not record["version"]
+            or not _lower_sha256(record["record_sha256"])
+            or not _lower_sha256(record["wheel_sha256"])
+        ):
+            raise RuntimeError(f"{label} runtime distribution provenance is invalid")
+
+
+def _validate_migrated_legacy_runtime(runtime, label):
+    """Validate the less-populated runtime record accepted by migration v2."""
+    if (
+        not isinstance(runtime, dict)
+        or set(runtime) != RUNTIME_PROVENANCE_FIELDS
+        or runtime.get("schema_version") != RUNTIME_PROVENANCE_SCHEMA
+    ):
+        raise RuntimeError(f"{label} legacy runtime provenance fields are not exact")
+    if runtime.get("python_implementation") != "CPython":
+        raise RuntimeError(f"{label} legacy runtime implementation is invalid")
+    if runtime.get("python_dont_write_bytecode") is not True:
+        raise RuntimeError(f"{label} legacy runtime permits Python bytecode")
+
+
+def _validate_checkpoint_evidence(
+    payload,
+    *,
+    base_fields,
+    provenance_binding,
+    evidence,
+    label,
+    legacy_runtime=False,
+):
+    version = _checkpoint_evidence_version(
+        provenance_binding, label, legacy_runtime=legacy_runtime
+    )
+    required = set(base_fields).union(
+        _CHECKPOINT_EVIDENCE_FIELDS_BY_VERSION[version]
+    )
+    if not isinstance(payload, dict) or set(payload) != required:
+        raise RuntimeError(
+            f"{label} fields are not exact for evidence version {version}"
+        )
+    if not isinstance(evidence, dict) or not _CHECKPOINT_COMMON_EVIDENCE_FIELDS.issubset(
+        evidence
+    ):
+        raise RuntimeError(f"{label} outer evidence is incomplete")
+    for key in _CHECKPOINT_COMMON_EVIDENCE_FIELDS:
+        if payload[key] != evidence[key]:
+            raise RuntimeError(f"{label} {key} mismatch")
+    if version == _CHECKPOINT_EVIDENCE_LEGACY_V1:
+        return version
+
+    for key in _CHECKPOINT_PROVENANCE_BINDING_FIELDS:
+        if not _lower_sha256(payload[key]) or payload[key] != provenance_binding[key]:
+            raise RuntimeError(f"{label} {key} provenance mismatch")
+    runtime = payload["runtime_provenance"]
+    if version == _CHECKPOINT_EVIDENCE_MIGRATED_LEGACY_V1:
+        _validate_migrated_legacy_runtime(runtime, label)
+    else:
+        _validate_recorded_runtime_provenance(runtime, label)
+    if (
+        runtime["source_tree_sha256"] != payload["source_tree_sha256"]
+        or runtime["requirements_lock_sha256"]
+        != payload["requirements_lock_sha256"]
+        or _recorded_runtime_sha256(runtime, label)
+        != payload["runtime_provenance_sha256"]
+    ):
+        raise RuntimeError(f"{label} runtime provenance digest or identity mismatch")
+    if (
+        "runtime_provenance" in provenance_binding
+        and runtime != provenance_binding["runtime_provenance"]
+    ):
+        raise RuntimeError(f"{label} runtime provenance object mismatch")
+    return version
+
+
+def _validate_shuffled_checkpoint(
+    path,
+    row,
+    evidence,
+    provenance_sha256,
+    teacher_checkpoint_sha256=None,
+):
     try:
         import torch
         from .formal_model import CSIPairsFormalModel
@@ -473,14 +878,13 @@ def _validate_shuffled_checkpoint(path, row, evidence, provenance_sha256):
         payload = torch.load(path, map_location="cpu", weights_only=False)
     except Exception as error:
         raise RuntimeError("shuffled checkpoint is unreadable") from error
-    required = {
-        "schema_version", "arm", "seed", "model_spec", "normalization",
-        "teacher_checkpoint_sha256", "checkpoint_rule", "state_dict",
-        "dataset_sha256", "config_sha256", "fixture", "artifact_label",
-        "scientific_use", "pairing_breaks", "training_provenance_sha256",
-    }
-    if not isinstance(payload, dict) or set(payload) != required:
-        raise RuntimeError("shuffled checkpoint fields are not exact")
+    _validate_checkpoint_evidence(
+        payload,
+        base_fields=_SHUFFLED_CHECKPOINT_BASE_FIELDS,
+        provenance_binding=evidence,
+        evidence=evidence,
+        label="shuffled checkpoint",
+    )
     if (
         payload["schema_version"] != "csi-pairs-v6-shuffled-formal-checkpoint-v1"
         or payload["arm"] != "full"
@@ -489,11 +893,16 @@ def _validate_shuffled_checkpoint(path, row, evidence, provenance_sha256):
         or set(payload["pairing_breaks"])
         != {"alignment_h_map_edge", "response_action_target"}
         or payload["training_provenance_sha256"] != provenance_sha256
+        or (
+            teacher_checkpoint_sha256 is not None
+            and (
+                not _lower_sha256(teacher_checkpoint_sha256)
+                or payload["teacher_checkpoint_sha256"]
+                != teacher_checkpoint_sha256
+            )
+        )
     ):
         raise RuntimeError("shuffled checkpoint identity mismatch")
-    for key in ("dataset_sha256", "config_sha256", "fixture"):
-        if payload[key] != evidence[key]:
-            raise RuntimeError(f"shuffled checkpoint {key} mismatch")
     try:
         model = CSIPairsFormalModel(**payload["model_spec"])
         model.load_state_dict(payload["state_dict"], strict=True)
@@ -637,7 +1046,14 @@ def _bound_output_file(output_dir, relative, digest, label):
     return path
 
 
-def _validate_formal_checkpoint(path, row, evidence):
+def _validate_formal_checkpoint(
+    path,
+    row,
+    evidence,
+    *,
+    teacher_checkpoint_sha256=None,
+    legacy_runtime=False,
+):
     try:
         import torch
         from .formal_model import CSIPairsFormalModel
@@ -645,23 +1061,31 @@ def _validate_formal_checkpoint(path, row, evidence):
         payload = torch.load(path, map_location="cpu", weights_only=False)
     except Exception as error:
         raise RuntimeError("claim-control checkpoint is unreadable") from error
-    required = {
-        "schema_version", "arm", "seed", "model_spec", "normalization",
-        "teacher_checkpoint_sha256", "checkpoint_rule", "state_dict",
-        "dataset_sha256", "config_sha256", "fixture", "artifact_label", "scientific_use",
-    }
-    if not isinstance(payload, dict) or set(payload) != required:
-        raise RuntimeError("claim-control checkpoint fields are not the frozen F/P contract")
+    _validate_checkpoint_evidence(
+        payload,
+        base_fields=_FORMAL_CHECKPOINT_BASE_FIELDS,
+        provenance_binding=row,
+        evidence=evidence,
+        label="claim-control checkpoint",
+        legacy_runtime=legacy_runtime,
+    )
     if (
         payload["schema_version"] != "csi-pairs-formal-checkpoint-v2.1-v6"
         or payload["arm"] != "full"
         or int(payload["seed"]) != int(row["seed"])
         or payload["checkpoint_rule"] != "fixed_final_step_no_target_selection"
+        or payload["teacher_checkpoint_sha256"]
+        != row["teacher_checkpoint_sha256"]
+        or (
+            teacher_checkpoint_sha256 is not None
+            and (
+                not _lower_sha256(teacher_checkpoint_sha256)
+                or payload["teacher_checkpoint_sha256"]
+                != teacher_checkpoint_sha256
+            )
+        )
     ):
         raise RuntimeError("claim-control checkpoint identity mismatch")
-    for key in ("dataset_sha256", "config_sha256", "fixture"):
-        if payload[key] != evidence[key]:
-            raise RuntimeError(f"claim-control checkpoint {key} mismatch")
     try:
         model = CSIPairsFormalModel(**payload["model_spec"])
         model.load_state_dict(payload["state_dict"], strict=True)

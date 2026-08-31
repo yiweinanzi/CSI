@@ -2370,7 +2370,14 @@ class EvidenceAndPathTests(unittest.TestCase):
                         "model_checkpoint_sha256": "b" * 64,
                         "training_provenance_path": "training.json",
                         "training_provenance_sha256": "c" * 64,
-                        "command": ["{python}", "{adapter_source}"],
+                        "command": [
+                            "{python}",
+                            "{adapter_source}",
+                            "--output-run-root",
+                            "{output_run_root}",
+                            "--upstream-root",
+                            "{upstream_root}",
+                        ],
                     }
                 ],
             }

@@ -432,8 +432,8 @@ TRACE_FAMILIES = {
         "prepare-full-run; create-run-approval; all",
         (("formal_v2/formal_cli.py", "def _run_authorized_full_chain"), ("formal_v2/formal_run_approval.py", "def authenticate_prepared_run")),
         ((_FORMAL_CONFIG, '"schema_version"'),),
-        (("formal_v2/tests/test_run_approval.py", "def test_authorized_chain_order_and_failure_short_circuit"),),
-        "formal_v2.tests.test_run_approval.FullRunApprovalTests.test_authorized_chain_order_and_failure_short_circuit",
+        (("formal_v2/tests/test_run_approval.py", "def test_authorized_chain_order_scientific_fail_continues_engineering_error_stops"),),
+        "formal_v2.tests.test_run_approval.FullRunApprovalTests.test_authorized_chain_order_scientific_fail_continues_engineering_error_stops",
     ),
 }
 

@@ -66,7 +66,10 @@ STAGE_SPECS = {
 
 
 def assemble_claim_evidence(config, dataset, output_root):
+    from .formal_upstream import resolve_authenticated_upstream
+
     root = Path(output_root)
+    upstream = resolve_authenticated_upstream(config, dataset, root)
     output_dir = root / "claims"
     output_dir.mkdir(parents=True, exist_ok=True)
     evidence = evidence_context(
@@ -75,7 +78,29 @@ def assemble_claim_evidence(config, dataset, output_root):
     assessments = {}
     errors = {}
     for name, (relative, schema) in STAGE_SPECS.items():
-        status, error = _assess_stage(root / relative, schema, name, config, dataset)
+        if relative == "qualification/gate.json":
+            path = upstream.qualification_gate
+        elif relative.startswith("qualification/"):
+            path = upstream.qualification_path(relative.removeprefix("qualification/"))
+        elif relative == "factorial/gate.json":
+            path = upstream.factorial_gate
+        else:
+            path = root / relative
+        status, error = _assess_stage(
+            path,
+            schema,
+            name,
+            config,
+            dataset,
+            output_root=root,
+            authenticated_legacy=bool(
+                upstream.migrated
+                and (
+                    relative.startswith("qualification/")
+                    or relative.startswith("factorial/")
+                )
+            ),
+        )
         assessments[name] = status
         if error is not None:
             errors[name] = error
@@ -150,22 +175,36 @@ def _claim_state(_claim_id, statuses, fixture):
     return "SUPPORTED"
 
 
-def _assess_stage(path, schema, name, config, dataset):
+def _assess_stage(
+    path,
+    schema,
+    name,
+    config,
+    dataset,
+    *,
+    output_root=None,
+    authenticated_legacy=False,
+):
     if not path.is_file():
         return "NOT_ASSESSED", None
     try:
         payload = read_strict_json(path)
-        require_stage_manifested_gate(
-            path,
-            payload,
-            config,
-            dataset,
-            schema_version=schema,
-        )
+        if not authenticated_legacy:
+            require_stage_manifested_gate(
+                path,
+                payload,
+                config,
+                dataset,
+                schema_version=schema,
+            )
+        elif payload.get("schema_version") != schema:
+            raise RuntimeError("authenticated legacy stage schema mismatch")
         if name == "external_baselines":
             _validate_external_manifest_binding(path, payload, dataset, config)
         if name == "G6":
-            _validate_risk_mixture_binding(path, payload, config, dataset)
+            _validate_risk_mixture_binding(
+                path, payload, config, dataset, output_root=output_root
+            )
         if name in {
             "G0", "G4", "G8", "scene_id_mechanism", "rt_calibration",
             "shuffled_pair", "retention",
@@ -174,7 +213,9 @@ def _assess_stage(path, schema, name, config, dataset):
         if name == "shuffled_pair":
             _validate_shuffled_evaluation_binding(path, payload, config, dataset)
         if name in {"G3", "G3_C3", "G3_C5", "G4", "G5"}:
-            _validate_critical_chain_binding(path, payload, name)
+            _validate_critical_chain_binding(
+                path, payload, name, config, dataset, output_root=output_root
+            )
         return _semantic_status(name, payload), None
     except Exception as error:
         return "INVALID", f"{type(error).__name__}: {error}"
@@ -727,7 +768,9 @@ def _validate_external_manifest_binding(
         raise RuntimeError("C1 gate model counts differ from raw adapter results")
 
 
-def _validate_risk_mixture_binding(gate_path, payload, config, dataset):
+def _validate_risk_mixture_binding(
+    gate_path, payload, config, dataset, *, output_root=None
+):
     if payload.get("passed") is not True:
         return
     relative = payload.get("mixture_freeze_path")
@@ -770,8 +813,12 @@ def _validate_risk_mixture_binding(gate_path, payload, config, dataset):
     from .formal_evidence import config_sha256
     from . import formal_risk
 
-    root = gate_path.parent.parent
-    checkpoint_index = root / "factorial" / "checkpoint_index.json"
+    root = gate_path.parent.parent if output_root is None else Path(output_root)
+    from .formal_upstream import resolve_authenticated_upstream
+
+    checkpoint_index = resolve_authenticated_upstream(
+        config, dataset, root
+    ).checkpoint_index
     if set(binding) != {
         "schema_version",
         "dataset_sha256",
@@ -794,10 +841,19 @@ def _validate_risk_mixture_binding(gate_path, payload, config, dataset):
         raise RuntimeError("risk replay binding does not match executed first-party inputs")
 
 
-def _validate_critical_chain_binding(gate_path, payload, stage_name):
-    root = gate_path.parent.parent
-    qualification_path = root / "qualification" / "gate.json"
-    factorial_path = root / "factorial" / "gate.json"
+def _validate_critical_chain_binding(
+    gate_path, payload, stage_name, config=None, dataset=None, *, output_root=None
+):
+    root = gate_path.parent.parent if output_root is None else Path(output_root)
+    if config is None or dataset is None:
+        qualification_path = root / "qualification" / "gate.json"
+        factorial_path = root / "factorial" / "gate.json"
+    else:
+        from .formal_upstream import resolve_authenticated_upstream
+
+        upstream = resolve_authenticated_upstream(config, dataset, root)
+        qualification_path = upstream.qualification_gate
+        factorial_path = upstream.factorial_gate
     evaluation_path = root / "evaluation" / "gate.json"
 
     def require_digest(field, path, label):

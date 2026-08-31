@@ -22,30 +22,59 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--dataset", required=True)
     parser.add_argument("--output", required=True)
     parser.add_argument("--checkpoint", required=True)
-    parser.add_argument("--run-root", required=True)
+    roots = parser.add_mutually_exclusive_group(required=True)
+    roots.add_argument("--run-root")
+    roots.add_argument("--output-run-root")
+    parser.add_argument("--upstream-root")
     return parser
 
 
 def main(argv=None) -> int:
     args = build_parser().parse_args(argv)
     run_scene_id_sigmap(
-        args.dataset, args.output, args.checkpoint, args.run_root
+        args.dataset,
+        args.output,
+        args.checkpoint,
+        args.run_root,
+        output_run_root=args.output_run_root,
+        upstream_root=args.upstream_root,
     )
     return 0
 
 
-def run_scene_id_sigmap(dataset_path, output_root, checkpoint_path, run_root):
-    root = Path(run_root).resolve()
+def run_scene_id_sigmap(
+    dataset_path,
+    output_root,
+    checkpoint_path,
+    run_root,
+    *,
+    output_run_root=None,
+    upstream_root=None,
+):
     output = Path(output_root).resolve()
     output.mkdir(parents=True, exist_ok=True)
     dataset = FormalDataset.load(dataset_path)
-    qualification = read_strict_json(root / "qualification" / "gate.json")
+    provisional_root = upstream_root if upstream_root is not None else run_root
+    if provisional_root is None:
+        raise RuntimeError("scene-ID requires output and upstream roots")
+    qualification = read_strict_json(
+        Path(provisional_root).resolve() / "qualification" / "gate.json"
+    )
     config = qualification["config"]
+    output_run, upstream, _authenticated = _resolve_run_roots(
+        dataset,
+        config,
+        output,
+        run_root=run_root,
+        output_run_root=output_run_root,
+        upstream_root=upstream_root,
+    )
+    qualification = read_strict_json(upstream / "qualification" / "gate.json")
     evidence = evidence_context(
         config, dataset, "FORBIDDEN" if dataset.is_fixture else "CANDIDATE_NOT_CLAIM"
     )
     adapter_root = (
-        root
+        output_run
         / "external_baselines"
         / "adapters"
         / "sigmap-controlled-csi-pairs-v1"
@@ -81,17 +110,55 @@ def run_scene_id_sigmap(dataset_path, output_root, checkpoint_path, run_root):
     return path
 
 
+def _resolve_run_roots(
+    dataset,
+    config,
+    output,
+    *,
+    run_root=None,
+    output_run_root=None,
+    upstream_root=None,
+):
+    if run_root is not None:
+        if output_run_root is not None or upstream_root is not None:
+            raise RuntimeError("scene-ID roots cannot mix local and explicit modes")
+        local_root = Path(run_root).resolve()
+        if (local_root / "migration").exists():
+            raise RuntimeError("scene-ID migration requires explicit output and upstream roots")
+        output_run_root = local_root
+        upstream_root = local_root
+    if output_run_root is None or upstream_root is None:
+        raise RuntimeError("scene-ID requires output and upstream roots")
+    output_run = Path(output_run_root).resolve()
+    upstream = Path(upstream_root).resolve()
+    if output != output_run and output_run not in output.parents:
+        raise RuntimeError("scene-ID output escapes the output run root")
+    from formal_v2.formal_upstream import resolve_authenticated_upstream
+
+    authenticated = resolve_authenticated_upstream(config, dataset, output_run)
+    expected_upstream = (
+        authenticated.migration.legacy_run_root
+        if authenticated.migrated
+        else authenticated.run_root
+    )
+    if authenticated.run_root != output_run or expected_upstream != upstream:
+        raise RuntimeError("scene-ID output/upstream root binding mismatch")
+    return output_run, upstream, authenticated
+
+
 def _validate_checkpoint(payload, dataset, execution):
     required = {
         "schema_version", "model_name", "method", "implementation_status",
         "source_revision", "dataset_sha256", "train_role", "selection_role",
         "target_roles_read", "selected_step", "selection_loss", "normalizer",
-        "model_metadata", "state_dict",
+        "model_metadata", "effective_batch_size", "microbatch_size",
+        "gradient_accumulation_steps", "configured_precision",
+        "executed_precision", "autocast_enabled", "state_dict",
     }
     if not isinstance(payload, dict) or set(payload) != required:
         raise RuntimeError("scene-ID SigMap checkpoint fields must be exact")
     if (
-        payload["schema_version"] != "csi-pairs-v6-controlled-map-checkpoint-v1"
+        payload["schema_version"] != "csi-pairs-v6-controlled-map-checkpoint-v2"
         or payload["model_name"] != "SigMap"
         or payload["method"] != "sigmap"
         or payload["implementation_status"] != "style-controlled-implementation"
@@ -100,6 +167,17 @@ def _validate_checkpoint(payload, dataset, execution):
         or payload["train_role"] != "source_encoder_train"
         or payload["selection_role"] != "source_method_selection"
         or payload["target_roles_read"] != []
+        or type(payload["effective_batch_size"]) is not int
+        or type(payload["microbatch_size"]) is not int
+        or type(payload["gradient_accumulation_steps"]) is not int
+        or payload["effective_batch_size"] <= 0
+        or payload["microbatch_size"] <= 0
+        or payload["effective_batch_size"] % payload["microbatch_size"]
+        or payload["gradient_accumulation_steps"]
+        != payload["effective_batch_size"] // payload["microbatch_size"]
+        or payload["configured_precision"] not in {"float32", "bf16"}
+        or payload["executed_precision"] not in {"float32", "bf16"}
+        or type(payload["autocast_enabled"]) is not bool
         or not isinstance(payload["state_dict"], dict)
         or not payload["state_dict"]
         or execution["checkpoint_sha256"] == ""

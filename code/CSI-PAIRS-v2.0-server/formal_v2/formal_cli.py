@@ -95,6 +95,28 @@ def build_parser() -> argparse.ArgumentParser:
     )
     approval.add_argument("--expires-utc", required=True)
     approval.add_argument("--attest-llm-judged", action="store_true")
+    migration_acceptance = subparsers.add_parser(
+        "accept-migration-request",
+        help="accept an exact migration request using a separately stored external LLM approval",
+    )
+    migration_acceptance.add_argument("--request", required=True)
+    migration_approval = migration_acceptance.add_mutually_exclusive_group(
+        required=True
+    )
+    migration_approval.add_argument(
+        "--approval-manifest",
+        dest="approval_manifest",
+        help="external migration approval manifest",
+    )
+    migration_approval.add_argument(
+        "--approval",
+        dest="approval_manifest",
+        help="alias for --approval-manifest",
+    )
+    migration_acceptance.add_argument("--config", required=True)
+    migration_acceptance.add_argument("--dataset", required=True)
+    migration_acceptance.add_argument("--protocol", required=True)
+    migration_acceptance.add_argument("--output", required=True)
     operator_preflight = subparsers.add_parser(
         "operator-preflight",
         help="operator inventory only; missing optional gates are not launch blockers",
@@ -109,6 +131,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="optional directory; writes operator_preflight.json; not a formal run",
     )
     operator_preflight.add_argument("--compute-plan")
+    evaluation_status = subparsers.add_parser(
+        "evaluation-status",
+        help="read and validate streaming evaluation progress without taking a run lock",
+    )
+    evaluation_status.add_argument("--output", required=True)
 
     for command in (
         "inspect-data",
@@ -240,7 +267,16 @@ def main(argv: list[str] | None = None) -> int:
 
     configure_reproducible_runtime()
     args = build_parser().parse_args(argv)
-    if args.command == "all" and not args.approval_manifest:
+    try:
+        _reject_unsafe_mutating_output_argument(args.command, args.output)
+    except RuntimeError as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 2
+    migration_accepted = (
+        args.command == "all"
+        and (Path(args.output).resolve() / "migration" / "accepted.json").is_file()
+    )
+    if args.command == "all" and not args.approval_manifest and not migration_accepted:
         print(
             "error: all requires --approval-manifest for the exact prepared run; "
             "--approve-full-experiment is deprecated and cannot authorize execution",
@@ -307,6 +343,37 @@ def main(argv: list[str] | None = None) -> int:
                 )
             )
             return 0
+        if args.command == "accept-migration-request":
+            from .formal_evidence import config_sha256
+            from .formal_migration import accept_migration_request
+
+            output_argument = Path(args.output)
+            if output_argument.is_symlink():
+                raise RuntimeError("migration output root cannot be a symlink")
+            output = output_argument.resolve()
+            output_lock = _acquire_output_lock(output)
+            config = load_formal_config(args.config)
+            accepted = accept_migration_request(
+                args.request,
+                args.approval_manifest,
+                new_run_root=output,
+                new_source_root=Path(__file__).resolve().parent,
+                protocol_path=args.protocol,
+                dataset_path=args.dataset,
+                config_sha256=config_sha256(config),
+                expected_seeds=config["seeds"],
+            )
+            print(
+                json.dumps(
+                    {
+                        "status": accepted["status"],
+                        "accepted_path": accepted["accepted_path"],
+                        "accepted_sha256": accepted["accepted_sha256"],
+                    },
+                    sort_keys=True,
+                )
+            )
+            return 0
         if args.command == "operator-preflight":
             from .formal_operator_preflight import run_operator_preflight
 
@@ -317,6 +384,19 @@ def main(argv: list[str] | None = None) -> int:
                 compute_plan_path=args.compute_plan,
             )
             print(json.dumps(report, sort_keys=True, ensure_ascii=True))
+            return 0
+        if args.command == "evaluation-status":
+            from .formal_evaluation_resume import read_evaluation_status
+            from .formal_evaluation_streaming import STATE_DIRECTORY
+
+            state_root = Path(args.output).resolve() / STATE_DIRECTORY
+            status = read_evaluation_status(state_root)
+            if status is None:
+                status = {
+                    "status": "NOT_STARTED",
+                    "state_root": str(state_root),
+                }
+            print(json.dumps(status, sort_keys=True, ensure_ascii=True))
             return 0
         config = load_formal_config(args.config)
         dataset_path = Path(args.dataset).resolve() if args.dataset else resolve_dataset_path(config)
@@ -346,9 +426,16 @@ def main(argv: list[str] | None = None) -> int:
                 int(value) for value in config["localization"]["label_budgets"]
             ),
         )
-        output = Path(args.output).resolve()
+        output_argument = Path(args.output)
+        _reject_unsafe_mutating_output_argument(args.command, output_argument)
+        output = output_argument.resolve()
+        migration_mode = (output / "migration").exists() or (
+            output / "migration"
+        ).is_symlink()
         full_run_preflight = None
-        if args.command in {"prepare-full-run", "all"}:
+        if args.command in {"prepare-full-run", "all"} and not (
+            args.command == "all" and migration_mode
+        ):
             from .formal_run_approval import (
                 full_run_input_values,
                 preflight_full_run,
@@ -374,6 +461,11 @@ def main(argv: list[str] | None = None) -> int:
         elif args.command == "all":
             if not output.is_dir() or output.is_symlink():
                 raise RuntimeError("all requires an existing prepared run root")
+        elif args.command == "run-evaluation" and migration_mode:
+            if not output.is_dir() or output.is_symlink():
+                raise RuntimeError(
+                    "migrated run-evaluation requires an existing migration run root"
+                )
         elif args.command == "export-data-verification":
             pass
         elif args.command == "qualify" and args.resume:
@@ -455,43 +547,71 @@ def main(argv: list[str] | None = None) -> int:
                 allow_nonscientific_fixture=bool(args.allow_nonscientific_fixture),
             )
         elif args.command == "run-evaluation":
-            qualification_path = Path(args.qualification_gate) if args.qualification_gate else output / "qualification" / "gate.json"
-            factorial_path = Path(args.factorial_gate) if args.factorial_gate else output / "factorial" / "gate.json"
-            from .formal_evaluation import run_formal_evaluation
-
-            result = run_formal_evaluation(
-                config,
-                dataset,
-                output,
-                read_strict_json(qualification_path),
-                read_strict_json(factorial_path),
-            )
+            result = _run_evaluation_command(config, dataset, output, args)
         elif args.command == "run-risk":
             from .formal_risk import run_risk_contract
 
-            result = run_risk_contract(config, dataset, output)
+            result = _run_with_authenticated_upstream(
+                config,
+                dataset,
+                output,
+                lambda _upstream: run_risk_contract(config, dataset, output),
+            )
         elif args.command == "run-path":
             from .formal_path import run_path_audit
 
-            result = run_path_audit(config, dataset, output / "factorial", output)
+            result = _run_with_authenticated_upstream(
+                config,
+                dataset,
+                output,
+                lambda upstream: run_path_audit(
+                    config, dataset, upstream.factorial_root, output
+                ),
+            )
         elif args.command == "run-external-baselines":
             from .formal_external import run_external_baselines
 
-            result = run_external_baselines(config, dataset, args.adapter_manifest, output)
+            result = _run_with_authenticated_upstream(
+                config,
+                dataset,
+                output,
+                lambda _upstream: run_external_baselines(
+                    config, dataset, args.adapter_manifest, output
+                ),
+            )
         elif args.command == "run-representation-baselines":
             from .formal_representation_baselines import run_representation_baselines
 
-            result = run_representation_baselines(
-                config, dataset, args.representation_baseline_config, output
+            result = _run_with_authenticated_upstream(
+                config,
+                dataset,
+                output,
+                lambda _upstream: run_representation_baselines(
+                    config, dataset, args.representation_baseline_config, output
+                ),
             )
         elif args.command == "run-resource-controls":
             from .formal_controls import run_resource_controls
 
-            result = run_resource_controls(config, dataset, args.control_manifest, output)
+            result = _run_with_authenticated_upstream(
+                config,
+                dataset,
+                output,
+                lambda _upstream: run_resource_controls(
+                    config, dataset, args.control_manifest, output
+                ),
+            )
         elif args.command == "run-scene-id-audit":
             from .formal_scene_id import run_scene_id_audit
 
-            result = run_scene_id_audit(config, dataset, args.scene_id_manifest, output)
+            result = _run_with_authenticated_upstream(
+                config,
+                dataset,
+                output,
+                lambda _upstream: run_scene_id_audit(
+                    config, dataset, args.scene_id_manifest, output
+                ),
+            )
         elif args.command == "run-external-validity":
             from .formal_external_validity import run_external_validity
 
@@ -513,19 +633,34 @@ def main(argv: list[str] | None = None) -> int:
         elif args.command == "run-shuffled-pair-control":
             from .formal_claim_controls import run_shuffled_pair_control
 
-            result = run_shuffled_pair_control(
-                config, dataset, args.claim_control_manifest, output
+            result = _run_with_authenticated_upstream(
+                config,
+                dataset,
+                output,
+                lambda _upstream: run_shuffled_pair_control(
+                    config, dataset, args.claim_control_manifest, output
+                ),
             )
         elif args.command == "run-retention-audit":
             from .formal_claim_controls import run_retention_audit
 
-            result = run_retention_audit(
-                config, dataset, args.claim_control_manifest, output
+            result = _run_with_authenticated_upstream(
+                config,
+                dataset,
+                output,
+                lambda _upstream: run_retention_audit(
+                    config, dataset, args.claim_control_manifest, output
+                ),
             )
         elif args.command == "assemble-claims":
             from .formal_claims import assemble_claim_evidence
 
-            result = assemble_claim_evidence(config, dataset, output)
+            result = _run_with_authenticated_upstream(
+                config,
+                dataset,
+                output,
+                lambda _upstream: assemble_claim_evidence(config, dataset, output),
+            )
         else:
             result = _run_authorized_full_chain(
                 config,
@@ -637,42 +772,72 @@ def _prepare_full_run(config, dataset, output, args, preflight):
 
 
 def _run_authorized_full_chain(config, dataset, output, args, preflight):
-    from .formal_run_approval import (
-        authenticate_prepared_run,
-        mark_approval_accepted,
-    )
-
-    accepted = authenticate_prepared_run(
+    return _run_with_authenticated_upstream(
         config,
         dataset,
         output,
-        preflight,
-        args.approval_manifest,
+        lambda upstream: _run_authorized_full_chain_for_upstream(
+            config,
+            dataset,
+            output,
+            args,
+            preflight,
+            upstream,
+        ),
     )
-    mark_approval_accepted(output, accepted)
-    qualification = read_strict_json(output / "qualification" / "gate.json")
 
-    from .formal_wrong_map import run_formal_wrong_map
 
-    _require_full_stage(
-        run_formal_wrong_map(config, dataset, output, qualification),
-        "wrong-map control",
-        dataset,
-    )
-    from .formal_factorial import run_formal_factorial
+def _run_authorized_full_chain_for_upstream(
+    config, dataset, output, args, preflight, upstream
+):
+    if upstream.migrated:
+        qualification = read_strict_json(upstream.qualification_gate)
+        factorial = read_strict_json(upstream.factorial_gate)
+    else:
+        from .formal_run_approval import (
+            authenticate_prepared_run,
+            mark_approval_accepted,
+        )
 
-    factorial = run_formal_factorial(
+        accepted = authenticate_prepared_run(
+            config,
+            dataset,
+            output,
+            preflight,
+            args.approval_manifest,
+        )
+        mark_approval_accepted(output, accepted)
+        qualification = read_strict_json(upstream.qualification_gate)
+
+        from .formal_wrong_map import run_formal_wrong_map
+
+        _require_full_stage(
+            run_formal_wrong_map(config, dataset, output, qualification),
+            "wrong-map control",
+            dataset,
+        )
+        from .formal_factorial import run_formal_factorial
+
+        factorial = run_formal_factorial(
+            config,
+            dataset,
+            output,
+            qualification,
+            allow_nonscientific_fixture=bool(args.allow_nonscientific_fixture),
+        )
+        _require_full_stage(factorial, "four-arm factorial", dataset)
+
+    evaluation = _run_evaluation_for_upstream(
         config,
         dataset,
         output,
+        upstream,
         qualification,
-        allow_nonscientific_fixture=bool(args.allow_nonscientific_fixture),
+        factorial,
     )
-    _require_full_stage(factorial, "four-arm factorial", dataset)
-    from .formal_evaluation import run_formal_evaluation
 
     _require_full_stage(
-        run_formal_evaluation(config, dataset, output, qualification, factorial),
+        evaluation,
         "formal evaluation",
         dataset,
     )
@@ -682,7 +847,7 @@ def _run_authorized_full_chain(config, dataset, output, args, preflight):
     from .formal_path import run_path_audit
 
     _require_full_stage(
-        run_path_audit(config, dataset, output / "factorial", output),
+        run_path_audit(config, dataset, upstream.factorial_root, output),
         "path audit",
         dataset,
     )
@@ -743,6 +908,124 @@ def _run_authorized_full_chain(config, dataset, output, args, preflight):
     return result
 
 
+def _run_evaluation_command(config, dataset, output, args):
+    def invoke(upstream):
+        if upstream.migrated and (args.qualification_gate or args.factorial_gate):
+            raise RuntimeError("migrated evaluation forbids upstream path overrides")
+        if upstream.migrated:
+            qualification = None
+            factorial = None
+        else:
+            qualification_path = (
+                Path(args.qualification_gate)
+                if args.qualification_gate
+                else upstream.qualification_gate
+            )
+            factorial_path = (
+                Path(args.factorial_gate)
+                if args.factorial_gate
+                else upstream.factorial_gate
+            )
+            qualification = read_strict_json(qualification_path)
+            factorial = read_strict_json(factorial_path)
+        return _run_evaluation_for_upstream(
+            config,
+            dataset,
+            output,
+            upstream,
+            qualification,
+            factorial,
+        )
+
+    return _run_with_authenticated_upstream(
+        config,
+        dataset,
+        output,
+        invoke,
+    )
+
+
+def _run_evaluation_for_upstream(
+    config, dataset, output, upstream, qualification, factorial
+):
+    if upstream.migrated:
+        return _run_migrated_evaluation(config, dataset, output, upstream)
+
+    from .formal_evaluation import run_formal_evaluation
+
+    return run_formal_evaluation(
+        config,
+        dataset,
+        output,
+        qualification,
+        factorial,
+    )
+
+
+def _run_migrated_evaluation(config, dataset, output, upstream):
+    migration = upstream.migration
+    if migration is None:
+        raise RuntimeError("migrated evaluation requires an authenticated migration")
+
+    from .formal_evaluation_identity import build_migrated_evaluation_execution
+    from .formal_evaluation_streaming import run_streaming_formal_evaluation
+
+    execution = build_migrated_evaluation_execution(config, dataset, upstream)
+    return run_streaming_formal_evaluation(
+        config,
+        dataset,
+        output,
+        upstream_root=migration.legacy_run_root,
+        qualification_gate_path=upstream.qualification_gate,
+        factorial_gate_path=upstream.factorial_gate,
+        checkpoint_index_path=upstream.checkpoint_index,
+        checkpoint_inventory_sha256=migration.checkpoint_inventory_sha256,
+        run_identity=execution.identity,
+        execution_devices=execution.devices,
+        batch_size=execution.batch_size,
+    )
+
+
+def _run_with_legacy_read_lock(upstream, invoke):
+    if not upstream.migrated:
+        return invoke()
+    migration = upstream.migration
+    if migration is None:
+        raise RuntimeError("migrated execution requires an authenticated migration")
+    legacy_read_lock = _acquire_legacy_read_lock(migration.legacy_run_root)
+    try:
+        return invoke()
+    finally:
+        legacy_read_lock.release()
+
+
+def _run_with_authenticated_upstream(config, dataset, output, invoke):
+    from .formal_upstream import resolve_authenticated_upstream
+
+    located = resolve_authenticated_upstream(config, dataset, output)
+    if not located.migrated:
+        return invoke(located)
+    migration = located.migration
+    if migration is None:
+        raise RuntimeError("migrated execution requires an authenticated migration")
+    locked_root = Path(migration.legacy_run_root).resolve()
+
+    def reauthenticate_and_invoke():
+        authenticated = resolve_authenticated_upstream(config, dataset, output)
+        current = authenticated.migration
+        if (
+            not authenticated.migrated
+            or current is None
+            or Path(current.legacy_run_root).resolve() != locked_root
+        ):
+            raise RuntimeError(
+                "migration identity changed while acquiring the legacy read lock"
+            )
+        return invoke(authenticated)
+
+    return _run_with_legacy_read_lock(located, reauthenticate_and_invoke)
+
+
 def _optional_arg(args, name):
     value = getattr(args, name, None)
     if value is None:
@@ -778,8 +1061,33 @@ def _require_preapproval_pass(
 
 
 def _require_full_stage(result, label, dataset):
-    if not dataset.is_fixture and _result_exit_code(result) != 0:
-        raise RuntimeError(f"{label} failed; the authorized chain stopped")
+    if not isinstance(result, dict):
+        raise RuntimeError(f"{label} returned no auditable stage result")
+    status = result.get("status")
+    if not isinstance(status, str) or not status:
+        raise RuntimeError(f"{label} returned no auditable stage status")
+    scientific_statuses = {"PASS": True, "FAIL": False}
+    completion_statuses = {
+        "COMPLETE",
+        "DIAGNOSTIC_COMPLETE_NOT_DOMAIN_EVIDENCE",
+    }
+    passed = result.get("passed")
+    if passed is not None and type(passed) is not bool:
+        raise RuntimeError(f"{label} returned a malformed passed field")
+    if status == "BLOCKED":
+        if passed is not False:
+            raise RuntimeError(f"{label} returned an inconsistent scientific status")
+        if result.get("engineering_complete") is not True:
+            raise RuntimeError(
+                f"{label} is scientifically blocked and/or engineering-incomplete"
+            )
+        return
+    if status not in {*scientific_statuses, *completion_statuses}:
+        raise RuntimeError(f"{label} produced incomplete or invalid engineering output")
+    if status in scientific_statuses and passed is not scientific_statuses[status]:
+        raise RuntimeError(f"{label} returned an inconsistent scientific status")
+    if status in completion_statuses and "passed" in result:
+        raise RuntimeError(f"{label} returned an inconsistent completion status")
 
 
 class _OutputLock:
@@ -806,6 +1114,45 @@ class _OutputLock:
             fcntl.flock(self.guard_handle.fileno(), fcntl.LOCK_UN)
             self.guard_handle.close()
             self.released = True
+
+
+class _LegacyReadLock:
+    def __init__(self, guard_path: Path, handle) -> None:
+        self.guard_path = guard_path
+        self.handle = handle
+        self.released = False
+
+    def release(self) -> None:
+        if self.released:
+            return
+        try:
+            fcntl.flock(self.handle.fileno(), fcntl.LOCK_UN)
+        finally:
+            self.handle.close()
+            self.released = True
+
+
+def _acquire_legacy_read_lock(legacy_run_root: str | Path) -> _LegacyReadLock:
+    root = Path(legacy_run_root).resolve()
+    if not root.is_dir() or root.is_symlink():
+        raise RuntimeError("authenticated legacy run root is missing or invalid")
+    lock_path = root.parent / f".{root.name}.csi-pairs-operation.lock"
+    guard_path = lock_path.with_name(f"{lock_path.name}.guard")
+    if guard_path.is_symlink() or not guard_path.is_file():
+        raise RuntimeError("legacy operation-lock guard is missing or invalid")
+    descriptor = os.open(
+        guard_path,
+        os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0),
+    )
+    handle = os.fdopen(descriptor, "rb", buffering=0)
+    try:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_SH | fcntl.LOCK_NB)
+    except BlockingIOError as error:
+        handle.close()
+        raise RuntimeError(
+            "legacy run still has an active writer; migrated execution is forbidden"
+        ) from error
+    return _LegacyReadLock(guard_path, handle)
 
 
 def _acquire_output_lock(output_root: Path) -> _OutputLock:
@@ -849,6 +1196,25 @@ def _acquire_output_lock(output_root: Path) -> _OutputLock:
         fcntl.flock(guard_handle.fileno(), fcntl.LOCK_UN)
         guard_handle.close()
         raise
+
+
+def _reject_unsafe_mutating_output_argument(
+    command: str, output_root: str | Path | None
+) -> None:
+    """Reject symlink roots where mutation relies on authenticated migration state."""
+
+    if output_root is None:
+        return
+    candidate = Path(output_root)
+    if not candidate.is_symlink():
+        return
+    if command == "all":
+        raise RuntimeError("all output root cannot be a symlink")
+    migration_root = candidate / "migration"
+    if command == "run-evaluation" and (
+        migration_root.exists() or migration_root.is_symlink()
+    ):
+        raise RuntimeError("migrated run-evaluation output root cannot be a symlink")
 
 
 def _sionna_export_lock_root(output: Path) -> Path:

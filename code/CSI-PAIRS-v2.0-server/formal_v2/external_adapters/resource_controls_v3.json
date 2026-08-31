@@ -3,46 +3,46 @@
   "controls": [
     {
       "control_id": "equal_flop_alignment",
-      "command": ["{python}", "{adapter_source}", "run", "--control-id", "equal_flop_alignment", "--dataset", "{dataset}", "--run-root", "{root}", "--output", "{output}", "--architecture-spec", "{architecture_spec}"],
+      "command": ["{python}", "{adapter_source}", "run", "--control-id", "equal_flop_alignment", "--dataset", "{dataset}", "--output-run-root", "{output_run_root}", "--upstream-root", "{upstream_root}", "--output", "{output}", "--architecture-spec", "{architecture_spec}"],
       "replay_command": ["{python}", "{adapter_source}", "replay", "--control-id", "equal_flop_alignment", "--output", "{output}", "--architecture-spec", "{architecture_spec}", "--replay-output", "{replay_output}"],
       "adapter_source_path": "resource_control.py",
-      "adapter_source_sha256": "0d2d94701e46449dc2b2de452a45d29128af7dd10ed9ded38dd78f3fe7f3e846",
+      "adapter_source_sha256": "f604bc66d5343c2b8f0a8101661e220650897530441018473c1452f48319767c",
       "architecture_spec_path": "resource_equal_flop_alignment_v2.json",
       "architecture_spec_sha256": "5682d634250c619fb98f9d9a24a8613e6ef7ef0dd038f6030be23dd67d25834d"
     },
     {
       "control_id": "equal_flop_response",
-      "command": ["{python}", "{adapter_source}", "run", "--control-id", "equal_flop_response", "--dataset", "{dataset}", "--run-root", "{root}", "--output", "{output}", "--architecture-spec", "{architecture_spec}"],
+      "command": ["{python}", "{adapter_source}", "run", "--control-id", "equal_flop_response", "--dataset", "{dataset}", "--output-run-root", "{output_run_root}", "--upstream-root", "{upstream_root}", "--output", "{output}", "--architecture-spec", "{architecture_spec}"],
       "replay_command": ["{python}", "{adapter_source}", "replay", "--control-id", "equal_flop_response", "--output", "{output}", "--architecture-spec", "{architecture_spec}", "--replay-output", "{replay_output}"],
       "adapter_source_path": "resource_control.py",
-      "adapter_source_sha256": "0d2d94701e46449dc2b2de452a45d29128af7dd10ed9ded38dd78f3fe7f3e846",
+      "adapter_source_sha256": "f604bc66d5343c2b8f0a8101661e220650897530441018473c1452f48319767c",
       "architecture_spec_path": "resource_equal_flop_response_v2.json",
       "architecture_spec_sha256": "93f87f25480cb8cbe3544172e2b8766f6698ef1b3e019134fffeee2dfed32322"
     },
     {
       "control_id": "parameter_matched_concat",
-      "command": ["{python}", "{adapter_source}", "run", "--control-id", "parameter_matched_concat", "--dataset", "{dataset}", "--run-root", "{root}", "--output", "{output}", "--architecture-spec", "{architecture_spec}"],
+      "command": ["{python}", "{adapter_source}", "run", "--control-id", "parameter_matched_concat", "--dataset", "{dataset}", "--output-run-root", "{output_run_root}", "--upstream-root", "{upstream_root}", "--output", "{output}", "--architecture-spec", "{architecture_spec}"],
       "replay_command": ["{python}", "{adapter_source}", "replay", "--control-id", "parameter_matched_concat", "--output", "{output}", "--architecture-spec", "{architecture_spec}", "--replay-output", "{replay_output}"],
       "adapter_source_path": "resource_control.py",
-      "adapter_source_sha256": "0d2d94701e46449dc2b2de452a45d29128af7dd10ed9ded38dd78f3fe7f3e846",
+      "adapter_source_sha256": "f604bc66d5343c2b8f0a8101661e220650897530441018473c1452f48319767c",
       "architecture_spec_path": "resource_parameter_matched_concat_v2.json",
       "architecture_spec_sha256": "bfaf24d84913a0de5aed217c68db3768fd75bdd21a10a906880daba598c00a24"
     },
     {
       "control_id": "flop_matched_concat",
-      "command": ["{python}", "{adapter_source}", "run", "--control-id", "flop_matched_concat", "--dataset", "{dataset}", "--run-root", "{root}", "--output", "{output}", "--architecture-spec", "{architecture_spec}"],
+      "command": ["{python}", "{adapter_source}", "run", "--control-id", "flop_matched_concat", "--dataset", "{dataset}", "--output-run-root", "{output_run_root}", "--upstream-root", "{upstream_root}", "--output", "{output}", "--architecture-spec", "{architecture_spec}"],
       "replay_command": ["{python}", "{adapter_source}", "replay", "--control-id", "flop_matched_concat", "--output", "{output}", "--architecture-spec", "{architecture_spec}", "--replay-output", "{replay_output}"],
       "adapter_source_path": "resource_control.py",
-      "adapter_source_sha256": "0d2d94701e46449dc2b2de452a45d29128af7dd10ed9ded38dd78f3fe7f3e846",
+      "adapter_source_sha256": "f604bc66d5343c2b8f0a8101661e220650897530441018473c1452f48319767c",
       "architecture_spec_path": "resource_flop_matched_concat_v2.json",
       "architecture_spec_sha256": "f12d131161140bda7ef48520ab5ba0354a1b6b774b457348878adf0a5b6dd87a"
     },
     {
       "control_id": "generous_2x_concat",
-      "command": ["{python}", "{adapter_source}", "run", "--control-id", "generous_2x_concat", "--dataset", "{dataset}", "--run-root", "{root}", "--output", "{output}", "--architecture-spec", "{architecture_spec}"],
+      "command": ["{python}", "{adapter_source}", "run", "--control-id", "generous_2x_concat", "--dataset", "{dataset}", "--output-run-root", "{output_run_root}", "--upstream-root", "{upstream_root}", "--output", "{output}", "--architecture-spec", "{architecture_spec}"],
       "replay_command": ["{python}", "{adapter_source}", "replay", "--control-id", "generous_2x_concat", "--output", "{output}", "--architecture-spec", "{architecture_spec}", "--replay-output", "{replay_output}"],
       "adapter_source_path": "resource_control.py",
-      "adapter_source_sha256": "0d2d94701e46449dc2b2de452a45d29128af7dd10ed9ded38dd78f3fe7f3e846",
+      "adapter_source_sha256": "f604bc66d5343c2b8f0a8101661e220650897530441018473c1452f48319767c",
       "architecture_spec_path": "resource_generous_2x_concat_v2.json",
       "architecture_spec_sha256": "3b69aeb65ab99aa3d7a72f2d2988bd0bcea02dbb0f2e62ab93f29b409f7db629"
     }

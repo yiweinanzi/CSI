@@ -634,7 +634,7 @@ class FullRunApprovalTests(unittest.TestCase):
         )
         self.assertEqual(result["status"], "AWAITING_LLM_JUDGE")
 
-    def test_authorized_chain_order_and_failure_short_circuit(self):
+    def test_authorized_chain_order_scientific_fail_continues_engineering_error_stops(self):
         run = self.root / "authorized-run"
         qualification = run / "qualification" / "gate.json"
         qualification.parent.mkdir(parents=True)
@@ -669,13 +669,24 @@ class FullRunApprovalTests(unittest.TestCase):
             "claims",
         ]
 
-        def execute(failing_stage=None):
+        def execute(
+            scientific_fail_stage=None,
+            error_stage=None,
+            *,
+            diagnostic_wrong_map=False,
+        ):
             calls = []
 
             def stage(name):
                 def invoke(*_args, **_kwargs):
                     calls.append(name)
-                    if name == failing_stage:
+                    if name == error_stage:
+                        raise RuntimeError("injected engineering failure")
+                    if name == "wrong_map" and diagnostic_wrong_map:
+                        return {
+                            "status": "DIAGNOSTIC_COMPLETE_NOT_DOMAIN_EVIDENCE"
+                        }
+                    if name == scientific_fail_stage:
                         return {"status": "FAIL", "passed": False}
                     return {"status": "PASS", "passed": True}
 
@@ -712,21 +723,26 @@ class FullRunApprovalTests(unittest.TestCase):
                 ),
                 patch("formal_v2.formal_claims.assemble_claim_evidence", side_effect=stage("claims")),
             ):
-                if failing_stage is None:
+                if error_stage is not None:
+                    with self.assertRaisesRegex(RuntimeError, "injected engineering failure"):
+                        _run_authorized_full_chain(
+                            {}, dataset, run, args, {"status": "PASS"}
+                        )
+                else:
                     result = _run_authorized_full_chain(
                         {}, dataset, run, args, {"status": "PASS"}
                     )
                     self.assertTrue(result["passed"])
-                else:
-                    with self.assertRaisesRegex(RuntimeError, "authorized chain stopped"):
-                        _run_authorized_full_chain(
-                            {}, dataset, run, args, {"status": "PASS"}
-                        )
             return calls
 
         self.assertEqual(execute(), expected)
         self.assertEqual(
-            execute(failing_stage="factorial"),
+            execute(scientific_fail_stage="factorial"),
+            expected,
+        )
+        self.assertEqual(execute(diagnostic_wrong_map=True), expected)
+        self.assertEqual(
+            execute(error_stage="factorial"),
             expected[: expected.index("factorial") + 1],
         )
 

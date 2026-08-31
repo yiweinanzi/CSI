@@ -51,6 +51,7 @@ CONTROL_CONTRACTS = {
 
 def run_resource_controls(config, dataset, manifest_path, output_root):
     from .formal_data_verification import require_verified_roles_from_root
+    from .formal_upstream import resolve_authenticated_upstream
 
     require_verified_roles_from_root(
         output_root,
@@ -62,15 +63,17 @@ def run_resource_controls(config, dataset, manifest_path, output_root):
     manifest = read_strict_json(manifest_path)
     _validate_manifest(manifest, manifest_path.parent)
     root = Path(output_root)
-    factorial_gate_path = root / "factorial" / "gate.json"
+    upstream = resolve_authenticated_upstream(config, dataset, root)
+    factorial_gate_path = upstream.factorial_gate
     factorial_gate = read_strict_json(factorial_gate_path)
-    require_stage_manifested_gate(
-        factorial_gate_path,
-        factorial_gate,
-        config,
-        dataset,
-        schema_version=FACTORIAL_SCHEMA,
-    )
+    if not upstream.migrated:
+        require_stage_manifested_gate(
+            factorial_gate_path,
+            factorial_gate,
+            config,
+            dataset,
+            schema_version=FACTORIAL_SCHEMA,
+        )
     evaluation_gate_path = root / "evaluation" / "gate.json"
     evaluation_gate = read_strict_json(evaluation_gate_path)
     require_stage_manifested_gate(
@@ -99,9 +102,13 @@ def run_resource_controls(config, dataset, manifest_path, output_root):
     evidence = evidence_context(
         config, dataset, "FORBIDDEN" if dataset.is_fixture else "CANDIDATE_NOT_CLAIM"
     )
-    main_rows = _read_localization(root / "factorial" / "localization_per_bank.csv", evidence)
+    main_rows = _read_localization(
+        upstream.factorial_path("localization_per_bank.csv"), evidence
+    )
     full_utility = _utility(main_rows, "full", config["localization"]["primary_budgets"])
-    main_resource = _main_resource(root / "factorial" / "training_summary.csv")
+    main_resource = _main_resource(
+        upstream.factorial_path("training_summary.csv")
+    )
     result_rows = []
     resource_rows = []
     utilities = {}
@@ -119,7 +126,9 @@ def run_resource_controls(config, dataset, manifest_path, output_root):
         target.mkdir(parents=True, exist_ok=True)
         command = [
             value.format(
-                dataset=str(dataset.source_path), output=str(target), root=str(root),
+                dataset=str(dataset.source_path), output=str(target),
+                output_run_root=str(upstream.run_root),
+                upstream_root=str(_upstream_run_root(upstream)),
                 adapter_source=str(source), architecture_spec=str(architecture_path),
                 python=sys.executable,
             )
@@ -323,6 +332,7 @@ def _validate_manifest(manifest, manifest_root=None):
             raise ValueError(
                 "resource-control commands must consume the authenticated architecture spec"
             )
+        _require_explicit_root_bindings(item["command"])
         for key in ("adapter_source_sha256", "architecture_spec_sha256"):
             if not _lower_sha256(item[key]):
                 raise ValueError(f"resource-control {key} must be lowercase SHA-256")
@@ -341,6 +351,31 @@ def _validate_manifest(manifest, manifest_root=None):
                 read_strict_json(Path(manifest_root) / item["architecture_spec_path"]),
                 manifest_schema=manifest["schema_version"],
             )
+
+
+def _upstream_run_root(upstream):
+    if upstream.migrated:
+        return upstream.migration.legacy_run_root
+    return upstream.run_root
+
+
+def _require_explicit_root_bindings(command):
+    for option, placeholder in (
+        ("--output-run-root", "{output_run_root}"),
+        ("--upstream-root", "{upstream_root}"),
+    ):
+        positions = [index for index, value in enumerate(command) if value == option]
+        if (
+            len(positions) != 1
+            or positions[0] + 1 >= len(command)
+            or command[positions[0] + 1] != placeholder
+            or command.count(placeholder) != 1
+        ):
+            raise ValueError(
+                "resource-control command must bind output and upstream roots explicitly"
+            )
+    if "--run-root" in command or "{root}" in command:
+        raise ValueError("resource-control command cannot use the ambiguous run root")
 
 
 def _validate_architecture_spec(

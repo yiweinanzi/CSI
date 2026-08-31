@@ -38,6 +38,7 @@ from formal_v2.external_adapters.resource_control import (
 )
 from formal_v2.formal_external import (
     _c1_model_assessment,
+    _external_gate_state,
     _resolve_adapter_command,
     _validate_manifest as validate_external_manifest,
     _validate_six_condition_rows,
@@ -239,6 +240,35 @@ class EvidenceIntegrityTests(unittest.TestCase):
             run_external_baselines({}, self.dataset, manifest_path, ROOT / "unused-run")
         require_roles.assert_called_once()
         self.assertEqual(require_roles.call_args.args[3], expected_roles)
+
+    def test_external_gate_separates_scientific_block_from_engineering_failure(self):
+        self.assertEqual(
+            _external_gate_state(False, []),
+            {
+                "status": "BLOCKED",
+                "passed": False,
+                "engineering_complete": True,
+            },
+        )
+        self.assertEqual(
+            _external_gate_state(True, []),
+            {
+                "status": "PASS",
+                "passed": True,
+                "engineering_complete": True,
+            },
+        )
+        self.assertEqual(
+            _external_gate_state(
+                False,
+                [{"adapter_id": "failed-adapter", "reason": "nonzero exit"}],
+            ),
+            {
+                "status": "INCOMPLETE_FAIL_CLOSED",
+                "passed": False,
+                "engineering_complete": False,
+            },
+        )
 
     def test_external_adapter_command_must_execute_hashed_source(self):
         manifest = json.loads(

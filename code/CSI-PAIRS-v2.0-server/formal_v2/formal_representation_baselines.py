@@ -25,6 +25,9 @@ IMPLEMENTATION_STATUSES = {
 
 
 def run_representation_baselines(config, dataset, adapter_config_path, output_root):
+    from .formal_upstream import resolve_authenticated_upstream
+
+    resolve_authenticated_upstream(config, dataset, output_root)
     required_roles = (
         "source_encoder_train",
         "source_method_selection",

@@ -264,6 +264,7 @@ def run_path_audit(
     output_root: str | Path,
 ) -> dict:
     from .formal_data_verification import require_verified_roles_from_root
+    from .formal_upstream import resolve_authenticated_upstream
 
     require_verified_roles_from_root(
         output_root,
@@ -272,14 +273,24 @@ def run_path_audit(
         ("source_method_selection", "source_final_unseen_bank", "target"),
     )
     root = Path(output_root)
+    upstream = resolve_authenticated_upstream(config, dataset, root)
+    if Path(factorial_root).resolve() != upstream.factorial_root.resolve():
+        raise RuntimeError("path audit factorial root bypasses authenticated upstream")
     evidence = evidence_context(
         config, dataset, "FORBIDDEN" if dataset.is_fixture else "CANDIDATE_NOT_CLAIM"
     )
     compatibility_path = root / "evaluation" / "compatibility_pair_effects.csv"
     response_path = root / "evaluation" / "response_pair_effects.csv"
-    localization_path = Path(factorial_root) / "localization_per_sample.csv"
-    for path in (compatibility_path, response_path, localization_path):
+    localization_path = upstream.factorial_path("localization_per_sample.csv")
+    for path in (compatibility_path, response_path):
         _require_manifested_stage_artifact(path, evidence)
+    if not upstream.migrated:
+        _require_manifested_stage_artifact(localization_path, evidence)
+        localization_evidence = evidence
+    else:
+        localization_evidence = upstream.factorial_evidence
+        if localization_evidence is None:
+            raise RuntimeError("migrated path audit lacks authenticated factorial evidence")
 
     output_dir = root / "path"
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -310,7 +321,7 @@ def run_path_audit(
         dataset,
         epsilon,
         power_coverage,
-        evidence,
+        localization_evidence,
     )
     write_csv(output_dir / "compatibility_path_effects.csv", bind_rows(compatibility, evidence))
     write_csv(output_dir / "response_path_effects.csv", bind_rows(response, evidence))

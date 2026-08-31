@@ -179,7 +179,10 @@ def _freeze_first_party_risk_features(
 
 
 def _risk_replay_binding(config, dataset, output_root, payload, mixture, blocking):
+    from .formal_upstream import resolve_authenticated_upstream
+
     root = Path(output_root)
+    upstream = resolve_authenticated_upstream(config, dataset, root)
     evidence = evidence_context(
         config, dataset, "FORBIDDEN" if dataset.is_fixture else "CANDIDATE_NOT_CLAIM"
     )
@@ -188,7 +191,7 @@ def _risk_replay_binding(config, dataset, output_root, payload, mixture, blockin
         "dataset_sha256": evidence["dataset_sha256"],
         "config_sha256": evidence["config_sha256"],
         "checkpoint_index_sha256": sha256_file(
-            root / "factorial" / "checkpoint_index.json"
+            upstream.checkpoint_index
         ),
         "implementation_source_sha256": sha256_file(Path(__file__).resolve()),
         "payload_sha256": _risk_feature_payload_sha256(
@@ -2641,13 +2644,17 @@ def build_first_party_risk_features(config, dataset, output_root):
     from .formal_teacher import load_teacher_bundle
 
     root = Path(output_root)
-    qualification = read_strict_json(root / "qualification" / "gate.json")
-    qualification = require_manifested_formal_qualification(
-        qualification,
-        config,
-        dataset,
-        allow_nonscientific_fixture=True,
-    )
+    from .formal_upstream import resolve_authenticated_upstream
+
+    upstream = resolve_authenticated_upstream(config, dataset, root)
+    qualification = read_strict_json(upstream.qualification_gate)
+    if not upstream.migrated:
+        qualification = require_manifested_formal_qualification(
+            qualification,
+            config,
+            dataset,
+            allow_nonscientific_fixture=True,
+        )
     execution_device = resolve_execution_device(dataset)
     teacher = load_teacher_bundle(
         qualification["teacher_checkpoint"],
@@ -2661,7 +2668,7 @@ def build_first_party_risk_features(config, dataset, output_root):
         route_normalization,
         teacher.patch_spec,
     )
-    checkpoint_index = read_strict_json(root / "factorial" / "checkpoint_index.json")
+    checkpoint_index = read_strict_json(upstream.checkpoint_index)
     checkpoint_rows = _validate_checkpoint_index(
         checkpoint_index, config, dataset, qualification
     )
@@ -2720,7 +2727,7 @@ def build_first_party_risk_features(config, dataset, output_root):
         arm = str(checkpoint_row["arm"])
         seed = int(checkpoint_row["seed"])
         model = _load_model(
-            root / "factorial",
+            upstream.factorial_root,
             checkpoint_row,
             qualification,
             config,
@@ -3241,8 +3248,11 @@ def load_risk_feature_archive(
         if str(np.asarray(archive["config_sha256"]).item()) != evidence["config_sha256"]:
             raise ValueError("risk feature config hash mismatch")
         root = Path(output_root)
+        from .formal_upstream import resolve_authenticated_upstream
+
+        upstream = resolve_authenticated_upstream(config, dataset, root)
         bindings = (
-            ("checkpoint_index_sha256", root / "factorial" / "checkpoint_index.json"),
+            ("checkpoint_index_sha256", upstream.checkpoint_index),
             ("evaluation_manifest_sha256", root / "evaluation" / "manifest.json"),
         )
         for field, bound_path in bindings:

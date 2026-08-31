@@ -7,7 +7,10 @@ from pathlib import Path
 import numpy as np
 import torch
 
-from formal_v2.formal_claim_controls import _validate_formal_checkpoint
+from formal_v2.formal_claim_controls import (
+    _authenticated_qualification_gate,
+    _validate_formal_checkpoint,
+)
 from formal_v2.formal_dataset import FormalDataset
 from formal_v2.formal_evaluation import _compatibility_dataset, _response_probe_dataset
 from formal_v2.formal_evidence import configure_reproducible_runtime, evidence_context
@@ -28,7 +31,10 @@ def build_parser() -> argparse.ArgumentParser:
         description="First-party frozen-F retention audit for CSI-PAIRS V6"
     )
     parser.add_argument("--dataset", required=True)
-    parser.add_argument("--run-root", required=True)
+    roots = parser.add_mutually_exclusive_group(required=True)
+    roots.add_argument("--run-root")
+    roots.add_argument("--output-run-root")
+    parser.add_argument("--upstream-root")
     parser.add_argument("--output", required=True)
     parser.add_argument("--context", required=True)
     return parser
@@ -36,13 +42,27 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv=None) -> int:
     args = build_parser().parse_args(argv)
-    run_retention_control(args.dataset, args.run_root, args.output, args.context)
+    run_retention_control(
+        args.dataset,
+        args.run_root,
+        args.output,
+        args.context,
+        output_run_root=args.output_run_root,
+        upstream_root=args.upstream_root,
+    )
     return 0
 
 
-def run_retention_control(dataset_path, run_root, output_root, context_path) -> Path:
+def run_retention_control(
+    dataset_path,
+    run_root,
+    output_root,
+    context_path,
+    *,
+    output_run_root=None,
+    upstream_root=None,
+) -> Path:
     configure_reproducible_runtime()
-    root = Path(run_root).resolve()
     output = Path(output_root).resolve()
     context = read_strict_json(context_path)
     if set(context) != {
@@ -90,7 +110,17 @@ def run_retention_control(dataset_path, run_root, output_root, context_path) -> 
         if context[key] != evidence[key]:
             raise RuntimeError(f"retention control context {key} mismatch")
 
-    qualification = read_strict_json(root / "qualification" / "gate.json")
+    output_run, upstream, authenticated = _resolve_run_roots(
+        dataset,
+        config,
+        output,
+        run_root=run_root,
+        output_run_root=output_run_root,
+        upstream_root=upstream_root,
+    )
+    qualification = _authenticated_qualification_gate(
+        config, dataset, authenticated
+    )
     teacher_path = Path(str(qualification["teacher_checkpoint"]))
     if (
         not teacher_path.is_file()
@@ -121,7 +151,7 @@ def run_retention_control(dataset_path, run_root, output_root, context_path) -> 
     write_json(provenance_path, provenance)
     provenance_sha256 = sha256_file(provenance_path)
 
-    checkpoint_index_path = root / "factorial" / "checkpoint_index.json"
+    checkpoint_index_path = upstream / "factorial" / "checkpoint_index.json"
     checkpoint_index = read_strict_json(checkpoint_index_path)
     full_rows = {
         int(row["seed"]): row
@@ -130,16 +160,31 @@ def run_retention_control(dataset_path, run_root, output_root, context_path) -> 
     }
     if set(full_rows) != set(map(int, config["seeds"])):
         raise RuntimeError("retention control requires every registered Full checkpoint")
+    if any(
+        row.get("teacher_checkpoint_sha256")
+        != qualification["teacher_checkpoint_sha256"]
+        for row in full_rows.values()
+    ):
+        raise RuntimeError("retention control Full checkpoint teacher hash mismatch")
 
-    registry = _read_registry(root / "evaluation" / "compatibility_pair_effects.csv")
+    registry_path = output_run / "evaluation" / "compatibility_pair_effects.csv"
+    registry = _read_registry(registry_path)
     all_rows = []
     probe_rows = []
     for seed in map(int, config["seeds"]):
         checkpoint_row = full_rows[seed]
-        checkpoint_path = root / "factorial" / checkpoint_row["path"]
+        checkpoint_path = upstream / "factorial" / checkpoint_row["path"]
         if sha256_file(checkpoint_path) != checkpoint_row["sha256"]:
             raise RuntimeError("retention Full checkpoint hash mismatch")
-        payload = _validate_formal_checkpoint(checkpoint_path, checkpoint_row, evidence)
+        payload = _validate_formal_checkpoint(
+            checkpoint_path,
+            checkpoint_row,
+            evidence,
+            teacher_checkpoint_sha256=qualification[
+                "teacher_checkpoint_sha256"
+            ],
+            legacy_runtime=authenticated.migrated,
+        )
         model = _model_from_payload(payload)
 
         compatibility_probe, response_probe = _fit_probes(
@@ -220,7 +265,7 @@ def run_retention_control(dataset_path, run_root, output_root, context_path) -> 
             "per_unit_results_path": rows_path.name,
             "per_unit_results_sha256": sha256_file(rows_path),
             "pair_registry_sha256": sha256_file(
-                root / "evaluation" / "compatibility_pair_effects.csv"
+                registry_path
             ),
             "checkpoint_index_sha256": sha256_file(checkpoint_index_path),
             "adapter_source_sha256": sha256_file(Path(__file__).resolve()),
@@ -231,6 +276,42 @@ def run_retention_control(dataset_path, run_root, output_root, context_path) -> 
         },
     )
     return result_path
+
+
+def _resolve_run_roots(
+    dataset,
+    config,
+    output,
+    *,
+    run_root=None,
+    output_run_root=None,
+    upstream_root=None,
+):
+    if run_root is not None:
+        if output_run_root is not None or upstream_root is not None:
+            raise RuntimeError("retention roots cannot mix local and explicit modes")
+        local_root = Path(run_root).resolve()
+        if (local_root / "migration").exists():
+            raise RuntimeError("retention migration requires explicit output and upstream roots")
+        output_run_root = local_root
+        upstream_root = local_root
+    if output_run_root is None or upstream_root is None:
+        raise RuntimeError("retention requires output and upstream roots")
+    output_run = Path(output_run_root).resolve()
+    upstream = Path(upstream_root).resolve()
+    if output != output_run and output_run not in output.parents:
+        raise RuntimeError("retention output escapes the output run root")
+    from formal_v2.formal_upstream import resolve_authenticated_upstream
+
+    authenticated = resolve_authenticated_upstream(config, dataset, output_run)
+    expected_upstream = (
+        authenticated.migration.legacy_run_root
+        if authenticated.migrated
+        else authenticated.run_root
+    )
+    if authenticated.run_root != output_run or expected_upstream != upstream:
+        raise RuntimeError("retention output/upstream root binding mismatch")
+    return output_run, upstream, authenticated
 
 
 def _model_from_payload(payload):

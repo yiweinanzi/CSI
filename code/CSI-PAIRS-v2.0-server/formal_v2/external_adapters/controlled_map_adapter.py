@@ -43,7 +43,10 @@ def main(argv=None) -> int:
     parser.add_argument("--config", required=True)
     parser.add_argument("--dataset", required=True)
     parser.add_argument("--output", required=True)
-    parser.add_argument("--run-root", required=True)
+    roots = parser.add_mutually_exclusive_group(required=True)
+    roots.add_argument("--run-root")
+    roots.add_argument("--output-run-root")
+    parser.add_argument("--upstream-root")
     parser.add_argument("--command-sha256", required=True)
     parser.add_argument("--source-revision", required=True)
     parser.add_argument("--adapter-id", required=True)
@@ -71,19 +74,33 @@ def run_adapter(args) -> dict:
     dataset = FormalDataset.load(args.dataset)
     if not dataset.is_fixture and config["profile"] != "formal-paper-dose":
         raise RuntimeError("scientific controlled-map execution requires the formal-paper-dose profile")
-    run_root = Path(args.run_root).resolve()
     output = Path(args.output).resolve()
     output.mkdir(parents=True, exist_ok=True)
     for name in ("six_condition_results.csv", "execution_manifest.json"):
         if (output / name).exists():
             raise FileExistsError(f"refusing to overwrite controlled adapter output: {name}")
-    qualification = read_strict_json(run_root / "qualification" / "gate.json")
-    formal_config = qualification["config"]
-    qualification = require_manifested_formal_qualification(
-        qualification, formal_config, dataset, allow_nonscientific_fixture=True
+    provisional_root = getattr(args, "upstream_root", None) or getattr(
+        args, "run_root", None
     )
+    if provisional_root is None:
+        raise RuntimeError("controlled adapter requires output and upstream roots")
+    qualification = read_strict_json(
+        Path(provisional_root).resolve() / "qualification" / "gate.json"
+    )
+    formal_config = qualification["config"]
+    _output_run, upstream, authenticated = _resolve_run_roots(
+        args, dataset, formal_config, output
+    )
+    qualification = read_strict_json(upstream / "qualification" / "gate.json")
+    if not authenticated.migrated:
+        qualification = require_manifested_formal_qualification(
+            qualification,
+            formal_config,
+            dataset,
+            allow_nonscientific_fixture=True,
+        )
     require_verified_roles_from_root(
-        run_root,
+        upstream,
         formal_config,
         dataset,
         ("source_encoder_train", "source_method_selection", "source_final_unseen_bank", "target"),
@@ -125,6 +142,39 @@ def run_adapter(args) -> dict:
     }
     write_json(output / "execution_manifest.json", manifest)
     return manifest
+
+
+def _resolve_run_roots(args, dataset, config, output):
+    run_root = getattr(args, "run_root", None)
+    output_run_root = getattr(args, "output_run_root", None)
+    upstream_root = getattr(args, "upstream_root", None)
+    if run_root is not None:
+        if output_run_root is not None or upstream_root is not None:
+            raise RuntimeError("controlled adapter roots cannot mix local and explicit modes")
+        local_root = Path(run_root).resolve()
+        if (local_root / "migration").exists():
+            raise RuntimeError(
+                "controlled adapter migration requires explicit output and upstream roots"
+            )
+        output_run_root = local_root
+        upstream_root = local_root
+    if output_run_root is None or upstream_root is None:
+        raise RuntimeError("controlled adapter requires output and upstream roots")
+    output_run = Path(output_run_root).resolve()
+    upstream = Path(upstream_root).resolve()
+    if output != output_run and output_run not in output.parents:
+        raise RuntimeError("controlled adapter output escapes the output run root")
+    from formal_v2.formal_upstream import resolve_authenticated_upstream
+
+    authenticated = resolve_authenticated_upstream(config, dataset, output_run)
+    expected_upstream = (
+        authenticated.migration.legacy_run_root
+        if authenticated.migrated
+        else authenticated.run_root
+    )
+    if authenticated.run_root != output_run or expected_upstream != upstream:
+        raise RuntimeError("controlled adapter output/upstream root binding mismatch")
+    return output_run, upstream, authenticated
 
 
 def load_controlled_map_config(path: str | Path) -> dict:

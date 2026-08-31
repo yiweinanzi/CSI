@@ -20,7 +20,9 @@ BUILTIN_SCENE_ID_MANIFEST = "builtin:sigmap-scene-id-v1"
 
 def run_scene_id_audit(config, dataset, manifest_path, output_root):
     from .formal_data_verification import require_verified_roles_from_root
+    from .formal_upstream import resolve_authenticated_upstream
 
+    upstream = resolve_authenticated_upstream(config, dataset, output_root)
     require_verified_roles_from_root(
         output_root, config, dataset, ("source_final_unseen_bank",)
     )
@@ -64,7 +66,8 @@ def run_scene_id_audit(config, dataset, manifest_path, output_root):
                 checkpoint=str(checkpoint),
                 adapter_source=str(adapter_source),
                 python=sys.executable,
-                run_root=str(Path(output_root).resolve()),
+                output_run_root=str(upstream.run_root),
+                upstream_root=str(_upstream_run_root(upstream)),
             )
             for value in adapter["command"]
         ]
@@ -204,7 +207,8 @@ def _materialize_builtin_manifest(config, dataset, output_root, output_dir):
                         "--dataset", "{dataset}",
                         "--output", "{output}",
                         "--checkpoint", "{checkpoint}",
-                        "--run-root", "{run_root}",
+                        "--output-run-root", "{output_run_root}",
+                        "--upstream-root", "{upstream_root}",
                     ],
                 }
             ],
@@ -251,6 +255,7 @@ def _validate_manifest(manifest):
             raise ValueError(
                 "scene-ID command must execute the authenticated adapter module"
             )
+        _require_explicit_root_bindings(adapter["command"])
         for key in (
             "adapter_id", "model_name", "implementation_revision", "adapter_source_path",
             "model_checkpoint_path", "training_provenance_path",
@@ -272,6 +277,31 @@ def _command_executes_adapter_source(command, adapter_source_path):
         and len(command) >= 2
         and command[:2] == ["{python}", "{adapter_source}"]
     )
+
+
+def _upstream_run_root(upstream):
+    if upstream.migrated:
+        return upstream.migration.legacy_run_root
+    return upstream.run_root
+
+
+def _require_explicit_root_bindings(command):
+    for option, placeholder in (
+        ("--output-run-root", "{output_run_root}"),
+        ("--upstream-root", "{upstream_root}"),
+    ):
+        positions = [index for index, value in enumerate(command) if value == option]
+        if (
+            len(positions) != 1
+            or positions[0] + 1 >= len(command)
+            or command[positions[0] + 1] != placeholder
+            or command.count(placeholder) != 1
+        ):
+            raise ValueError(
+                "scene-ID command must bind output and upstream roots explicitly"
+            )
+    if "--run-root" in command or "{run_root}" in command:
+        raise ValueError("scene-ID command cannot use the ambiguous run root")
 
 
 def _adapter_environment(project_root):
