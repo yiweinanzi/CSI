@@ -942,7 +942,7 @@ class EvaluationSubsetReportTests(unittest.TestCase):
         self.assertEqual(before["total_file_bytes"], after["total_file_bytes"])
         self.assertNotEqual(before["entries_sha256"], after["entries_sha256"])
 
-    def test_worker_rejects_non_gpu0_request_before_data_loading(self):
+    def test_worker_rejects_wrong_formal_device_contract_before_data_loading(self):
         request = self.external / "request.json"
         request.parent.mkdir(parents=True)
         request.write_text(
@@ -955,8 +955,25 @@ class EvaluationSubsetReportTests(unittest.TestCase):
             ),
             encoding="utf-8",
         )
+        with mock.patch.dict(os.environ, {"CUDA_VISIBLE_DEVICES": "0,1"}):
+            with self.assertRaisesRegex(RuntimeError, "CUDA_VISIBLE_DEVICES=0,1"):
+                run_worker_request(request)
+
+    def test_worker_rejects_single_visible_gpu_before_data_loading(self):
+        request = self.external / "single-visible-gpu-request.json"
+        request.parent.mkdir(parents=True)
+        request.write_text(
+            json.dumps(
+                {
+                    "schema_version": WORKER_REQUEST_SCHEMA,
+                    "role": "frozen_legacy",
+                    "device": "cuda:0",
+                }
+            ),
+            encoding="utf-8",
+        )
         with mock.patch.dict(os.environ, {"CUDA_VISIBLE_DEVICES": "0"}):
-            with self.assertRaisesRegex(RuntimeError, "CUDA_VISIBLE_DEVICES=0"):
+            with self.assertRaisesRegex(RuntimeError, "CUDA_VISIBLE_DEVICES=0,1"):
                 run_worker_request(request)
 
     def test_compare_cli_reads_cross_source_report_shape(self):

@@ -82,6 +82,7 @@ IMPLEMENTATION_EVIDENCE_FIELDS = (
     "source_tree_sha256",
     "runtime_provenance_sha256",
 )
+FORMAL_VISIBLE_DEVICES = "0,1"
 SOURCE_IDENTITY_SUFFIXES = frozenset(
     {".py", ".json", ".sh", ".txt", ".toml", ".lock", ".yaml", ".yml"}
 )
@@ -1961,11 +1962,11 @@ def run_worker_request(request_path: str | Path) -> dict[str, object]:
     if role not in {"frozen_legacy", "streaming_candidate"}:
         raise RuntimeError("subset worker role is invalid")
     if (
-        os.environ.get("CUDA_VISIBLE_DEVICES") != "0"
+        os.environ.get("CUDA_VISIBLE_DEVICES") != FORMAL_VISIBLE_DEVICES
         or request.get("device") != "cuda:0"
     ):
         raise RuntimeError(
-            "formal subset worker requires CUDA_VISIBLE_DEVICES=0 and device cuda:0"
+            "formal subset worker requires CUDA_VISIBLE_DEVICES=0,1 and device cuda:0"
         )
     if not sys.flags.isolated or not sys.dont_write_bytecode:
         raise RuntimeError("formal subset worker requires isolated python -I -B")
@@ -2450,9 +2451,12 @@ def run_cross_source_subset_comparison(
     checkpoint_arm: str | None = None,
 ) -> dict[str, object]:
     started = time.monotonic()
-    if os.environ.get("CUDA_VISIBLE_DEVICES") != "0" or device != "cuda:0":
+    if (
+        os.environ.get("CUDA_VISIBLE_DEVICES") != FORMAL_VISIBLE_DEVICES
+        or device != "cuda:0"
+    ):
         raise RuntimeError(
-            "formal dual-source subset comparison requires CUDA_VISIBLE_DEVICES=0 "
+            "formal dual-source subset comparison requires CUDA_VISIBLE_DEVICES=0,1 "
             "and --device cuda:0"
         )
     legacy_root = Path(legacy_run_root).resolve()
