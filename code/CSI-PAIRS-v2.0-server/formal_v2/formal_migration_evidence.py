@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import csv
 import hashlib
 import json
 import math
@@ -8,7 +9,7 @@ import re
 import secrets
 import stat
 import subprocess
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Mapping, Sequence
 
@@ -44,6 +45,9 @@ MIGRATION_TECHNICAL_EVIDENCE_SCHEMAS = {
 }
 MIGRATION_DIFF_SCHEMA = "csi-pairs-v6-migration-base-to-new-diff-v1"
 MIGRATION_FREEZE_SCHEMA = "csi-pairs-v6-legacy-evaluation-freeze-receipt-v1"
+MIGRATION_POST_EXIT_FREEZE_SCHEMA = (
+    "csi-pairs-v6-legacy-evaluation-post-exit-freeze-receipt-v2"
+)
 MIGRATION_LEGACY_INVENTORY_SCHEMA = (
     "csi-pairs-v6-legacy-evaluation-inventory-v1"
 )
@@ -80,6 +84,15 @@ FREEZE_REPORT_FIELDS = {
     "cwd",
     "legacy_inventory_sha256",
     "lock_state",
+}
+POST_EXIT_FREEZE_REPORT_FIELDS = {
+    *TECHNICAL_REPORT_FIELDS,
+    "legacy_inventory_sha256",
+    "process_identity",
+    "monitor",
+    "termination",
+    "residual_lock",
+    "new_run_identity",
 }
 EXPECTED_IDENTITY_FIELDS = {
     "legacy_run_root",
@@ -198,11 +211,99 @@ FREEZE_RESULT_FIELDS = {
     "pid_identity_matched",
     "lock_state_observed",
 }
+POST_EXIT_FREEZE_RESULT_FIELDS = {
+    "inventory_authenticated",
+    "evaluation_inventory_empty",
+    "process_state",
+    "termination_reason",
+    "pid_relation",
+    "monitor_window_valid",
+    "lock_state",
+    "lock_used_as_safety_precondition",
+    "new_run_identity_authenticated",
+}
+POST_EXIT_PROCESS_FIELDS = {
+    "namespace_pid",
+    "pid_identity_sha256",
+    "boot_id",
+    "start_ticks",
+    "started_utc",
+    "cmd",
+    "cwd",
+    "exe",
+    "identity_snapshot",
+}
+POST_EXIT_MONITOR_FIELDS = {
+    "namespace_pid",
+    "pid_identity_sha256",
+    "first_observed_utc",
+    "last_running_utc",
+    "sample_count",
+    "maximum_gap_seconds",
+    "all_pid_identity_matched",
+    "cpu_time_strictly_increased",
+    "evaluation_artifact_count_min",
+    "evaluation_artifact_count_max",
+    "evaluation_artifact_bytes_min",
+    "evaluation_artifact_bytes_max",
+    "last_rss_bytes",
+    "maximum_rss_bytes",
+    "artifact",
+}
+POST_EXIT_TERMINATION_FIELDS = {
+    "reason",
+    "pid_relation",
+    "namespace_pid",
+    "kernel_host_pid",
+    "kernel_comm",
+    "kernel_anon_rss_bytes",
+    "last_monitor_rss_bytes",
+    "rss_relative_delta",
+    "rss_relative_delta_limit",
+    "oom_event_utc",
+    "exit_verified_utc",
+    "exit_detected_utc",
+    "exit_code",
+    "kernel_cgroup_oom_evidence",
+    "exit_site_evidence",
+    "timing_evidence",
+    "supervisor_log_evidence",
+    "supervisor_script_evidence",
+}
+POST_EXIT_RESIDUAL_LOCK_FIELDS = {
+    "status",
+    "historical_presence_observed",
+    "owner_authenticated",
+    "current_state",
+    "canonical_path",
+    "used_as_safety_precondition",
+}
+POST_EXIT_NEW_RUN_IDENTITY_FIELDS = {
+    "new_run_root",
+    "new_run_id",
+    "new_run_nonce",
+    "new_commit",
+    "new_source_tree_sha256",
+    "new_compute_plan_sha256",
+}
+
+POST_EXIT_FREEZE_STATUS = "POST_EXIT_FROZEN"
+POST_EXIT_TERMINATION_REASON = "MEMORY_CGROUP_OOM_KILL"
+POST_EXIT_PID_RELATION = "CORRELATED_NOT_DIRECT"
+POST_EXIT_LOCK_STATUS = "PRESENCE_ONLY_UNVERIFIED_OWNER"
+MAX_POST_EXIT_MONITOR_GAP_SECONDS = 700
+MAX_POST_EXIT_OOM_GAP_SECONDS = 700
+MAX_POST_EXIT_RSS_RELATIVE_DELTA = 0.05
+POST_EXIT_KERNEL_LOCAL_TIMEZONE = timezone(timedelta(hours=8))
 
 TIME_EXPONENT_LIMIT = 1.5
 QUADRATIC_MEMORY_EXPONENT = 2.0
 _HEX40 = re.compile(r"[0-9a-f]{40}")
 _HEX64 = re.compile(r"[0-9a-f]{64}")
+_UUID = re.compile(
+    r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-"
+    r"[0-9a-f]{4}-[0-9a-f]{12}"
+)
 _SCALE_NAMES = ("N", "2N", "4N")
 _COMPARATOR_ARTIFACTS = tuple(REQUIRED_ARTIFACTS) + ("manifest.json",)
 _COMPARATOR_REPORT_FIELDS = {
@@ -472,14 +573,24 @@ def validate_evidence_results(
     elif name == "legacy_evaluation_inventory":
         _validate_inventory(results, artifacts, legacy_root)
     else:
-        _validate_freeze(
-            payload,
-            results,
-            artifacts,
-            identity,
-            legacy_root,
-            new_root,
-        )
+        if payload.get("schema_version") == MIGRATION_POST_EXIT_FREEZE_SCHEMA:
+            _validate_post_exit_freeze(
+                payload,
+                results,
+                artifacts,
+                identity,
+                legacy_root,
+                new_root,
+            )
+        else:
+            _validate_freeze(
+                payload,
+                results,
+                artifacts,
+                identity,
+                legacy_root,
+                new_root,
+            )
 
 
 def validate_evidence_report(
@@ -513,9 +624,15 @@ def validate_evidence_report(
         commit = identity["legacy_commit"]
         source_tree = identity["legacy_source_tree_sha256"]
     elif name == "legacy_evaluation_freeze":
-        fields = FREEZE_REPORT_FIELDS
-        schema = MIGRATION_FREEZE_SCHEMA
-        status = "FROZEN"
+        schema = payload.get("schema_version")
+        if schema == MIGRATION_FREEZE_SCHEMA:
+            fields = FREEZE_REPORT_FIELDS
+            status = "FROZEN"
+        elif schema == MIGRATION_POST_EXIT_FREEZE_SCHEMA:
+            fields = POST_EXIT_FREEZE_REPORT_FIELDS
+            status = POST_EXIT_FREEZE_STATUS
+        else:
+            raise RuntimeError("legacy evaluation freeze schema is unsupported")
         commit = identity["legacy_commit"]
         source_tree = identity["legacy_source_tree_sha256"]
     else:
@@ -953,6 +1070,101 @@ def write_legacy_evaluation_freeze_receipt(
         "cwd": str(Path(cwd).resolve()),
         "legacy_inventory_sha256": inventory["sha256"],
         "lock_state": dict(lock_state),
+    }
+    return _validate_and_write(
+        path, "legacy_evaluation_freeze", payload, identity
+    )
+
+
+def write_legacy_evaluation_post_exit_freeze_receipt(
+    path: str | Path,
+    *,
+    expected_identity: Mapping[str, object],
+    command: str,
+    inventory_path: str | Path,
+    pid_snapshot_path: str | Path,
+    monitor_path: str | Path,
+    kernel_oom_evidence_path: str | Path,
+    exit_site_path: str | Path,
+    timing_path: str | Path,
+    supervisor_log_path: str | Path,
+    supervisor_script_path: str | Path,
+    created_utc: str | None = None,
+) -> dict[str, object]:
+    """Freeze an OOM-terminated legacy evaluation without claiming a live lock."""
+    identity, legacy_root, new_root = _writer_identity(expected_identity)
+
+    def external_binding(candidate: str | Path) -> dict[str, object]:
+        return bind_file(
+            candidate,
+            legacy_run_root=legacy_root,
+            new_run_root=new_root,
+            require_external=True,
+        )
+
+    inventory = external_binding(inventory_path)
+    pid_snapshot = external_binding(pid_snapshot_path)
+    monitor_artifact = external_binding(monitor_path)
+    kernel_oom = external_binding(kernel_oom_evidence_path)
+    exit_site = external_binding(exit_site_path)
+    timing = external_binding(timing_path)
+    supervisor_log = external_binding(supervisor_log_path)
+    supervisor_script = external_binding(supervisor_script_path)
+    process = _derive_post_exit_process(pid_snapshot)
+    monitor = _derive_post_exit_monitor(
+        monitor_artifact,
+        namespace_pid=process["namespace_pid"],
+        pid_identity_sha256=process["pid_identity_sha256"],
+    )
+    termination, residual_lock = _derive_post_exit_termination(
+        kernel_oom=kernel_oom,
+        exit_site=exit_site,
+        timing=timing,
+        supervisor_log=supervisor_log,
+        supervisor_script=supervisor_script,
+        process=process,
+        monitor=monitor,
+        identity=identity,
+        legacy_root=legacy_root,
+    )
+    new_run_identity = {
+        key: identity[key] for key in POST_EXIT_NEW_RUN_IDENTITY_FIELDS
+    }
+    artifacts = [
+        inventory,
+        pid_snapshot,
+        monitor_artifact,
+        kernel_oom,
+        exit_site,
+        timing,
+        supervisor_log,
+        supervisor_script,
+    ]
+    payload = {
+        "schema_version": MIGRATION_POST_EXIT_FREEZE_SCHEMA,
+        "status": POST_EXIT_FREEZE_STATUS,
+        "created_utc": created_utc or _utc_now(),
+        "source_commit": identity["legacy_commit"],
+        "source_tree_sha256": identity["legacy_source_tree_sha256"],
+        "command": _command(command),
+        "inputs": {"identity": identity, "artifacts": artifacts},
+        "results": {
+            "inventory_authenticated": True,
+            "evaluation_inventory_empty": True,
+            "process_state": "EXITED",
+            "termination_reason": POST_EXIT_TERMINATION_REASON,
+            "pid_relation": POST_EXIT_PID_RELATION,
+            "monitor_window_valid": True,
+            "lock_state": POST_EXIT_LOCK_STATUS,
+            "lock_used_as_safety_precondition": False,
+            "new_run_identity_authenticated": True,
+        },
+        "legacy_inventory_sha256": inventory["sha256"],
+        "process_identity": process,
+        "monitor": monitor,
+        "termination": termination,
+        "residual_lock": residual_lock,
+        "new_run_identity": new_run_identity,
     }
     return _validate_and_write(
         path, "legacy_evaluation_freeze", payload, identity
@@ -2500,6 +2712,542 @@ def _validate_freeze(payload, results, artifacts, identity, legacy_root, new_roo
         or not Path(payload["cwd"]).is_absolute()
     ):
         raise RuntimeError("legacy freeze process or lock observation is invalid")
+
+
+def _validate_post_exit_freeze(
+    payload, results, artifacts, identity, legacy_root, new_root
+):
+    _require_exact_fields(
+        results, POST_EXIT_FREEZE_RESULT_FIELDS, "post-exit freeze results"
+    )
+    process = payload.get("process_identity")
+    monitor = payload.get("monitor")
+    termination = payload.get("termination")
+    residual_lock = payload.get("residual_lock")
+    new_run_identity = payload.get("new_run_identity")
+    _require_exact_fields(process, POST_EXIT_PROCESS_FIELDS, "post-exit process")
+    _require_exact_fields(monitor, POST_EXIT_MONITOR_FIELDS, "post-exit monitor")
+    _require_exact_fields(
+        termination, POST_EXIT_TERMINATION_FIELDS, "post-exit termination"
+    )
+    _require_exact_fields(
+        residual_lock, POST_EXIT_RESIDUAL_LOCK_FIELDS, "post-exit residual lock"
+    )
+    _require_exact_fields(
+        new_run_identity,
+        POST_EXIT_NEW_RUN_IDENTITY_FIELDS,
+        "post-exit new-run identity",
+    )
+    if len(artifacts) != 8:
+        raise RuntimeError("post-exit freeze must bind exactly eight evidence files")
+    inventory_binding, inventory_path = artifacts[0]
+    expected_bindings = [
+        inventory_binding,
+        process["identity_snapshot"],
+        monitor["artifact"],
+        termination["kernel_cgroup_oom_evidence"],
+        termination["exit_site_evidence"],
+        termination["timing_evidence"],
+        termination["supervisor_log_evidence"],
+        termination["supervisor_script_evidence"],
+    ]
+    if [binding for binding, _ in artifacts] != expected_bindings:
+        raise RuntimeError("post-exit freeze evidence bindings are not canonical")
+    for binding, _artifact_path in artifacts:
+        _authenticate_file_binding(
+            binding,
+            legacy_root=legacy_root,
+            new_root=new_root,
+            require_external=True,
+        )
+    if payload.get("legacy_inventory_sha256") != inventory_binding["sha256"]:
+        raise RuntimeError("post-exit freeze inventory digest mismatch")
+    inventory = _read_bound_json(inventory_binding, inventory_path)
+    if (
+        not isinstance(inventory, dict)
+        or inventory.get("schema_version") != MIGRATION_LEGACY_INVENTORY_SCHEMA
+        or inventory.get("status") != "PASS"
+        or inventory.get("source_commit") != identity["legacy_commit"]
+        or inventory.get("source_tree_sha256")
+        != identity["legacy_source_tree_sha256"]
+    ):
+        raise RuntimeError("post-exit freeze references the wrong inventory report")
+    validate_evidence_report(
+        "legacy_evaluation_inventory",
+        inventory,
+        expected_identity=identity,
+        legacy_run_root=legacy_root,
+        new_run_root=new_root,
+    )
+    inventory_rows = inventory["results"]["files"]
+    if inventory_rows != []:
+        raise RuntimeError("post-exit freeze requires an empty evaluation inventory")
+
+    derived_process = _derive_post_exit_process(process["identity_snapshot"])
+    derived_monitor = _derive_post_exit_monitor(
+        monitor["artifact"],
+        namespace_pid=derived_process["namespace_pid"],
+        pid_identity_sha256=derived_process["pid_identity_sha256"],
+    )
+    derived_termination, derived_lock = _derive_post_exit_termination(
+        kernel_oom=termination["kernel_cgroup_oom_evidence"],
+        exit_site=termination["exit_site_evidence"],
+        timing=termination["timing_evidence"],
+        supervisor_log=termination["supervisor_log_evidence"],
+        supervisor_script=termination["supervisor_script_evidence"],
+        process=derived_process,
+        monitor=derived_monitor,
+        identity=identity,
+        legacy_root=legacy_root,
+    )
+    if (
+        process != derived_process
+        or monitor != derived_monitor
+        or termination != derived_termination
+        or residual_lock != derived_lock
+    ):
+        raise RuntimeError("post-exit freeze claims differ from raw evidence")
+
+    expected_new_run_identity = {
+        key: identity[key] for key in POST_EXIT_NEW_RUN_IDENTITY_FIELDS
+    }
+    if new_run_identity != expected_new_run_identity:
+        raise RuntimeError("post-exit freeze new-run identity mismatch")
+    if (
+        results["inventory_authenticated"] is not True
+        or results["evaluation_inventory_empty"] is not True
+        or results["process_state"] != "EXITED"
+        or results["termination_reason"] != POST_EXIT_TERMINATION_REASON
+        or results["pid_relation"] != POST_EXIT_PID_RELATION
+        or results["monitor_window_valid"] is not True
+        or results["lock_state"] != POST_EXIT_LOCK_STATUS
+        or results["lock_used_as_safety_precondition"] is not False
+        or results["new_run_identity_authenticated"] is not True
+    ):
+        raise RuntimeError("post-exit freeze result summary is invalid")
+    inventory_created = _parse_utc(
+        inventory["created_utc"], "post-exit inventory created_utc"
+    )
+    receipt_created = _parse_utc(
+        payload.get("created_utc"), "post-exit freeze created_utc"
+    )
+    exit_detected = _parse_utc(
+        termination["exit_detected_utc"], "post-exit detected_utc"
+    )
+    if not exit_detected <= inventory_created <= receipt_created:
+        raise RuntimeError("post-exit freeze evidence chronology is invalid")
+
+
+def _derive_post_exit_process(binding):
+    text = _bound_evidence_text(binding, "post-exit PID identity snapshot")
+    values = _key_value_lines(text)
+    required = {
+        "PID",
+        "PID_IDENTITY",
+        "PID_IDENTITY_SHA256",
+        "BOOT_ID",
+        "START_TICKS",
+        "START_ISO",
+        "CWD",
+        "EXE",
+        "CMDLINE",
+    }
+    if not required.issubset(values):
+        raise RuntimeError("post-exit PID identity snapshot is incomplete")
+    pid = _decimal_int(values["PID"], "post-exit namespace PID", positive=True)
+    start_ticks = _decimal_int(
+        values["START_TICKS"], "post-exit PID start ticks", positive=True
+    )
+    cwd = values["CWD"]
+    exe = values["EXE"]
+    cmd = values["CMDLINE"]
+    digest = values["PID_IDENTITY_SHA256"]
+    expected_digest = hashlib.sha256(
+        f"{cmd}\n{values['START_ISO']}\n{cwd}\n".encode("utf-8")
+    ).hexdigest()
+    if (
+        values["PID_IDENTITY"] != "MATCH"
+        or digest != expected_digest
+        or not _is_hex(digest, 64)
+        or _UUID.fullmatch(values["BOOT_ID"]) is None
+        or not Path(cwd).is_absolute()
+        or not Path(exe).is_absolute()
+        or "formal_v2.formal_cli" not in cmd
+        or "run-evaluation" not in cmd
+        or not any(
+            re.match(rf"^\s*{pid}\s+", line)
+            and "formal_v2.formal_cli run-evaluation" in line
+            for line in text.splitlines()
+        )
+    ):
+        raise RuntimeError("post-exit PID identity snapshot is invalid")
+    return {
+        "namespace_pid": pid,
+        "pid_identity_sha256": digest,
+        "boot_id": values["BOOT_ID"],
+        "start_ticks": start_ticks,
+        "started_utc": _utc_timestamp(values["START_ISO"], "PID start time"),
+        "cmd": cmd,
+        "cwd": cwd,
+        "exe": exe,
+        "identity_snapshot": dict(binding),
+    }
+
+
+def _derive_post_exit_monitor(binding, *, namespace_pid, pid_identity_sha256):
+    text = _bound_evidence_text(binding, "post-exit monitor")
+    reader = csv.DictReader(text.splitlines(), delimiter="\t")
+    fields = [
+        "timestamp",
+        "identity",
+        "state",
+        "elapsed_seconds",
+        "cpu_seconds",
+        "rss_bytes",
+        "log_target",
+        "artifact_count",
+        "artifact_bytes",
+        "disk_available_bytes",
+    ]
+    if reader.fieldnames != fields:
+        raise RuntimeError("post-exit monitor header is invalid")
+    rows = list(reader)
+    if len(rows) < 2 or any(None in row for row in rows):
+        raise RuntimeError("post-exit monitor has insufficient rows")
+    timestamps = []
+    elapsed = []
+    cpu = []
+    rss = []
+    counts = []
+    sizes = []
+    for row in rows:
+        timestamps.append(_aware_timestamp(row["timestamp"], "monitor timestamp"))
+        elapsed.append(_decimal_int(row["elapsed_seconds"], "monitor elapsed"))
+        cpu.append(_decimal_int(row["cpu_seconds"], "monitor CPU"))
+        rss.append(_decimal_int(row["rss_bytes"], "monitor RSS", positive=True))
+        counts.append(_decimal_int(row["artifact_count"], "monitor artifact count"))
+        sizes.append(_decimal_int(row["artifact_bytes"], "monitor artifact bytes"))
+        disk = row["disk_available_bytes"]
+        if (
+            row["identity"] != "MATCH"
+            or not row["state"]
+            or not row["log_target"]
+            or disk is None
+            or (disk != "" and _decimal_int(disk, "monitor disk", positive=True) <= 0)
+        ):
+            raise RuntimeError("post-exit monitor row is invalid")
+    gaps = [
+        (right - left).total_seconds()
+        for left, right in zip(timestamps, timestamps[1:])
+    ]
+    if (
+        any(gap <= 0 for gap in gaps)
+        or any(right <= left for left, right in zip(elapsed, elapsed[1:]))
+        or any(right <= left for left, right in zip(cpu, cpu[1:]))
+        or min(counts) != 0
+        or max(counts) != 0
+        or min(sizes) != 0
+        or max(sizes) != 0
+    ):
+        raise RuntimeError("post-exit monitor sequence is invalid")
+    maximum_gap = math.ceil(max(gaps))
+    if maximum_gap > MAX_POST_EXIT_MONITOR_GAP_SECONDS:
+        raise RuntimeError("post-exit monitor has an excessive observation gap")
+    return {
+        "namespace_pid": namespace_pid,
+        "pid_identity_sha256": pid_identity_sha256,
+        "first_observed_utc": _utc_text(timestamps[0]),
+        "last_running_utc": _utc_text(timestamps[-1]),
+        "sample_count": len(rows),
+        "maximum_gap_seconds": maximum_gap,
+        "all_pid_identity_matched": True,
+        "cpu_time_strictly_increased": True,
+        "evaluation_artifact_count_min": min(counts),
+        "evaluation_artifact_count_max": max(counts),
+        "evaluation_artifact_bytes_min": min(sizes),
+        "evaluation_artifact_bytes_max": max(sizes),
+        "last_rss_bytes": rss[-1],
+        "maximum_rss_bytes": max(rss),
+        "artifact": dict(binding),
+    }
+
+
+def _derive_post_exit_termination(
+    *,
+    kernel_oom,
+    exit_site,
+    timing,
+    supervisor_log,
+    supervisor_script,
+    process,
+    monitor,
+    identity,
+    legacy_root,
+):
+    _validate_post_exit_supervisor_script(supervisor_script, process)
+    kernel = _parse_kernel_cgroup_oom(kernel_oom)
+    site = _parse_post_exit_site(exit_site, identity)
+    timing_values = _parse_post_exit_timing(timing)
+    verified = _parse_supervisor_exit(supervisor_log)
+    started = _parse_utc(process["started_utc"], "post-exit process start")
+    monitor_first = _parse_utc(
+        monitor["first_observed_utc"], "post-exit first monitor time"
+    )
+    monitor_last = _parse_utc(
+        monitor["last_running_utc"], "post-exit last monitor time"
+    )
+    oom_event = _parse_utc(kernel["oom_event_utc"], "post-exit OOM time")
+    exit_verified = _parse_utc(verified, "post-exit verified exit time")
+    exit_detected = _parse_utc(
+        timing_values["exit_detected_utc"], "post-exit detected exit time"
+    )
+    site_time = _parse_utc(site["captured_utc"], "post-exit site time")
+    gap = (oom_event - monitor_last).total_seconds()
+    if (
+        timing_values["started_utc"] != process["started_utc"]
+        or not started < monitor_first <= monitor_last < oom_event
+        or gap > MAX_POST_EXIT_OOM_GAP_SECONDS
+        or not oom_event <= exit_verified <= exit_detected <= site_time
+        or site["evaluation_inventory_empty"] is not True
+        or site["operation_lock_state"] != "PRESENT"
+    ):
+        raise RuntimeError("post-exit OOM/exit chronology is invalid")
+    if kernel["kernel_host_pid"] == process["namespace_pid"]:
+        raise RuntimeError("post-exit evidence unexpectedly claims direct PID identity")
+    relative_delta = abs(
+        kernel["kernel_anon_rss_bytes"] - monitor["last_rss_bytes"]
+    ) / max(kernel["kernel_anon_rss_bytes"], monitor["last_rss_bytes"])
+    if (
+        not kernel["kernel_comm"].lower().startswith("python")
+        or relative_delta > MAX_POST_EXIT_RSS_RELATIVE_DELTA
+    ):
+        raise RuntimeError("post-exit kernel OOM cannot be correlated to the monitor")
+    canonical_lock = (
+        legacy_root.parent
+        / f".{legacy_root.name}.csi-pairs-operation.lock"
+    ).resolve()
+    if canonical_lock.exists() or canonical_lock.is_symlink():
+        raise RuntimeError("legacy operation lock still exists after post-exit freeze")
+    termination = {
+        "reason": POST_EXIT_TERMINATION_REASON,
+        "pid_relation": POST_EXIT_PID_RELATION,
+        "namespace_pid": process["namespace_pid"],
+        "kernel_host_pid": kernel["kernel_host_pid"],
+        "kernel_comm": kernel["kernel_comm"],
+        "kernel_anon_rss_bytes": kernel["kernel_anon_rss_bytes"],
+        "last_monitor_rss_bytes": monitor["last_rss_bytes"],
+        "rss_relative_delta": relative_delta,
+        "rss_relative_delta_limit": MAX_POST_EXIT_RSS_RELATIVE_DELTA,
+        "oom_event_utc": kernel["oom_event_utc"],
+        "exit_verified_utc": verified,
+        "exit_detected_utc": timing_values["exit_detected_utc"],
+        "exit_code": "UNAVAILABLE_NON_SHELL_OBSERVER",
+        "kernel_cgroup_oom_evidence": dict(kernel_oom),
+        "exit_site_evidence": dict(exit_site),
+        "timing_evidence": dict(timing),
+        "supervisor_log_evidence": dict(supervisor_log),
+        "supervisor_script_evidence": dict(supervisor_script),
+    }
+    residual_lock = {
+        "status": POST_EXIT_LOCK_STATUS,
+        "historical_presence_observed": True,
+        "owner_authenticated": False,
+        "current_state": "ABSENT",
+        "canonical_path": str(canonical_lock),
+        "used_as_safety_precondition": False,
+    }
+    return termination, residual_lock
+
+
+def _validate_post_exit_supervisor_script(binding, process):
+    text = _bound_evidence_text(binding, "post-exit supervisor script")
+    values = _shell_assignment_lines(text)
+    expected = {
+        "PID": str(process["namespace_pid"]),
+        "EXPECTED_BOOT_ID": process["boot_id"],
+        "EXPECTED_START_TICKS": str(process["start_ticks"]),
+        "EXPECTED_CWD": process["cwd"],
+        "EXPECTED_EXE": process["exe"],
+        "EXPECTED_CMDLINE": process["cmd"],
+        "EXPECTED_PID_IDENTITY": process["pid_identity_sha256"],
+    }
+    fragments = (
+        '[[ "$start_ticks" == "$EXPECTED_START_TICKS" ]]',
+        '[[ "$boot_id" == "$EXPECTED_BOOT_ID" ]]',
+        '[[ "$cwd" == "$EXPECTED_CWD" ]]',
+        '[[ "$exe" == "$EXPECTED_EXE" ]]',
+        '[[ "$cmdline" == "$EXPECTED_CMDLINE" ]]',
+    )
+    if any(values.get(key) != value for key, value in expected.items()) or any(
+        fragment not in text for fragment in fragments
+    ):
+        raise RuntimeError("post-exit supervisor script identity logic is invalid")
+
+
+def _parse_kernel_cgroup_oom(binding):
+    text = _bound_evidence_text(binding, "kernel cgroup OOM evidence")
+    pattern = re.compile(
+        r"^(?:\[(?P<ctime>[A-Z][a-z]{2}\s+[A-Z][a-z]{2}\s+"
+        r"\d{1,2}\s+\d{2}:\d{2}:\d{2}\s+\d{4})\]|"
+        r"(?P<iso>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}"
+        r"(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2}))).*?"
+        r"Memory cgroup out of memory:\s+Killed process\s+"
+        r"(?P<pid>\d+)\s+\((?P<comm>[^)]+)\).*?"
+        r"anon-rss:(?P<rss>\d+)kB\b",
+        re.MULTILINE,
+    )
+    matches = list(pattern.finditer(text))
+    if len(matches) != 1:
+        raise RuntimeError("kernel evidence must contain exactly one cgroup OOM kill")
+    match = matches[0]
+    if match.group("iso"):
+        event_time = _utc_timestamp(match.group("iso"), "kernel OOM time")
+    else:
+        try:
+            parsed = datetime.strptime(
+                match.group("ctime"), "%a %b %d %H:%M:%S %Y"
+            ).replace(tzinfo=POST_EXIT_KERNEL_LOCAL_TIMEZONE)
+        except ValueError as error:
+            raise RuntimeError("kernel OOM ctime is invalid") from error
+        event_time = _utc_text(parsed)
+    return {
+        "kernel_host_pid": _decimal_int(
+            match.group("pid"), "kernel OOM host PID", positive=True
+        ),
+        "kernel_comm": match.group("comm"),
+        "kernel_anon_rss_bytes": _decimal_int(
+            match.group("rss"), "kernel OOM anon RSS", positive=True
+        )
+        * 1024,
+        "oom_event_utc": event_time,
+    }
+
+
+def _parse_post_exit_site(binding, identity):
+    text = _bound_evidence_text(binding, "post-exit site evidence")
+    lines = text.splitlines()
+    if not lines:
+        raise RuntimeError("post-exit site evidence is empty")
+    values = _key_value_lines(text)
+    try:
+        begin = lines.index("evaluation_inventory_begin")
+        end = lines.index("evaluation_inventory_end")
+    except ValueError as error:
+        raise RuntimeError("post-exit site lacks evaluation inventory markers") from error
+    observed_digests = {
+        match.group(1)
+        for line in lines
+        if (match := re.match(r"^([0-9a-f]{64})  /", line))
+    }
+    if (
+        values.get("git_head") != identity["legacy_commit"]
+        or values.get("operation_lock") != "PRESENT"
+        or end != begin + 1
+        or identity["config_sha256"] not in observed_digests
+        or identity["dataset_sha256"] not in observed_digests
+    ):
+        raise RuntimeError("post-exit site identity or inventory is invalid")
+    return {
+        "captured_utc": _utc_timestamp(lines[0], "post-exit site capture time"),
+        "evaluation_inventory_empty": True,
+        "operation_lock_state": "PRESENT",
+    }
+
+
+def _parse_post_exit_timing(binding):
+    values = _key_value_lines(_bound_evidence_text(binding, "post-exit timing"))
+    required = {"COMMAND_STARTED_AT", "PID_EXIT_DETECTED_AT", "PROCESS_EXIT_CODE"}
+    if not required.issubset(values) or values["PROCESS_EXIT_CODE"] != (
+        "UNAVAILABLE_NON_SHELL_OBSERVER"
+    ):
+        raise RuntimeError("post-exit timing evidence is invalid")
+    return {
+        "started_utc": _utc_timestamp(values["COMMAND_STARTED_AT"], "start time"),
+        "exit_detected_utc": _utc_timestamp(
+            values["PID_EXIT_DETECTED_AT"], "exit detection time"
+        ),
+    }
+
+
+def _parse_supervisor_exit(binding):
+    text = _bound_evidence_text(binding, "post-exit supervisor log")
+    matches = re.findall(
+        r"^(\S+) verified PID exited; entering evaluation acceptance$",
+        text,
+        flags=re.MULTILINE,
+    )
+    if len(matches) != 1 or "PID identity MATCH" not in text:
+        raise RuntimeError("supervisor log lacks authenticated exit evidence")
+    return _utc_timestamp(matches[0], "supervisor exit verification time")
+
+
+def _bound_evidence_text(binding, label):
+    path = _authenticate_file_binding(binding)
+    try:
+        text = path.read_bytes().decode("utf-8")
+    except UnicodeDecodeError as error:
+        raise RuntimeError(f"{label} is not UTF-8 text") from error
+    if not text or "\x00" in text:
+        raise RuntimeError(f"{label} is empty or contains NUL")
+    return text
+
+
+def _key_value_lines(text):
+    values = {}
+    for line in text.splitlines():
+        if "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*", key):
+            continue
+        if key in values:
+            raise RuntimeError(f"duplicate evidence key: {key}")
+        values[key] = value
+    return values
+
+
+def _shell_assignment_lines(text):
+    values = {}
+    for line in text.splitlines():
+        match = re.match(r"^([A-Z][A-Z0-9_]*)=(.*)$", line)
+        if not match:
+            continue
+        key, value = match.groups()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
+            value = value[1:-1]
+        if key in values:
+            raise RuntimeError(f"duplicate supervisor assignment: {key}")
+        values[key] = value
+    return values
+
+
+def _decimal_int(value, label, *, positive=False):
+    if not isinstance(value, str) or not re.fullmatch(r"0|[1-9][0-9]*", value):
+        raise RuntimeError(f"{label} is not a canonical decimal integer")
+    result = int(value)
+    if positive and result <= 0:
+        raise RuntimeError(f"{label} must be positive")
+    return result
+
+
+def _aware_timestamp(value, label):
+    if not isinstance(value, str):
+        raise RuntimeError(f"{label} must be an ISO timestamp")
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError as error:
+        raise RuntimeError(f"{label} is invalid") from error
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        raise RuntimeError(f"{label} must include a UTC offset")
+    return parsed.astimezone(timezone.utc)
+
+
+def _utc_text(value):
+    return value.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def _utc_timestamp(value, label):
+    return _utc_text(_aware_timestamp(value, label))
 
 
 def _require_observation_artifacts(artifacts, label):

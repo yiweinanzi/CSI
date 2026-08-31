@@ -32,8 +32,10 @@ from .formal_migration_evidence import (
     MIGRATION_DIFF_SCHEMA,
     MIGRATION_EVIDENCE_KEYS,
     MIGRATION_FREEZE_SCHEMA,
+    MIGRATION_POST_EXIT_FREEZE_SCHEMA,
     MIGRATION_LEGACY_INVENTORY_SCHEMA,
     MIGRATION_TECHNICAL_EVIDENCE_SCHEMAS,
+    POST_EXIT_FREEZE_REPORT_FIELDS as _POST_EXIT_FREEZE_REPORT_FIELDS,
     TECHNICAL_REPORT_FIELDS as _TECHNICAL_REPORT_FIELDS,
     validate_evidence_results,
 )
@@ -879,11 +881,18 @@ def _authenticate_migration_evidence(
             schema = MIGRATION_LEGACY_INVENTORY_SCHEMA
             status = "PASS"
             source = legacy_source
-        else:
+        elif payload.get("schema_version") == MIGRATION_FREEZE_SCHEMA:
             fields = _FREEZE_REPORT_FIELDS
             schema = MIGRATION_FREEZE_SCHEMA
             status = "FROZEN"
             source = legacy_source
+        elif payload.get("schema_version") == MIGRATION_POST_EXIT_FREEZE_SCHEMA:
+            fields = _POST_EXIT_FREEZE_REPORT_FIELDS
+            schema = MIGRATION_POST_EXIT_FREEZE_SCHEMA
+            status = "POST_EXIT_FROZEN"
+            source = legacy_source
+        else:
+            raise RuntimeError("migration legacy freeze schema is unsupported")
         _require_exact_fields(payload, fields, f"migration {name} report")
         if (
             payload["schema_version"] != schema
@@ -942,21 +951,35 @@ def _authenticate_migration_evidence(
         legacy_run_root / "evaluation", inventory_results["files"]
     )
     freeze = payloads["legacy_evaluation_freeze"]
-    if (
-        freeze["legacy_inventory_sha256"]
-        != bindings["legacy_evaluation_inventory"]["sha256"]
-        or not isinstance(freeze["pid_identity"], str)
-        or not freeze["pid_identity"].strip()
-        or type(freeze["start_ticks"]) is not int
-        or freeze["start_ticks"] <= 0
-        or not isinstance(freeze["cmd"], str)
-        or not freeze["cmd"].strip()
-        or not isinstance(freeze["cwd"], str)
-        or not Path(freeze["cwd"]).is_absolute()
-        or not isinstance(freeze["lock_state"], dict)
-        or not freeze["lock_state"]
-    ):
-        raise RuntimeError("legacy evaluation freeze receipt identity mismatch")
+    if freeze["schema_version"] == MIGRATION_FREEZE_SCHEMA:
+        if (
+            freeze["legacy_inventory_sha256"]
+            != bindings["legacy_evaluation_inventory"]["sha256"]
+            or not isinstance(freeze["pid_identity"], str)
+            or not freeze["pid_identity"].strip()
+            or type(freeze["start_ticks"]) is not int
+            or freeze["start_ticks"] <= 0
+            or not isinstance(freeze["cmd"], str)
+            or not freeze["cmd"].strip()
+            or not isinstance(freeze["cwd"], str)
+            or not Path(freeze["cwd"]).is_absolute()
+            or not isinstance(freeze["lock_state"], dict)
+            or not freeze["lock_state"]
+        ):
+            raise RuntimeError("legacy evaluation freeze receipt identity mismatch")
+    elif freeze["schema_version"] == MIGRATION_POST_EXIT_FREEZE_SCHEMA:
+        if (
+            freeze["legacy_inventory_sha256"]
+            != bindings["legacy_evaluation_inventory"]["sha256"]
+            or freeze["status"] != "POST_EXIT_FROZEN"
+            or freeze["results"].get("process_state") != "EXITED"
+            or freeze["results"].get("termination_reason")
+            != "MEMORY_CGROUP_OOM_KILL"
+            or freeze["results"].get("new_run_identity_authenticated") is not True
+        ):
+            raise RuntimeError("legacy post-exit freeze receipt identity mismatch")
+    else:
+        raise RuntimeError("legacy evaluation freeze schema is unsupported")
     return bindings
 
 

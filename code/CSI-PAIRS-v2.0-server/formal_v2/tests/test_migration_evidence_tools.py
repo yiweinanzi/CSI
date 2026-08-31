@@ -715,6 +715,143 @@ class MigrationEvidenceToolsTests(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             self._validate("legacy_evaluation_freeze", not_running)
 
+    def _post_exit_payload(self) -> dict[str, object]:
+        self.fixture.use_post_exit_oom_freeze()
+        return self._payload("legacy_evaluation_freeze")
+
+    def _rebind_post_exit_artifact(
+        self,
+        payload: dict[str, object],
+        container: dict[str, object],
+        key: str,
+    ) -> None:
+        old = container[key]
+        replacement = evidence.bind_file(
+            old["path"],
+            legacy_run_root=self.fixture.legacy_run,
+            new_run_root=self.fixture.new_run,
+            require_external=True,
+        )
+        container[key] = replacement
+        for index, binding in enumerate(payload["inputs"]["artifacts"]):
+            if binding == old:
+                payload["inputs"]["artifacts"][index] = replacement
+                return
+        self.fail("post-exit artifact binding was not found")
+
+    def test_post_exit_oom_writer_round_trips_strictly(self) -> None:
+        payload = self._post_exit_payload()
+        self.assertEqual(
+            payload["schema_version"], evidence.MIGRATION_POST_EXIT_FREEZE_SCHEMA
+        )
+        self.assertEqual(payload["status"], "POST_EXIT_FROZEN")
+        self.assertEqual(payload["results"]["process_state"], "EXITED")
+        self.assertEqual(
+            payload["results"]["lock_state"],
+            evidence.POST_EXIT_LOCK_STATUS,
+        )
+        self._validate("legacy_evaluation_freeze", payload)
+
+    def test_post_exit_oom_rejects_tampered_bound_evidence(self) -> None:
+        payload = self._post_exit_payload()
+        monitor = Path(payload["monitor"]["artifact"]["path"])
+        monitor.write_text("tampered\n", encoding="ascii")
+        self._rebind_post_exit_artifact(
+            payload, payload["monitor"], "artifact"
+        )
+        with self.assertRaises(RuntimeError):
+            self._validate("legacy_evaluation_freeze", payload)
+
+    def test_post_exit_oom_rejects_non_oom_raw_evidence(self) -> None:
+        non_oom = self._post_exit_payload()
+        kernel_binding = non_oom["termination"]["kernel_cgroup_oom_evidence"]
+        Path(kernel_binding["path"]).write_text(
+            "2026-08-30T02:05:00Z normal exit\n", encoding="ascii"
+        )
+        self._rebind_post_exit_artifact(
+            non_oom,
+            non_oom["termination"],
+            "kernel_cgroup_oom_evidence",
+        )
+        with self.assertRaises(RuntimeError):
+            self._validate("legacy_evaluation_freeze", non_oom)
+
+    def test_post_exit_oom_rejects_pid_mapping_mismatch(self) -> None:
+        pid_mismatch = self._post_exit_payload()
+        script_binding = pid_mismatch["termination"]["supervisor_script_evidence"]
+        script_path = Path(script_binding["path"])
+        script_path.write_text(
+            script_path.read_text(encoding="ascii").replace(
+                "PID=66858\n", "PID=66859\n", 1
+            ),
+            encoding="ascii",
+        )
+        self._rebind_post_exit_artifact(
+            pid_mismatch,
+            pid_mismatch["termination"],
+            "supervisor_script_evidence",
+        )
+        with self.assertRaises(RuntimeError):
+            self._validate("legacy_evaluation_freeze", pid_mismatch)
+
+    def test_post_exit_oom_rejects_nonempty_or_changed_inventory(self) -> None:
+        payload = self._post_exit_payload()
+        (self.fixture.legacy_run / "evaluation" / "late-output.json").write_text(
+            "{}\n", encoding="ascii"
+        )
+        with self.assertRaises(RuntimeError):
+            self._validate("legacy_evaluation_freeze", payload)
+
+    def test_post_exit_oom_rejects_bad_raw_chronology(self) -> None:
+        chronology = self._post_exit_payload()
+        kernel_binding = chronology["termination"]["kernel_cgroup_oom_evidence"]
+        kernel_path = Path(kernel_binding["path"])
+        kernel_path.write_text(
+            kernel_path.read_text(encoding="ascii").replace(
+                "[Sun Aug 30 10:05:00 2026]",
+                "[Sun Aug 30 07:59:00 2026]",
+            ),
+            encoding="ascii",
+        )
+        self._rebind_post_exit_artifact(
+            chronology,
+            chronology["termination"],
+            "kernel_cgroup_oom_evidence",
+        )
+        with self.assertRaises(RuntimeError):
+            self._validate("legacy_evaluation_freeze", chronology)
+
+    def test_post_exit_oom_rejects_excessive_raw_monitor_gap(self) -> None:
+        gap = self._post_exit_payload()
+        monitor_path = Path(gap["monitor"]["artifact"]["path"])
+        monitor_path.write_text(
+            monitor_path.read_text(encoding="ascii").replace(
+                "2026-08-30T02:00:00Z", "2026-08-30T03:00:00Z"
+            ),
+            encoding="ascii",
+        )
+        self._rebind_post_exit_artifact(gap, gap["monitor"], "artifact")
+        with self.assertRaises(RuntimeError):
+            self._validate("legacy_evaluation_freeze", gap)
+
+    def test_post_exit_oom_rejects_new_run_identity_or_lock_claim_tampering(self) -> None:
+        identity = self._post_exit_payload()
+        identity["new_run_identity"]["new_run_nonce"] = "f" * 64
+        with self.assertRaises(RuntimeError):
+            self._validate("legacy_evaluation_freeze", identity)
+
+        lock = self._payload("legacy_evaluation_freeze")
+        lock["residual_lock"]["status"] = "HELD"
+        with self.assertRaises(RuntimeError):
+            self._validate("legacy_evaluation_freeze", lock)
+
+    def test_post_exit_oom_rejects_a_still_present_legacy_lock(self) -> None:
+        payload = self._post_exit_payload()
+        lock_path = Path(payload["residual_lock"]["canonical_path"])
+        lock_path.write_text("stale lock\n", encoding="ascii")
+        with self.assertRaises(RuntimeError):
+            self._validate("legacy_evaluation_freeze", payload)
+
     def test_complete_identity_and_absolute_file_bindings_are_required(self) -> None:
         payload = self._payload("resume")
         payload["inputs"]["identity"].pop("protocol_sha256")
