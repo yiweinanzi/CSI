@@ -194,16 +194,24 @@ launcher_child() {
   local attempt_dir=$1
   local go_file="$attempt_dir/go"
   local ready="$attempt_dir/ready.env"
+  local running="$attempt_dir/running.env"
   local exit_receipt="$attempt_dir/exit.env"
   local child_pid=$BASHPID
   local child_ticks
   local child_cmd_sha
+  local launcher_pid
+  local launcher_ticks
+  local launcher_cmd_sha
+  local launcher_session_id
+  local launcher_cmdline
+  local identity_loops=0
   local log_offset=0
   local log_size
   local code
   local segment_exit_code
   local segment_exit_count
   local tmp
+  exec 9>&-
   child_ticks=$(awk '{print $22}' "/proc/$child_pid/stat") || exit 98
   child_cmd_sha=$(tr '\0' ' ' <"/proc/$child_pid/cmdline" | sha256sum | awk '{print $1}') || exit 98
   if [[ -f "$LAUNCHER_LOG" && ! -L "$LAUNCHER_LOG" ]]; then
@@ -224,7 +232,42 @@ launcher_child() {
   while [[ ! -f "$go_file" || -L "$go_file" ]]; do
     sleep 0.1
   done
-  bash "$LAUNCHER"
+  setsid bash "$LAUNCHER" &
+  launcher_pid=$!
+  while true; do
+    if [[ -r "/proc/$launcher_pid/stat" && -r "/proc/$launcher_pid/cmdline" ]]; then
+      launcher_ticks=$(awk '{print $22}' "/proc/$launcher_pid/stat" 2>/dev/null || true)
+      launcher_session_id=$(awk '{print $6}' "/proc/$launcher_pid/stat" 2>/dev/null || true)
+      launcher_cmdline=$(tr '\0' ' ' <"/proc/$launcher_pid/cmdline" 2>/dev/null || true)
+      if [[ "$launcher_session_id" == "$launcher_pid" && "$launcher_cmdline" == *"$LAUNCHER"* ]]; then
+        launcher_cmd_sha=$(printf '%s' "$launcher_cmdline" | sha256sum | awk '{print $1}')
+        break
+      fi
+    fi
+    if ! kill -0 "$launcher_pid" 2>/dev/null; then
+      wait "$launcher_pid"
+      exit $?
+    fi
+    identity_loops=$((identity_loops + 1))
+    (( identity_loops <= 300 )) || exit 98
+    sleep 0.1
+  done
+  tmp="$running.tmp.$child_pid"
+  {
+    printf 'schema=csi-pairs-v6-launcher-running-v1\n'
+    printf 'wrapper_pid=%s\n' "$child_pid"
+    printf 'wrapper_start_ticks=%s\n' "$child_ticks"
+    printf 'wrapper_cmdline_sha256=%s\n' "$child_cmd_sha"
+    printf 'launcher_pid=%s\n' "$launcher_pid"
+    printf 'launcher_start_ticks=%s\n' "$launcher_ticks"
+    printf 'launcher_cmdline_sha256=%s\n' "$launcher_cmd_sha"
+    printf 'launcher_session_id=%s\n' "$launcher_session_id"
+    printf 'launcher_sha256=%s\n' "$EXPECTED_LAUNCHER_SHA256"
+    printf 'launcher_log_offset=%s\n' "$log_offset"
+    printf 'started_at=%s\n' "$(date --iso-8601=seconds)"
+  } >"$tmp"
+  atomic_replace "$tmp" "$running"
+  wait "$launcher_pid"
   code=$?
   log_size=$log_offset
   segment_exit_code=NONE
@@ -241,6 +284,10 @@ launcher_child() {
     printf 'schema=csi-pairs-v6-launcher-child-exit-v1\n'
     printf 'pid=%s\n' "$child_pid"
     printf 'start_ticks=%s\n' "$child_ticks"
+    printf 'launcher_pid=%s\n' "$launcher_pid"
+    printf 'launcher_start_ticks=%s\n' "$launcher_ticks"
+    printf 'launcher_cmdline_sha256=%s\n' "$launcher_cmd_sha"
+    printf 'launcher_session_id=%s\n' "$launcher_session_id"
     printf 'launcher_exit_code=%s\n' "$code"
     printf 'launcher_log_offset=%s\n' "$log_offset"
     printf 'launcher_log_size=%s\n' "$log_size"
@@ -250,6 +297,18 @@ launcher_child() {
   } >"$tmp"
   atomic_replace "$tmp" "$exit_receipt"
   exit "$code"
+}
+
+release_child() {
+  local go_file=$1
+  local tmp
+  if [[ -e "$go_file" || -L "$go_file" ]]; then
+    [[ -f "$go_file" && ! -L "$go_file" ]] || return 1
+    return 0
+  fi
+  tmp="$go_file.tmp.$$"
+  printf 'released_at=%s\n' "$(date --iso-8601=seconds)" >"$tmp"
+  atomic_replace "$tmp" "$go_file"
 }
 
 next_attempt_number() {
@@ -317,7 +376,7 @@ start_child() {
     "$(env_value "$attempt_dir/ready.env" start_ticks)" \
     "$(env_value "$attempt_dir/ready.env" cmdline_sha256)" || return 1
   publish_child_identity "$attempt" "$attempt_dir" || return 1
-  : >"$attempt_dir/go"
+  release_child "$attempt_dir/go" || return 1
   log "CHILD_STARTED pid=$child_pid start_ticks=$(env_value "$attempt_dir/ready.env" start_ticks) attempt=$attempt"
 }
 
@@ -337,6 +396,89 @@ wait_for_exit_receipt() {
     (( loops <= 100 )) || return 1
     sleep 0.1
   done
+}
+
+recover_detached_launcher() {
+  local attempt_dir=$1
+  local expected_wrapper_pid=$2
+  local expected_wrapper_ticks=$3
+  local expected_wrapper_cmd_sha=$4
+  local running="$attempt_dir/running.env"
+  local receipt="$attempt_dir/exit.env"
+  local launcher_pid
+  local launcher_ticks
+  local launcher_cmd_sha
+  local launcher_session_id
+  local log_offset
+  local log_size
+  local exit_count
+  local logged_code
+  local state
+  local checks=0
+  local tmp
+  [[ -f "$running" && ! -L "$running" ]] || return 1
+  [[ "$(env_value "$running" wrapper_pid)" == "$expected_wrapper_pid" ]] || return 1
+  [[ "$(env_value "$running" wrapper_start_ticks)" == "$expected_wrapper_ticks" ]] || return 1
+  [[ "$(env_value "$running" wrapper_cmdline_sha256)" == "$expected_wrapper_cmd_sha" ]] || return 1
+  [[ "$(env_value "$running" launcher_sha256)" == "$EXPECTED_LAUNCHER_SHA256" ]] || return 1
+  launcher_pid=$(env_value "$running" launcher_pid) || return 1
+  launcher_ticks=$(env_value "$running" launcher_start_ticks) || return 1
+  launcher_cmd_sha=$(env_value "$running" launcher_cmdline_sha256) || return 1
+  launcher_session_id=$(env_value "$running" launcher_session_id) || return 1
+  log_offset=$(env_value "$running" launcher_log_offset) || return 1
+  [[ "$log_offset" =~ ^[0-9]+$ && "$launcher_session_id" == "$launcher_pid" ]] || return 1
+
+  if process_identity_matches "$launcher_pid" "$launcher_ticks" "$launcher_cmd_sha"; then
+    log "LAUNCHER_REATTACH pid=$launcher_pid start_ticks=$launcher_ticks"
+    while process_identity_matches "$launcher_pid" "$launcher_ticks" "$launcher_cmd_sha"; do
+      state=$(awk '{print $3}' "/proc/$launcher_pid/stat" 2>/dev/null || printf X)
+      [[ "$state" != Z ]] || break
+      if (( checks == 0 || (checks * CHILD_CHECK_SECONDS) % POLL_SECONDS == 0 )); then
+        record_status "$launcher_pid" "$launcher_ticks" "$launcher_cmd_sha" || return 1
+      fi
+      sleep "$CHILD_CHECK_SECONDS"
+      checks=$((checks + 1))
+    done
+  elif [[ -e "/proc/$launcher_pid" ]]; then
+    log "LAUNCHER_ORIGINAL_EXITED_PID_NOW_REUSED pid=$launcher_pid start_ticks=$launcher_ticks"
+  else
+    log "LAUNCHER_ALREADY_EXITED pid=$launcher_pid start_ticks=$launcher_ticks"
+  fi
+
+  while ps -e -o sid= 2>/dev/null | awk -v expected="$launcher_session_id" '$1 == expected {found=1} END {exit !found}'; do
+    if (( checks == 0 || (checks * CHILD_CHECK_SECONDS) % POLL_SECONDS == 0 )); then
+      log "LAUNCHER_SESSION_REATTACH session_id=$launcher_session_id"
+    fi
+    sleep "$CHILD_CHECK_SECONDS"
+    checks=$((checks + 1))
+  done
+
+  wait_for_exit_receipt "$receipt" && return 0
+  [[ -f "$LAUNCHER_LOG" && ! -L "$LAUNCHER_LOG" ]] || return 1
+  log_size=$(stat -c '%s' "$LAUNCHER_LOG") || return 1
+  (( log_size >= log_offset )) || return 1
+  exit_count=$(tail -c "+$((log_offset + 1))" "$LAUNCHER_LOG" 2>/dev/null | awk '/^EXIT_CODE=[0-9]+$/ {count++} END {print count+0}')
+  logged_code=$(tail -c "+$((log_offset + 1))" "$LAUNCHER_LOG" 2>/dev/null | awk -F= '/^EXIT_CODE=[0-9]+$/ {value=$2} END {if (value != "") print value; else print "NONE"}')
+  [[ "$exit_count" == 1 && "$logged_code" =~ ^[0-9]+$ ]] || return 1
+  tmp="$receipt.tmp.recovered.$$"
+  {
+    printf 'schema=csi-pairs-v6-launcher-child-exit-recovered-v1\n'
+    printf 'pid=%s\n' "$expected_wrapper_pid"
+    printf 'start_ticks=%s\n' "$expected_wrapper_ticks"
+    printf 'launcher_pid=%s\n' "$launcher_pid"
+    printf 'launcher_start_ticks=%s\n' "$launcher_ticks"
+    printf 'launcher_cmdline_sha256=%s\n' "$launcher_cmd_sha"
+    printf 'launcher_session_id=%s\n' "$launcher_session_id"
+    printf 'launcher_exit_code=%s\n' "$logged_code"
+    printf 'launcher_log_offset=%s\n' "$log_offset"
+    printf 'launcher_log_size=%s\n' "$log_size"
+    printf 'segment_exit_count=%s\n' "$exit_count"
+    printf 'segment_exit_code=%s\n' "$logged_code"
+    printf 'recovered_after_wrapper_exit=true\n'
+    printf 'finished_at=%s\n' "$(date --iso-8601=seconds)"
+  } >"$tmp"
+  atomic_replace "$tmp" "$receipt"
+  log "LAUNCHER_EXIT_RECEIPT_RECOVERED pid=$launcher_pid code=$logged_code evidence=$receipt"
 }
 
 monitor_current_child() {
@@ -362,6 +504,12 @@ monitor_current_child() {
   receipt="$attempt_dir/exit.env"
 
   if process_identity_matches "$child_pid" "$start_ticks" "$cmd_sha"; then
+    if [[ ! -e "$attempt_dir/go" && ! -L "$attempt_dir/go" && ! -e "$receipt" && ! -L "$receipt" ]]; then
+      release_child "$attempt_dir/go" || return 97
+      log "CHILD_HANDSHAKE_RECOVERED pid=$child_pid attempt=$attempt"
+    elif [[ -L "$attempt_dir/go" || ( -e "$attempt_dir/go" && ! -f "$attempt_dir/go" ) ]]; then
+      return 97
+    fi
     log "CHILD_REATTACH_OR_MONITOR pid=$child_pid start_ticks=$start_ticks attempt=$attempt"
     while process_identity_matches "$child_pid" "$start_ticks" "$cmd_sha"; do
       state=$(awk '{print $3}' "/proc/$child_pid/stat" 2>/dev/null || printf X)
@@ -379,8 +527,11 @@ monitor_current_child() {
   fi
 
   wait_for_exit_receipt "$receipt" || {
-    log "CHILD_EXIT_RECEIPT_MISSING pid=$child_pid attempt=$attempt"
-    return 97
+    recover_detached_launcher \
+      "$attempt_dir" "$child_pid" "$start_ticks" "$cmd_sha" || {
+        log "CHILD_EXIT_RECEIPT_MISSING pid=$child_pid attempt=$attempt"
+        return 97
+      }
   }
   code=$(env_value "$receipt" launcher_exit_code) || return 97
   logged_code=$(env_value "$receipt" segment_exit_code) || return 97
@@ -434,8 +585,16 @@ main() {
       retire_child_identity || return 97
       sleep "$RETRY_SECONDS"
       preflight || return 92
+      if downstream_started; then
+        log "AUTO_RESUME=REFUSED_AFTER_DOWNSTREAM_START child_exit_code=$code"
+        return "$code"
+      fi
     fi
 
+    if downstream_started; then
+      log "AUTO_RESUME=REFUSED_WITHOUT_ACTIVE_CHILD"
+      return 95
+    fi
     attempt=$(next_attempt_number)
     code=$?
     if (( code == 2 )); then

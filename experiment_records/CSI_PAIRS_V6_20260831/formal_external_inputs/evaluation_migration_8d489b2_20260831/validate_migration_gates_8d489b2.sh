@@ -67,11 +67,50 @@ def validate_outer(name: str, path: Path):
     return value
 
 
+legacy_approval = payload(legacy_root / "approval" / "request.json", "legacy approval request")
+try:
+    authenticated_legacy_runtime = legacy_approval["runtime_provenance"]
+    authenticated_legacy_runtime_sha256 = legacy_approval["runtime_provenance_sha256"]
+except (KeyError, TypeError) as error:
+    raise RuntimeError("legacy approval runtime provenance is incomplete") from error
+if (
+    not isinstance(authenticated_legacy_runtime, dict)
+    or not isinstance(authenticated_legacy_runtime_sha256, str)
+    or len(authenticated_legacy_runtime_sha256) != 64
+    or _canonical_sha256(authenticated_legacy_runtime)
+    != authenticated_legacy_runtime_sha256
+    or authenticated_legacy_runtime.get("requirements_lock_sha256")
+    != identity["requirements_lock_sha256"]
+):
+    raise RuntimeError("legacy approval runtime provenance digest is invalid")
+
+subset_path = root / "real_subset_report_8d489b2.json"
+subset = payload(subset_path, "real-subset report")
+_validate_real_subset_report(
+    subset,
+    report_path=subset_path,
+    expected_identity=identity,
+    legacy_root=legacy_root,
+    new_root=new_root,
+)
+authenticated_runtime = subset["workers"]["new"]["runtime_provenance"]
+authenticated_runtime_sha256 = _canonical_sha256(authenticated_runtime)
+if (
+    authenticated_runtime.get("source_tree_sha256")
+    != identity["new_source_tree_sha256"]
+    or authenticated_runtime.get("requirements_lock_sha256")
+    != identity["requirements_lock_sha256"]
+    or subset["workers"]["new"]["source_identity"]["runtime_provenance_sha256"]
+    != authenticated_runtime_sha256
+):
+    raise RuntimeError("candidate runtime provenance is not authenticated")
+
 performance_path = root / "performance" / "performance.json"
 performance = validate_outer("performance", performance_path)
 scale_stems = ("n", "two-n", "four-n")
 expected_scales = ("N", "2N", "4N")
 performance_scales = performance["results"]["scales"]
+performance_observations = []
 if len(performance_scales) != len(expected_scales):
     raise RuntimeError("performance report scale count changed")
 for report_scale, stem, expected_scale in zip(
@@ -80,6 +119,7 @@ for report_scale, stem, expected_scale in zip(
     observation_path = root / "performance" / f"{stem}observations.json"
     observation = payload(observation_path, f"{expected_scale} observation")
     validate_performance_observation(observation, identity=identity)
+    performance_observations.append(observation)
     if observation["scale"] != expected_scale:
         raise RuntimeError(f"{expected_scale} observation scale changed")
     output_path = Path(str(observation["output"]["path"])).resolve()
@@ -112,6 +152,41 @@ for report_scale, stem, expected_scale in zip(
         device=str(observation["execution_device"]),
     )
 
+expected_performance_artifacts = [
+    _binding(root / "performance" / "nobservations.json"),
+    _binding(root / "performance" / "two-nobservations.json"),
+    _binding(root / "performance" / "nworker.stdout.log"),
+    _binding(root / "performance" / "nworker.stderr.log"),
+    _binding(root / "performance" / "two-nworker.stdout.log"),
+    _binding(root / "performance" / "two-nworker.stderr.log"),
+    _binding(root / "performance" / "four-nworker.stdout.log"),
+    _binding(root / "performance" / "four-nworker.stderr.log"),
+    _binding(root / "performance" / "four-nobservations.json"),
+]
+if performance["inputs"]["artifacts"] != expected_performance_artifacts:
+    raise RuntimeError("performance report artifact bindings are incomplete or reordered")
+four_n_observation = performance_observations[-1]
+gpu_benchmark = performance["results"]["gpu_benchmark"]
+gpu_observation_fields = {
+    "execution_device": "execution_device",
+    "batch_size": "batch_size",
+    "wall_seconds": "wall_seconds",
+    "gpu_utilization_percent": "gpu_utilization_percent",
+    "gpu_utilization_statistic": "gpu_utilization_statistic",
+    "gpu_sample_count": "gpu_sample_count",
+    "gpu_sampling_interval_seconds": "gpu_sample_interval_seconds",
+    "peak_vram_bytes": "peak_vram_bytes",
+}
+for report_field, observation_field in gpu_observation_fields.items():
+    if gpu_benchmark[report_field] != four_n_observation[observation_field]:
+        raise RuntimeError(
+            f"GPU benchmark and 4N observation disagree on {report_field}"
+        )
+if gpu_benchmark["artifact"] != _binding(
+    root / "performance" / "four-nobservations.json"
+):
+    raise RuntimeError("GPU benchmark does not bind the 4N observation")
+
 performance_receipt = payload(
     root / "performance" / "runner_receipt.json", "performance runner receipt"
 )
@@ -131,6 +206,8 @@ if (
     != "csi-pairs-v6-migration-performance-runner-v1"
     or performance_receipt.get("status") != "PASS"
     or performance_receipt.get("identity_sha256") != _canonical_sha256(identity)
+    or performance_receipt.get("runtime_provenance_sha256")
+    != authenticated_runtime_sha256
     or performance_receipt.get("performance_report") != _binding(performance_path)
 ):
     raise RuntimeError("performance runner receipt is invalid")
@@ -147,15 +224,6 @@ expected_receipt_scales = [
 if performance_receipt["scales"] != expected_receipt_scales:
     raise RuntimeError("performance runner receipt scale bindings changed")
 
-subset_path = root / "real_subset_report_8d489b2.json"
-subset = payload(subset_path, "real-subset report")
-_validate_real_subset_report(
-    subset,
-    report_path=subset_path,
-    expected_identity=identity,
-    legacy_root=legacy_root,
-    new_root=new_root,
-)
 print("MIGRATION_CORE_GATES=PASS")
 
 if mode == "all":
@@ -182,6 +250,8 @@ if mode == "all":
         != "csi-pairs-v6-migration-control-runner-v1"
         or control_receipt.get("status") != "PASS"
         or control_receipt.get("identity_sha256") != _canonical_sha256(identity)
+        or control_receipt.get("source_evaluator_output")
+        != performance_scales[-1]["output"]
         or control_receipt.get("reports") != expected_reports
     ):
         raise RuntimeError("control runner receipt is invalid")
@@ -195,11 +265,15 @@ if mode == "all":
         validate_control_observation(observation, name=name, identity=identity)
         if report["inputs"]["artifacts"] != [_binding(observation_path)]:
             raise RuntimeError(f"{name} report does not bind its observation")
+        if report["results"] != observation["results"]:
+            raise RuntimeError(f"{name} report and observation results disagree")
         if (
             observation["run_identity_sha256"]
             != control_receipt["run_identity_sha256"]
             or observation["source_evaluator_output"]
             != control_receipt["source_evaluator_output"]
+            or observation["run_identity"]["runtime_provenance_sha256"]
+            != authenticated_runtime_sha256
         ):
             raise RuntimeError(f"{name} observation disagrees with runner receipt")
     validate_outer("base_to_new_diff", root / "base_to_new_diff.json")

@@ -32,12 +32,12 @@ SUPERVISOR_IDENTITY="$SUPERVISION_ROOT/state/supervisor_identity.env"
 SUPERVISOR_EXIT="$SUPERVISION_ROOT/state/supervisor_exit.env"
 EXPECTED_JUDGE=codex:gpt-5.6-sol-ultra-independent-migration-review-8d489b2
 EXPECTED_PROMPT_SHA256=6902850bd4ec66aa85cd429bb3ab5ccc38d6719f0496bae99bd44a7afbef5621
-EXPECTED_JUDGE_RUNNER_SHA256=ab959cf8b1ec7f474b8752e6fcac22e5f11e8266472e9f93c9d04af2ce6b71c0
+EXPECTED_JUDGE_RUNNER_SHA256=3d1dd3a0323f4e5769679474f6145c121dfca75debf664f59efc068c82cdd819
 EXPECTED_RUN_ALL_SHA256=399a848fc5bb31cbb7c71a857f10584655164fdb6ae2b9321c765f7a459e6e1b
-EXPECTED_SUPERVISOR_SHA256=22cb80762e7e11a4f728fc0746459b69880be43aa52d770b00ee9de77c9ed3ad
+EXPECTED_SUPERVISOR_SHA256=58c5d9696484532e18ca4a61673016b5b8cc5c0f3ec7093b04a5f548b03d8ba5
 EXPECTED_WIGATR_PROBE_SHA256=099901cc3b68a7021728ce37c74a037e77f3047a24200da966e899b6f7debf0f
-EXPECTED_REQUEST_CREATOR_SHA256=d6df54f8c483a80fa8b5459750dd38cbae48c0bddf8091113ef3ef9be49f9883
-EXPECTED_GATE_VALIDATOR_SHA256=dbf185d225711803aeab886da1a1f56c267eb0af39c17d0912dc5c5357f65b05
+EXPECTED_REQUEST_CREATOR_SHA256=ae5fcb6833a8361046f903391392ebeeb06cb2517339772ba6ebcde83db2a417
+EXPECTED_GATE_VALIDATOR_SHA256=de248fcc97cabd4b3979c8f39e39efb068ae0cc0eeffcae6de8d8b0e0606b7d1
 EXPECTED_RUNTIME_COMMIT=8d489b2387e7bb6c988a41d9e0d57b8a6cffc4d4
 EXPECTED_SOURCE_SHA256=aa5b1d6a1062d68bb5de045b40f042e1a453d14a8d73632ad0be86dc7b07caff
 
@@ -335,6 +335,10 @@ PY
 wait_for_idle_gpus() {
   local processes
   while true; do
+    if supervisor_identity_matches; then
+      log "ACCEPTANCE_COORDINATOR_GPU_WAIT_BYPASS=SUPERVISOR_ALREADY_ACTIVE"
+      return 0
+    fi
     if ! processes=$(nvidia-smi --query-compute-apps=pid,gpu_uuid --format=csv,noheader,nounits 2>/dev/null); then
       refuse NVIDIA_PROCESS_QUERY_FAILED
     fi
@@ -344,6 +348,61 @@ wait_for_idle_gpus() {
     log "ACCEPTANCE_COORDINATOR_WAIT=GPUS_OCCUPIED"
     sleep 60
   done
+}
+
+write_supervisor_launch_receipt() {
+  local supervisor_pid=$1
+  local start_ticks=$2
+  local boot_root=$3
+  local launch_mode=$4
+  cd "$RUNTIME_ROOT"
+  "$RUNTIME_PYTHON" -B - \
+    "$LAUNCH_RECEIPT" "$supervisor_pid" "$start_ticks" "$SUPERVISOR" \
+    "$boot_root" "$ACCEPTED" "$SUPERVISOR_IDENTITY" "$launch_mode" <<'PY'
+from datetime import datetime, timezone
+import json
+import os
+from pathlib import Path
+import sys
+from formal_v2.formal_io import sha256_file
+from formal_v2.formal_migration_evidence import write_json_exclusive_atomic
+
+receipt, pid, ticks, supervisor, boot_root, accepted, identity, launch_mode = sys.argv[1:9]
+if launch_mode not in {"STARTED", "REATTACHED"}:
+    raise RuntimeError("supervisor launch mode is invalid")
+boot_receipt = Path(boot_root) / "supervisor_launch_receipt.json"
+payload = {
+    "schema_version": "csi-pairs-v6-supervisor-launch-v2",
+    "status": "RUNNING",
+    "launch_mode": launch_mode,
+    "created_utc": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+    "pid": int(pid),
+    "start_ticks": int(ticks),
+    "supervisor_path": str(Path(supervisor).resolve()),
+    "supervisor_sha256": sha256_file(supervisor),
+    "boot_root": str(Path(boot_root).resolve()),
+    "accepted_path": str(Path(accepted).resolve()),
+    "accepted_sha256": sha256_file(accepted),
+    "identity_path": str(Path(identity).resolve()),
+    "identity_sha256": sha256_file(identity),
+}
+write_json_exclusive_atomic(boot_receipt, payload)
+receipt_path = Path(receipt)
+temporary = receipt_path.with_name(receipt_path.name + f".tmp.{os.getpid()}")
+with temporary.open("x", encoding="utf-8", newline="\n") as handle:
+    json.dump(payload, handle, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+    handle.write("\n")
+    handle.flush()
+    os.fsync(handle.fileno())
+os.replace(temporary, receipt_path)
+directory_fd = os.open(receipt_path.parent, os.O_RDONLY)
+try:
+    os.fsync(directory_fd)
+finally:
+    os.close(directory_fd)
+print("SUPERVISOR_IMMUTABLE_LAUNCH_RECEIPT_SHA256=" + sha256_file(boot_receipt))
+print("SUPERVISOR_LAUNCH_RECEIPT_SHA256=" + sha256_file(receipt))
+PY
 }
 
 validate_disk_budget() {
@@ -374,7 +433,13 @@ launch_supervisor() {
   if ! flock -n 8; then
     supervisor_identity_matches \
       || refuse SUPERVISOR_LOCK_HELD_WITHOUT_MATCHING_IDENTITY
-    log "SUPERVISOR_ALREADY_ACTIVE pid=$(env_value "$SUPERVISOR_IDENTITY" pid) start_ticks=$(env_value "$SUPERVISOR_IDENTITY" start_ticks)"
+    supervisor_pid=$(env_value "$SUPERVISOR_IDENTITY" pid)
+    start_ticks=$(env_value "$SUPERVISOR_IDENTITY" start_ticks)
+    boot_root=$(mktemp -d "$COORDINATION_ROOT/supervisor-reattach-$(date -u +%Y%m%dT%H%M%SZ)-XXXXXX")
+    write_supervisor_launch_receipt \
+      "$supervisor_pid" "$start_ticks" "$boot_root" REATTACHED
+    log "SUPERVISOR_ALREADY_ACTIVE pid=$supervisor_pid start_ticks=$start_ticks receipt=$boot_root/supervisor_launch_receipt.json"
+    exec 8>&-
     return 0
   fi
   flock -u 8
@@ -390,51 +455,8 @@ launch_supervisor() {
     sleep 0.1
   done
   start_ticks=$(env_value "$SUPERVISOR_IDENTITY" start_ticks)
-  cd "$RUNTIME_ROOT"
-  "$RUNTIME_PYTHON" -B - \
-    "$LAUNCH_RECEIPT" "$supervisor_pid" "$start_ticks" "$SUPERVISOR" \
-    "$boot_root" "$ACCEPTED" "$SUPERVISOR_IDENTITY" <<'PY'
-from datetime import datetime, timezone
-import json
-import os
-from pathlib import Path
-import sys
-from formal_v2.formal_io import sha256_file
-from formal_v2.formal_migration_evidence import write_json_exclusive_atomic
-
-receipt, pid, ticks, supervisor, boot_root, accepted, identity = sys.argv[1:8]
-boot_receipt = Path(boot_root) / "supervisor_launch_receipt.json"
-payload = {
-    "schema_version": "csi-pairs-v6-supervisor-launch-v1",
-    "status": "RUNNING",
-    "created_utc": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
-    "pid": int(pid),
-    "start_ticks": int(ticks),
-    "supervisor_path": str(Path(supervisor).resolve()),
-    "supervisor_sha256": sha256_file(supervisor),
-    "boot_root": str(Path(boot_root).resolve()),
-    "accepted_path": str(Path(accepted).resolve()),
-    "accepted_sha256": sha256_file(accepted),
-    "identity_path": str(Path(identity).resolve()),
-    "identity_sha256": sha256_file(identity),
-}
-write_json_exclusive_atomic(boot_receipt, payload)
-receipt_path = Path(receipt)
-temporary = receipt_path.with_name(receipt_path.name + f".tmp.{os.getpid()}")
-with temporary.open("x", encoding="utf-8", newline="\n") as handle:
-    json.dump(payload, handle, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
-    handle.write("\n")
-    handle.flush()
-    os.fsync(handle.fileno())
-os.replace(temporary, receipt_path)
-directory_fd = os.open(receipt_path.parent, os.O_RDONLY)
-try:
-    os.fsync(directory_fd)
-finally:
-    os.close(directory_fd)
-print("SUPERVISOR_IMMUTABLE_LAUNCH_RECEIPT_SHA256=" + sha256_file(boot_receipt))
-print("SUPERVISOR_LAUNCH_RECEIPT_SHA256=" + sha256_file(receipt))
-PY
+  write_supervisor_launch_receipt \
+    "$supervisor_pid" "$start_ticks" "$boot_root" STARTED
   log "SUPERVISOR_STARTED pid=$supervisor_pid start_ticks=$start_ticks"
 }
 
