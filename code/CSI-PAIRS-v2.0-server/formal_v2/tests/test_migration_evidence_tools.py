@@ -762,6 +762,81 @@ class MigrationEvidenceToolsTests(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             self._validate("legacy_evaluation_freeze", payload)
 
+    def test_post_exit_config_raw_sha_cannot_masquerade_as_canonical(self) -> None:
+        payload = self._post_exit_payload()
+        termination = payload["termination"]
+        raw_config_sha256 = sha256_file(self.fixture.config)
+        self.assertNotEqual(raw_config_sha256, self.identity["config_sha256"])
+        raw_identity = dict(self.identity)
+        raw_identity["config_sha256"] = raw_config_sha256
+        with self.assertRaisesRegex(RuntimeError, "canonical SHA-256 mismatch"):
+            evidence.write_legacy_evaluation_post_exit_freeze_receipt(
+                self.fixture.external_root / "raw-config-identity-freeze.json",
+                expected_identity=raw_identity,
+                command="python -B raw-config-identity",
+                inventory_path=payload["inputs"]["artifacts"][0]["path"],
+                pid_snapshot_path=payload["process_identity"]["identity_snapshot"][
+                    "path"
+                ],
+                monitor_path=payload["monitor"]["artifact"]["path"],
+                kernel_oom_evidence_path=termination[
+                    "kernel_cgroup_oom_evidence"
+                ]["path"],
+                exit_site_path=termination["exit_site_evidence"]["path"],
+                timing_path=termination["timing_evidence"]["path"],
+                supervisor_log_path=termination["supervisor_log_evidence"]["path"],
+                supervisor_script_path=termination[
+                    "supervisor_script_evidence"
+                ]["path"],
+                config_path=self.fixture.config,
+                created_utc=CREATED_UTC,
+            )
+
+    def test_post_exit_config_file_tampering_is_rejected(self) -> None:
+        payload = self._post_exit_payload()
+        self.fixture.config.write_text("{}\n", encoding="ascii")
+        with self.assertRaises(RuntimeError):
+            self._validate("legacy_evaluation_freeze", payload)
+
+    def test_post_exit_semantic_config_reformat_requires_matching_raw_line(self) -> None:
+        stale_site = self._post_exit_payload()
+        config_payload = json.loads(self.fixture.config.read_text(encoding="ascii"))
+        old_raw_sha256 = sha256_file(self.fixture.config)
+        self.fixture.config.write_text(
+            json.dumps(
+                config_payload,
+                sort_keys=True,
+                separators=(",", ":"),
+                ensure_ascii=True,
+                allow_nan=False,
+            )
+            + "\n",
+            encoding="ascii",
+        )
+        new_raw_sha256 = sha256_file(self.fixture.config)
+        self.assertNotEqual(old_raw_sha256, new_raw_sha256)
+        self._rebind_post_exit_artifact(
+            stale_site,
+            stale_site["termination"],
+            "config_evidence",
+        )
+        with self.assertRaises(RuntimeError):
+            self._validate("legacy_evaluation_freeze", stale_site)
+
+        exit_site = Path(stale_site["termination"]["exit_site_evidence"]["path"])
+        exit_site.write_text(
+            exit_site.read_text(encoding="ascii").replace(
+                old_raw_sha256, new_raw_sha256, 1
+            ),
+            encoding="ascii",
+        )
+        self._rebind_post_exit_artifact(
+            stale_site,
+            stale_site["termination"],
+            "exit_site_evidence",
+        )
+        self._validate("legacy_evaluation_freeze", stale_site)
+
     def test_post_exit_oom_rejects_non_oom_raw_evidence(self) -> None:
         non_oom = self._post_exit_payload()
         kernel_binding = non_oom["termination"]["kernel_cgroup_oom_evidence"]

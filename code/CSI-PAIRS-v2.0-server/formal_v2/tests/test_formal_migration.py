@@ -11,7 +11,7 @@ from unittest import mock
 
 from formal_v2 import formal_migration as migration
 from formal_v2 import formal_migration_evidence as migration_evidence
-from formal_v2.formal_config import ARMS
+from formal_v2.formal_config import ARMS, load_formal_config
 from formal_v2.formal_evaluation_compare import CSV_CONTRACTS, REQUIRED_ARTIFACTS
 from formal_v2.formal_evaluation_subset_compare import (
     CHECKPOINT_SELECTION_RULE,
@@ -29,6 +29,7 @@ from formal_v2.formal_evidence import (
     FACTORIAL_SCHEMA,
     QUALIFICATION_SCHEMA,
     RUNTIME_PROVENANCE_FIELDS,
+    config_sha256,
 )
 from formal_v2.formal_io import artifact_manifest, sha256_file, write_json
 from formal_v2.formal_llm_judge import (
@@ -40,7 +41,8 @@ from formal_v2.formal_model import CSIPairsFormalModel, torch
 
 
 SEEDS = (20270001, 20270002, 20270003)
-CONFIG_SHA256 = hashlib.sha256(b"frozen-v6-config").hexdigest()
+CONFIG_SOURCE = Path(__file__).resolve().parents[1] / "configs" / "formal_v2.json"
+CONFIG_SHA256 = config_sha256(load_formal_config(CONFIG_SOURCE))
 MIGRATION_NONCE = hashlib.sha256(b"migration-nonce").hexdigest()
 NEW_RUN_NONCE = hashlib.sha256(b"new-run-nonce").hexdigest()
 RUN_NONCE = hashlib.sha256(b"legacy-run-nonce").hexdigest()
@@ -93,6 +95,8 @@ class FormalMigrationFixture:
         self.dataset.write_bytes(b"formal-dataset\x00")
         self.protocol = root / "frozen-protocol-v6.md"
         self.protocol.write_text("frozen V6 protocol\n", encoding="ascii")
+        self.config = self.external_root / "formal-v2.json"
+        self.config.write_bytes(CONFIG_SOURCE.read_bytes())
 
         self.legacy_source = self._make_source("legacy-source", "legacy")
         self.new_source = self._make_source("new-source", "linear-resume")
@@ -881,7 +885,7 @@ class FormalMigrationFixture:
                 "evaluation_inventory_begin\n"
                 "evaluation_inventory_end\n"
                 "operation_lock=PRESENT\n"
-                f"{identity['config_sha256']}  /formal/config.json\n"
+                f"{sha256_file(self.config)}  {self.config.resolve()}\n"
                 f"{identity['dataset_sha256']}  /formal/dataset.npz\n"
             ),
             "post-exit-timing.env": (
@@ -926,6 +930,7 @@ class FormalMigrationFixture:
             timing_path=artifacts["post-exit-timing.env"],
             supervisor_log_path=artifacts["post-exit-supervisor.log"],
             supervisor_script_path=artifacts["post-exit-supervisor.sh"],
+            config_path=self.config,
             created_utc=CREATED_UTC,
         )
         self.migration_evidence["legacy_evaluation_freeze"] = freeze
