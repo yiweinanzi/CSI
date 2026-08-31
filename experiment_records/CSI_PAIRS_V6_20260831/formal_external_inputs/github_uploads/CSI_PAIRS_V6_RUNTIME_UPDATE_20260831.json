@@ -1,0 +1,36 @@
+{
+  "schema_version": "csi-pairs-v6-github-runtime-update-receipt-v1",
+  "created_utc": "2026-08-31T11:59:07Z",
+  "remote": "https://github.com/yiweinanzi/CSI",
+  "runtime_branch": "codex/csi-pairs-v6-evaluation-runtime-20260831",
+  "runtime_commit": "8d489b2387e7bb6c988a41d9e0d57b8a6cffc4d4",
+  "runtime_source_tree_sha256": "aa5b1d6a1062d68bb5de045b40f042e1a453d14a8d73632ad0be86dc7b07caff",
+  "requirements_lock_sha256": "9548a24a4faf5db17b5251df407b4402de033ae8648ec321c850fe6105002cf1",
+  "evidence_branch": "codex/csi-pairs-v6-full-evidence-20260831",
+  "evidence_commit_before_update_receipt": "53add0a5c4fc3b8d73bd938699d8a8fe2a3bd830",
+  "previous_evidence_remote_commit": "cbb26e86b990fb94f2e53daa77ad61878fa6838f",
+  "remote_runtime_sha_verification": "PASS",
+  "integrated_focused_regression": {
+    "status": "PASS",
+    "passed": 131,
+    "warnings": 98,
+    "command_scope": "migration evidence runner, claim-control checkpoint authentication, post-exit runner, migration evidence, migration CLI and adapter root separation",
+    "cuda_visible_devices": "",
+    "python_bytecode_disabled": true
+  },
+  "component_regressions": {
+    "process_safe_controls": "344 passed, 6 skipped",
+    "claim_control_checkpoint_preflight": "101 passed",
+    "post_exit_runner": "59 passed"
+  },
+  "full_regression": "COLLECTED_886_TESTS_PENDING_EXECUTION",
+  "dataset_included": false,
+  "checkpoint_or_weight_included": false,
+  "pyc_or_pyo_included": false,
+  "fixed_run_contaminated": false,
+  "notes": [
+    "This receipt records the immediate runtime upload requested before the full regression completed.",
+    "The evidence branch update includes the same runtime changes plus the existing lightweight experiment-record snapshot.",
+    "Datasets, shards, checkpoints, weights, runtimes, virtual environments, PDFs, archives, wheels, secrets, private audit material, and files at or above 5 MiB remain excluded."
+  ]
+}

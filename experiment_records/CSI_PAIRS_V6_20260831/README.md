@@ -47,6 +47,12 @@
 
 这些文件是工程证据和历史记录，不自动构成论文科学结论。Smoke 结果、fixture、dry-run、候选数据、工程 `PASS` 和未验收迁移证据不得写成正式科学主张。后续合法产物会以新的提交追加到同一分支。
 
+## 2026-08-31 runtime 追加
+
+应用户要求，本分支随后追加了最终集成 runtime 的四项修复：process-safe migration controls、shuffled/retention checkpoint 全量预验、受 guard 保护的 post-exit stale-lock 归档，以及 raw/canonical config SHA 合同。对应 runtime 分支远端提交为 `8d489b2387e7bb6c988a41d9e0d57b8a6cffc4d4`，formal source-tree SHA-256 为 `aa5b1d6a1062d68bb5de045b40f042e1a453d14a8d73632ad0be86dc7b07caff`。
+
+集成聚焦回归为 `131 passed`；三个独立组件回归分别为 `344 passed, 6 skipped`、`101 passed` 和 `59 passed`。上传时全量套件已收集 `886` 项但尚未执行，因此本次追加不能冒充全量回归 PASS。详细绑定见 `formal_external_inputs/github_uploads/CSI_PAIRS_V6_RUNTIME_UPDATE_20260831.json`。
+
 ## 完整性和安全检查
 
 - Git 本身记录每个归档文件的 blob 身份；提交 SHA 是此快照的内容地址。
