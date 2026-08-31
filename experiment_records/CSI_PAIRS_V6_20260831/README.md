@@ -51,7 +51,7 @@
 
 应用户要求，本分支随后追加了最终集成 runtime 的四项修复：process-safe migration controls、shuffled/retention checkpoint 全量预验、受 guard 保护的 post-exit stale-lock 归档，以及 raw/canonical config SHA 合同。对应 runtime 分支远端提交为 `8d489b2387e7bb6c988a41d9e0d57b8a6cffc4d4`，formal source-tree SHA-256 为 `aa5b1d6a1062d68bb5de045b40f042e1a453d14a8d73632ad0be86dc7b07caff`。
 
-集成聚焦回归为 `131 passed`；三个独立组件回归分别为 `344 passed, 6 skipped`、`101 passed` 和 `59 passed`。上传时全量套件已收集 `886` 项但尚未执行，因此本次追加不能冒充全量回归 PASS。详细绑定见 `formal_external_inputs/github_uploads/CSI_PAIRS_V6_RUNTIME_UPDATE_20260831.json`。
+集成聚焦回归为 `131 passed`；三个独立组件回归分别为 `344 passed, 6 skipped`、`101 passed` 和 `59 passed`。GPU 隐藏的最终全量回归为 `879 passed, 12 skipped`，无失败，耗时 566.6 秒。详细绑定见 `formal_external_inputs/github_uploads/CSI_PAIRS_V6_RUNTIME_UPDATE_20260831.json`。
 
 ## 完整性和安全检查
 

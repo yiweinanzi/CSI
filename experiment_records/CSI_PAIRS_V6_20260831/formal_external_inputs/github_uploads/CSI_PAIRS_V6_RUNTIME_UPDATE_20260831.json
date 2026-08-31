@@ -23,13 +23,22 @@
     "claim_control_checkpoint_preflight": "101 passed",
     "post_exit_runner": "59 passed"
   },
-  "full_regression": "COLLECTED_886_TESTS_PENDING_EXECUTION",
+  "full_regression": {
+    "status": "PASS",
+    "passed": 879,
+    "skipped": 12,
+    "warnings": 163,
+    "elapsed_seconds": 566.6,
+    "command": "python -B -m pytest -q formal_v2/tests",
+    "cuda_visible_devices": "",
+    "python_bytecode_disabled": true
+  },
   "dataset_included": false,
   "checkpoint_or_weight_included": false,
   "pyc_or_pyo_included": false,
   "fixed_run_contaminated": false,
   "notes": [
-    "This receipt records the immediate runtime upload requested before the full regression completed.",
+    "The runtime branch was uploaded immediately after the focused regression; this receipt was then updated with the completed full regression result.",
     "The evidence branch update includes the same runtime changes plus the existing lightweight experiment-record snapshot.",
     "Datasets, shards, checkpoints, weights, runtimes, virtual environments, PDFs, archives, wheels, secrets, private audit material, and files at or above 5 MiB remain excluded."
   ]
