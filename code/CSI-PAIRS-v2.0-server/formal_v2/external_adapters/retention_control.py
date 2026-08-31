@@ -9,7 +9,7 @@ import torch
 
 from formal_v2.formal_claim_controls import (
     _authenticated_qualification_gate,
-    _validate_formal_checkpoint,
+    _load_control_full_checkpoint_payloads,
 )
 from formal_v2.formal_dataset import FormalDataset
 from formal_v2.formal_evaluation import _compatibility_dataset, _response_probe_dataset
@@ -127,6 +127,19 @@ def run_retention_control(
         or sha256_file(teacher_path) != qualification["teacher_checkpoint_sha256"]
     ):
         raise RuntimeError("retention control teacher checkpoint is not authenticated")
+    checkpoint_index_path = upstream / "factorial" / "checkpoint_index.json"
+    checkpoint_index = read_strict_json(checkpoint_index_path)
+    full = _load_control_full_checkpoint_payloads(
+        config,
+        upstream / "factorial",
+        checkpoint_index,
+        evidence,
+        qualification["teacher_checkpoint_sha256"],
+        legacy_runtime=authenticated.migrated,
+    )
+    full_rows = {seed: value[0] for seed, value in full.items()}
+    full_payloads = {seed: value[1] for seed, value in full.items()}
+
     teacher = load_teacher_bundle(teacher_path, config)
     route_normalization = fit_route_normalization(dataset, teacher)
     normalization = _training_normalization(
@@ -151,41 +164,13 @@ def run_retention_control(
     write_json(provenance_path, provenance)
     provenance_sha256 = sha256_file(provenance_path)
 
-    checkpoint_index_path = upstream / "factorial" / "checkpoint_index.json"
-    checkpoint_index = read_strict_json(checkpoint_index_path)
-    full_rows = {
-        int(row["seed"]): row
-        for row in checkpoint_index.get("checkpoints", [])
-        if row.get("arm") == "full"
-    }
-    if set(full_rows) != set(map(int, config["seeds"])):
-        raise RuntimeError("retention control requires every registered Full checkpoint")
-    if any(
-        row.get("teacher_checkpoint_sha256")
-        != qualification["teacher_checkpoint_sha256"]
-        for row in full_rows.values()
-    ):
-        raise RuntimeError("retention control Full checkpoint teacher hash mismatch")
-
     registry_path = output_run / "evaluation" / "compatibility_pair_effects.csv"
     registry = _read_registry(registry_path)
     all_rows = []
     probe_rows = []
     for seed in map(int, config["seeds"]):
         checkpoint_row = full_rows[seed]
-        checkpoint_path = upstream / "factorial" / checkpoint_row["path"]
-        if sha256_file(checkpoint_path) != checkpoint_row["sha256"]:
-            raise RuntimeError("retention Full checkpoint hash mismatch")
-        payload = _validate_formal_checkpoint(
-            checkpoint_path,
-            checkpoint_row,
-            evidence,
-            teacher_checkpoint_sha256=qualification[
-                "teacher_checkpoint_sha256"
-            ],
-            legacy_runtime=authenticated.migrated,
-        )
-        model = _model_from_payload(payload)
+        model = _model_from_payload(full_payloads[seed])
 
         compatibility_probe, response_probe = _fit_probes(
             config, dataset, teacher, normalization, model, seed

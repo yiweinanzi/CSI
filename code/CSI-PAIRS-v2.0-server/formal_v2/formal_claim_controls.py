@@ -1096,6 +1096,67 @@ def _validate_formal_checkpoint(
     return payload
 
 
+def _load_control_full_checkpoint_payloads(
+    config,
+    factorial_root,
+    checkpoint_index,
+    evidence,
+    teacher_checkpoint_sha256,
+    *,
+    legacy_runtime,
+):
+    """Authenticate every Full checkpoint before a claim control does expensive work."""
+    rows = checkpoint_index.get("checkpoints") if isinstance(checkpoint_index, dict) else None
+    if not isinstance(rows, list):
+        raise RuntimeError("claim-control checkpoint index has no checkpoint rows")
+    expected_seeds = tuple(map(int, config["seeds"]))
+    full_rows = {}
+    for row in rows:
+        if not isinstance(row, dict):
+            raise RuntimeError("claim-control checkpoint index row is not an object")
+        if row.get("arm") != "full":
+            continue
+        if type(row.get("seed")) is not int:
+            raise RuntimeError("claim-control Full checkpoint seed is not an integer")
+        seed = row["seed"]
+        if seed not in expected_seeds or seed in full_rows:
+            raise RuntimeError("claim-control Full checkpoint seed inventory is invalid")
+        full_rows[seed] = row
+    if tuple(full_rows) != expected_seeds:
+        raise RuntimeError("claim-control requires every Full checkpoint in seed order")
+    if not _lower_sha256(teacher_checkpoint_sha256):
+        raise RuntimeError("claim-control teacher checkpoint digest is invalid")
+
+    root = Path(factorial_root).resolve()
+    loaded = {}
+    for seed in expected_seeds:
+        row = full_rows[seed]
+        relative = row.get("path")
+        if (
+            not isinstance(relative, str)
+            or not relative
+            or Path(relative).is_absolute()
+            or ".." in Path(relative).parts
+            or row.get("teacher_checkpoint_sha256") != teacher_checkpoint_sha256
+            or not _lower_sha256(row.get("sha256"))
+        ):
+            raise RuntimeError("claim-control Full checkpoint row identity is invalid")
+        path = (root / relative).resolve()
+        if root not in path.parents or not path.is_file():
+            raise RuntimeError("claim-control Full checkpoint is missing or escapes factorial root")
+        if sha256_file(path) != row["sha256"]:
+            raise RuntimeError("claim-control Full checkpoint hash mismatch")
+        payload = _validate_formal_checkpoint(
+            path,
+            row,
+            evidence,
+            teacher_checkpoint_sha256=teacher_checkpoint_sha256,
+            legacy_runtime=legacy_runtime,
+        )
+        loaded[seed] = (row, payload)
+    return loaded
+
+
 def _read_active_pair_registry(output_root, result, evidence, dataset):
     from .formal_factorial import _canonical_bank_digest
 
