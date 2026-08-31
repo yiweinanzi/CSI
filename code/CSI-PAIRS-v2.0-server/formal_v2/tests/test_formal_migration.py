@@ -802,6 +802,135 @@ class FormalMigrationFixture:
         )
         self.migration_evidence["legacy_evaluation_freeze"] = freeze
 
+    def use_post_exit_oom_freeze(self) -> Path:
+        identity = json.loads(
+            self.migration_evidence["performance"].read_text(encoding="utf-8")
+        )["inputs"]["identity"]
+        legacy_artifact = self.legacy_run / "evaluation" / "legacy.log"
+        legacy_artifact.replace(self.external_root / "legacy.log.before-oom-exit")
+        empty_inventory = self.external_root / "legacy-evaluation-empty-inventory.json"
+        migration_evidence.write_legacy_evaluation_inventory_report(
+            empty_inventory,
+            expected_identity=identity,
+            command="python -B post-exit-empty-inventory",
+            created_utc=CREATED_UTC,
+        )
+        self.migration_evidence["legacy_evaluation_inventory"] = empty_inventory
+        old_equivalence = json.loads(
+            self.migration_evidence["equivalence"].read_text(encoding="utf-8")
+        )
+        post_exit_subset = self.external_root / "post-exit-formal-subset.json"
+        self.write_real_subset_report(
+            post_exit_subset, identity=identity, label="post-exit-formal-subset"
+        )
+        post_exit_equivalence = self.external_root / "post-exit-equivalence.json"
+        migration_evidence.write_equivalence_report(
+            post_exit_equivalence,
+            expected_identity=identity,
+            command="python -B post-exit-equivalence",
+            smoke_report_path=old_equivalence["results"]["smoke_report"]["path"],
+            formal_subset_report_path=post_exit_subset,
+            created_utc=CREATED_UTC,
+        )
+        self.migration_evidence["equivalence"] = post_exit_equivalence
+        start_iso = "2026-08-30T00:00:00Z"
+        cwd = str(self.legacy_source.parent)
+        exe = "/usr/bin/python3"
+        cmd = "python -B -m formal_v2.formal_cli run-evaluation"
+        pid_digest = hashlib.sha256(
+            f"{cmd}\n{start_iso}\n{cwd}\n".encode("ascii")
+        ).hexdigest()
+        monitor_header = (
+            "timestamp\tidentity\tstate\telapsed_seconds\tcpu_seconds\t"
+            "rss_bytes\tlog_target\tartifact_count\tartifact_bytes\t"
+            "disk_available_bytes\n"
+        )
+        monitor_rows = "".join(
+            f"2026-08-30T0{hour}:{minute:02d}:00Z\tMATCH\tR\t"
+            f"{3600 + index * 600}\t{100 + index * 10}\t"
+            f"{145000000000 + index * 100000000}\tpipe:[123]\t0\t0\t"
+            "168000000000\n"
+            for index, (hour, minute) in enumerate(
+                ((1, 0), (1, 10), (1, 20), (1, 30), (1, 40), (1, 50), (2, 0))
+            )
+        )
+        artifacts = {}
+        for name, content in {
+            "post-exit-pid-snapshot.txt": (
+                "PID=66858\n"
+                "PID_IDENTITY=MATCH\n"
+                f"PID_IDENTITY_SHA256={pid_digest}\n"
+                "BOOT_ID=fdc6d132-f41a-46ac-a732-c969575124c4\n"
+                "START_TICKS=466542136\n"
+                f"START_ISO={start_iso}\n"
+                f"CWD={cwd}\n"
+                f"EXE={exe}\n"
+                f"CMDLINE={cmd}\n"
+                "    PID PPID S COMMAND\n"
+                f"  66858 1 R {cmd}\n"
+            ),
+            "post-exit-monitor.tsv": monitor_header + monitor_rows,
+            "post-exit-kernel-oom.log": (
+                "[Sun Aug 30 10:05:00 2026] Memory cgroup out "
+                "of memory: Killed process 159322 (python) total-vm:100kB, "
+                "anon-rss:142189104kB, file-rss:0kB\n"
+            ),
+            "post-exit-site.txt": (
+                "2026-08-30T02:08:00Z\n"
+                f"git_head={identity['legacy_commit']}\n"
+                "evaluation_inventory_begin\n"
+                "evaluation_inventory_end\n"
+                "operation_lock=PRESENT\n"
+                f"{identity['config_sha256']}  /formal/config.json\n"
+                f"{identity['dataset_sha256']}  /formal/dataset.npz\n"
+            ),
+            "post-exit-timing.env": (
+                f"COMMAND_STARTED_AT={start_iso}\n"
+                "PID_EXIT_DETECTED_AT=2026-08-30T02:07:00Z\n"
+                "PROCESS_EXIT_CODE=UNAVAILABLE_NON_SHELL_OBSERVER\n"
+            ),
+            "post-exit-supervisor.log": (
+                "2026-08-30T01:00:00Z PID identity MATCH; monitoring\n"
+                "2026-08-30T02:06:00Z verified PID exited; entering "
+                "evaluation acceptance\n"
+            ),
+            "post-exit-supervisor.sh": (
+                "PID=66858\n"
+                "EXPECTED_BOOT_ID=fdc6d132-f41a-46ac-a732-c969575124c4\n"
+                "EXPECTED_START_TICKS=466542136\n"
+                f"EXPECTED_CWD={cwd}\n"
+                f"EXPECTED_EXE={exe}\n"
+                f"EXPECTED_CMDLINE='{cmd}'\n"
+                f"EXPECTED_PID_IDENTITY={pid_digest}\n"
+                '[[ "$start_ticks" == "$EXPECTED_START_TICKS" ]]\n'
+                '[[ "$boot_id" == "$EXPECTED_BOOT_ID" ]]\n'
+                '[[ "$cwd" == "$EXPECTED_CWD" ]]\n'
+                '[[ "$exe" == "$EXPECTED_EXE" ]]\n'
+                '[[ "$cmdline" == "$EXPECTED_CMDLINE" ]]\n'
+            ),
+        }.items():
+            artifact = self.external_root / name
+            artifact.write_text(content, encoding="ascii")
+            artifacts[name] = artifact
+
+        freeze = self.external_root / "legacy-evaluation-post-exit-freeze.json"
+        migration_evidence.write_legacy_evaluation_post_exit_freeze_receipt(
+            freeze,
+            expected_identity=identity,
+            command="python -B post-exit-freeze",
+            inventory_path=self.migration_evidence["legacy_evaluation_inventory"],
+            pid_snapshot_path=artifacts["post-exit-pid-snapshot.txt"],
+            monitor_path=artifacts["post-exit-monitor.tsv"],
+            kernel_oom_evidence_path=artifacts["post-exit-kernel-oom.log"],
+            exit_site_path=artifacts["post-exit-site.txt"],
+            timing_path=artifacts["post-exit-timing.env"],
+            supervisor_log_path=artifacts["post-exit-supervisor.log"],
+            supervisor_script_path=artifacts["post-exit-supervisor.sh"],
+            created_utc=CREATED_UTC,
+        )
+        self.migration_evidence["legacy_evaluation_freeze"] = freeze
+        return freeze
+
     def write_real_subset_report(
         self,
         path: Path,
@@ -1574,6 +1703,32 @@ class FormalMigrationTests(unittest.TestCase):
         plan = json.loads(self.fixture.compute_plan.read_text(encoding="utf-8"))
         plan["batch_size"] += 1
         write_json(self.fixture.compute_plan, plan)
+        with self.assertRaises(RuntimeError):
+            self._accept(request, approval)
+
+    def test_post_exit_oom_freeze_round_trips_through_migration_request(self) -> None:
+        self.fixture.use_post_exit_oom_freeze()
+        request, approval = self._request_and_approval()
+        binding = request["migration_evidence"]["legacy_evaluation_freeze"]
+        self.assertEqual(
+            binding["schema_version"],
+            migration_evidence.MIGRATION_POST_EXIT_FREEZE_SCHEMA,
+        )
+        self.assertEqual(binding["status"], "POST_EXIT_FROZEN")
+        accepted = self._accept(request, approval)
+        authenticated = migration.authenticate_migration_receipt(
+            accepted["accepted_path"], **self.fixture.acceptance_arguments()
+        )
+        self.assertEqual(authenticated.new_run_id, request["new_run_id"])
+
+    def test_post_exit_oom_raw_evidence_is_reauthenticated_at_acceptance(self) -> None:
+        freeze_path = self.fixture.use_post_exit_oom_freeze()
+        request, approval = self._request_and_approval()
+        freeze = json.loads(freeze_path.read_text(encoding="utf-8"))
+        kernel = Path(
+            freeze["termination"]["kernel_cgroup_oom_evidence"]["path"]
+        )
+        kernel.write_text("normal process exit\n", encoding="ascii")
         with self.assertRaises(RuntimeError):
             self._accept(request, approval)
 
