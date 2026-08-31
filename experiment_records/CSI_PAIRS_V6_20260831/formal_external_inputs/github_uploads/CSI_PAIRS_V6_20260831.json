@@ -1,0 +1,23 @@
+{
+  "schema_version": "csi-pairs-v6-github-upload-receipt-v1",
+  "created_utc": "2026-08-31T07:51:25Z",
+  "remote": "https://github.com/yiweinanzi/CSI",
+  "runtime_branch": "codex/csi-pairs-v6-evaluation-runtime-20260831",
+  "runtime_commit": "8146ccf65ffce61b1869f31b4f5fa04a56afb0e3",
+  "evidence_branch": "codex/csi-pairs-v6-full-evidence-20260831",
+  "evidence_snapshot_commit_before_receipt": "17183505d2755df9145a575cba9b8c43f070b742",
+  "remote_sha_verification": "PASS",
+  "copied_source_regular_files": 1171,
+  "copied_source_bytes_before_snapshot_metadata": 37582252,
+  "maximum_file_bytes_exclusive": 5242880,
+  "dataset_included": false,
+  "checkpoint_or_weight_included": false,
+  "pyc_or_pyo_included": false,
+  "high_confidence_secret_scan": "PASS",
+  "fixed_run_contaminated": false,
+  "notes": [
+    "The runtime branch is code-only so experiment source identity remains stable.",
+    "The evidence branch contains the runtime history plus the lightweight record snapshot.",
+    "Datasets, shards, checkpoints, weights, runtimes, virtual environments, PDFs, archives, wheels, and files at or above 5 MiB were excluded."
+  ]
+}
