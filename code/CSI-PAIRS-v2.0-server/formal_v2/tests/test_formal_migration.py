@@ -17,6 +17,7 @@ from formal_v2.formal_evaluation_subset_compare import (
     CHECKPOINT_SELECTION_RULE,
     EVALUATION_TABLE_FIELDS,
     IMPLEMENTATION_EVIDENCE_FIELDS,
+    POSITION_SELECTION_RULE,
     REPORT_SCHEMA as REAL_SUBSET_REPORT_SCHEMA,
     SELECTION_RULE,
     WORKER_FRAGMENT_SCHEMA,
@@ -1013,16 +1014,29 @@ class FormalMigrationFixture:
         checkpoints = [
             {"seed": 20270001, "arm": "endpoint", "sha256": "9" * 64}
         ]
+        positions = [
+            {
+                "scene_index": scene["scene_index"],
+                "eligible_position_count": 8,
+                "selected_positions": [0, 1, 2, 3],
+            }
+            for scene in scenes
+        ]
         selection = {
             "scene_rule": SELECTION_RULE,
             "checkpoint_rule": CHECKPOINT_SELECTION_RULE,
+            "position_rule": POSITION_SELECTION_RULE,
+            "requested_positions_per_scene": 4,
             "scenes_in_execution_order": scenes,
+            "positions_in_execution_order": positions,
             "checkpoints_in_execution_order": checkpoints,
             "sha256": _canonical_sha256(
                 {
                     "scene_rule": SELECTION_RULE,
                     "checkpoint_rule": CHECKPOINT_SELECTION_RULE,
+                    "position_rule": POSITION_SELECTION_RULE,
                     "scenes": scenes,
+                    "positions": positions,
                     "checkpoints": checkpoints,
                 }
             ),
@@ -1153,6 +1167,7 @@ class FormalMigrationFixture:
                 "batch_size": 1,
                 "source_scenes": 1,
                 "target_scenes_per_city": 1,
+                "positions_per_scene": 4,
                 "checkpoint_count": 1,
                 "checkpoint_arm": "endpoint",
                 "role": role,
@@ -1268,6 +1283,8 @@ class FormalMigrationFixture:
                 "full_legacy_evaluation_executed": False,
                 "legacy_run_read_only": True,
                 "frozen_legacy_run_body_executed": True,
+                "bounded_position_inventory": True,
+                "position_selection_rule": POSITION_SELECTION_RULE,
                 "cross_source_expected_implementation_fields": list(
                     IMPLEMENTATION_EVIDENCE_FIELDS
                 ),

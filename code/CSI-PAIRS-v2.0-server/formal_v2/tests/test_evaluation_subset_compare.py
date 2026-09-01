@@ -23,6 +23,7 @@ from formal_v2.formal_evaluation_subset_compare import (
     CHECKPOINT_SELECTION_RULE,
     GATE_REQUIRED_TABLES,
     IMPLEMENTATION_EVIDENCE_FIELDS,
+    POSITION_SELECTION_RULE,
     REPORT_SCHEMA,
     SCENE_TABLES,
     SELECTION_RULE,
@@ -30,6 +31,7 @@ from formal_v2.formal_evaluation_subset_compare import (
     WORKER_REQUEST_SCHEMA,
     _directory_tree_snapshot,
     _evaluate_streaming_checkpoint,
+    _restricted_evaluation_positions,
     _runtime_digest,
     _selection_sha256,
     compare_evaluation_tables,
@@ -37,6 +39,7 @@ from formal_v2.formal_evaluation_subset_compare import (
     main,
     run_worker_request,
     select_legacy_checkpoints,
+    select_real_evaluation_positions,
     select_real_evaluation_subset,
     source_identity,
     validate_report_destination,
@@ -47,6 +50,8 @@ from formal_v2.formal_evaluation_subset_compare import (
 
 class _SelectionDataset:
     is_fixture = False
+    position_count = 6
+    position_roles = np.full((6, 6), "query")
     scene_roles = np.asarray(
         [
             "target",
@@ -241,12 +246,23 @@ def _synthetic_worker_pair(root: Path):
         },
     ]
     checkpoints = [{"seed": 100, "arm": "full", "sha256": "7" * 64}]
+    positions = [
+        {
+            "scene_index": scene["scene_index"],
+            "eligible_position_count": 8,
+            "selected_positions": [0, 1, 2, 3],
+        }
+        for scene in scenes
+    ]
     selection = {
         "scene_rule": SELECTION_RULE,
         "checkpoint_rule": CHECKPOINT_SELECTION_RULE,
+        "position_rule": POSITION_SELECTION_RULE,
+        "requested_positions_per_scene": 4,
         "scenes_in_execution_order": scenes,
+        "positions_in_execution_order": positions,
         "checkpoints_in_execution_order": checkpoints,
-        "sha256": _selection_sha256(scenes, checkpoints),
+        "sha256": _selection_sha256(scenes, checkpoints, positions),
     }
 
     requirements_sha256 = "8" * 64
@@ -409,6 +425,41 @@ class EvaluationSubsetSelectionTests(unittest.TestCase):
     def test_fixture_dataset_is_rejected(self):
         with self.assertRaisesRegex(ValueError, "synthetic/fixture"):
             select_real_evaluation_subset(_FixtureSelectionDataset())
+
+    def test_position_subset_uses_frozen_eligible_order_and_requires_capacity(self):
+        dataset = _SelectionDataset()
+        selected = select_real_evaluation_positions(
+            dataset, (1, 0), positions_per_scene=4
+        )
+        self.assertEqual([row["scene_index"] for row in selected], [1, 0])
+        self.assertEqual(
+            [row["selected_positions"] for row in selected],
+            [[0, 1, 2, 3], [0, 1, 2, 3]],
+        )
+        self.assertEqual(
+            [row["eligible_position_count"] for row in selected], [6, 6]
+        )
+        with self.assertRaisesRegex(RuntimeError, "too few"):
+            select_real_evaluation_positions(
+                dataset, (1,), positions_per_scene=7
+            )
+
+    def test_position_restriction_is_scoped_and_restores_frozen_selector(self):
+        dataset = _SelectionDataset()
+        selected = select_real_evaluation_positions(
+            dataset, (1,), positions_per_scene=4
+        )
+        original = streaming.legacy._eligible_evaluation_positions
+        with _restricted_evaluation_positions(dataset, selected):
+            np.testing.assert_array_equal(
+                streaming.legacy._eligible_evaluation_positions(dataset, 1),
+                np.asarray([0, 1, 2, 3]),
+            )
+            np.testing.assert_array_equal(
+                streaming.legacy._eligible_evaluation_positions(dataset, 0),
+                np.arange(6),
+            )
+        self.assertIs(streaming.legacy._eligible_evaluation_positions, original)
 
     def test_checkpoint_selection_uses_seed_then_frozen_arm_order(self):
         rows = [

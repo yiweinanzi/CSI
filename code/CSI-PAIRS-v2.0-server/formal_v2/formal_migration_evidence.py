@@ -25,6 +25,7 @@ from .formal_evaluation_subset_compare import (
     EVALUATION_TABLE_FIELDS as REAL_SUBSET_TABLE_FIELDS,
     GATE_REQUIRED_TABLES as REAL_SUBSET_GATE_TABLES,
     IMPLEMENTATION_EVIDENCE_FIELDS as REAL_SUBSET_IMPLEMENTATION_FIELDS,
+    POSITION_SELECTION_RULE as REAL_SUBSET_POSITION_SELECTION_RULE,
     REPORT_SCHEMA as REAL_SUBSET_REPORT_SCHEMA,
     SELECTION_RULE as REAL_SUBSET_SELECTION_RULE,
     TABLE_PRIMARY_KEYS as REAL_SUBSET_PRIMARY_KEYS,
@@ -347,6 +348,8 @@ _REAL_SUBSET_CONTRACT_FIELDS = {
     "full_legacy_evaluation_executed",
     "legacy_run_read_only",
     "frozen_legacy_run_body_executed",
+    "bounded_position_inventory",
+    "position_selection_rule",
     "cross_source_expected_implementation_fields",
     "scientific_float_requirement",
     "absolute_tolerance",
@@ -402,6 +405,7 @@ _REAL_SUBSET_REQUEST_FIELDS = {
     "batch_size",
     "source_scenes",
     "target_scenes_per_city",
+    "positions_per_scene",
     "checkpoint_count",
     "checkpoint_arm",
     "role",
@@ -413,7 +417,10 @@ _REAL_SUBSET_INPUT_FIELDS = {"config_sha256", "dataset_sha256", "files"}
 _REAL_SUBSET_SELECTION_FIELDS = {
     "scene_rule",
     "checkpoint_rule",
+    "position_rule",
+    "requested_positions_per_scene",
     "scenes_in_execution_order",
+    "positions_in_execution_order",
     "checkpoints_in_execution_order",
     "sha256",
 }
@@ -428,6 +435,11 @@ _REAL_SUBSET_SCENE_FIELDS = {
     "canonical_bank_digest",
 }
 _REAL_SUBSET_CHECKPOINT_FIELDS = {"seed", "arm", "sha256"}
+_REAL_SUBSET_POSITION_FIELDS = {
+    "scene_index",
+    "eligible_position_count",
+    "selected_positions",
+}
 _REAL_SUBSET_READ_ONLY_FIELDS = {"passed", "files", "legacy_evaluation"}
 _REAL_SUBSET_READ_ONLY_RECORD_FIELDS = {"path", "before", "after", "unchanged"}
 _REAL_SUBSET_EVALUATION_AUDIT_FIELDS = {"root", "before", "after", "unchanged"}
@@ -1706,6 +1718,9 @@ def _validate_real_subset_contract(value):
         or value["full_legacy_evaluation_executed"] is not False
         or value["legacy_run_read_only"] is not True
         or value["frozen_legacy_run_body_executed"] is not True
+        or value["bounded_position_inventory"] is not True
+        or value["position_selection_rule"]
+        != REAL_SUBSET_POSITION_SELECTION_RULE
         or value["cross_source_expected_implementation_fields"]
         != list(REAL_SUBSET_IMPLEMENTATION_FIELDS)
         or value["scientific_float_requirement"]
@@ -1946,6 +1961,7 @@ def _validate_real_subset_request(
         "batch_size",
         "source_scenes",
         "target_scenes_per_city",
+        "positions_per_scene",
         "checkpoint_count",
     ):
         _positive_int(value[field], f"{label} request {field}")
@@ -2214,14 +2230,22 @@ def _validate_real_subset_selection(value, *, legacy_request, new_request):
     if (
         value["scene_rule"] != REAL_SUBSET_SELECTION_RULE
         or value["checkpoint_rule"] != REAL_SUBSET_CHECKPOINT_SELECTION_RULE
+        or value["position_rule"] != REAL_SUBSET_POSITION_SELECTION_RULE
+        or value["requested_positions_per_scene"]
+        != legacy_request["positions_per_scene"]
+        or value["requested_positions_per_scene"]
+        != new_request["positions_per_scene"]
     ):
         raise RuntimeError("real-subset selection rule mismatch")
     scenes = value["scenes_in_execution_order"]
+    positions = value["positions_in_execution_order"]
     checkpoints = value["checkpoints_in_execution_order"]
     if not isinstance(scenes, list) or not scenes:
         raise RuntimeError("real-subset scene selection is empty")
     if not isinstance(checkpoints, list) or not checkpoints:
         raise RuntimeError("real-subset checkpoint selection is empty")
+    if not isinstance(positions, list) or len(positions) != len(scenes):
+        raise RuntimeError("real-subset position selection is incomplete")
     bank_ids = []
     scene_ids = []
     scene_indices = []
@@ -2270,6 +2294,25 @@ def _validate_real_subset_selection(value, *, legacy_request, new_request):
         )
     ):
         raise RuntimeError("real-subset scene coverage/order is invalid")
+
+    requested_positions = value["requested_positions_per_scene"]
+    for scene_index, position_row in zip(scene_indices, positions, strict=True):
+        _require_exact_fields(
+            position_row,
+            _REAL_SUBSET_POSITION_FIELDS,
+            "real-subset position selection",
+        )
+        selected_positions = position_row["selected_positions"]
+        if (
+            position_row["scene_index"] != scene_index
+            or type(position_row["eligible_position_count"]) is not int
+            or position_row["eligible_position_count"] < requested_positions
+            or not isinstance(selected_positions, list)
+            or len(selected_positions) != requested_positions
+            or any(type(position) is not int or position < 0 for position in selected_positions)
+            or selected_positions != sorted(set(selected_positions))
+        ):
+            raise RuntimeError("real-subset position coverage/order is invalid")
 
     try:
         config = parse_strict_json(
@@ -2320,7 +2363,9 @@ def _validate_real_subset_selection(value, *, legacy_request, new_request):
         )
     ):
         raise RuntimeError("real-subset checkpoint coverage is invalid")
-    if value["sha256"] != _real_subset_selection_sha256(scenes, checkpoints):
+    if value["sha256"] != _real_subset_selection_sha256(
+        scenes, checkpoints, positions
+    ):
         raise RuntimeError("real-subset selection digest is invalid")
 
 
@@ -2453,11 +2498,13 @@ def _authenticate_real_subset_file_record(
     return path
 
 
-def _real_subset_selection_sha256(scenes, checkpoints):
+def _real_subset_selection_sha256(scenes, checkpoints, positions):
     payload = {
         "scene_rule": REAL_SUBSET_SELECTION_RULE,
         "checkpoint_rule": REAL_SUBSET_CHECKPOINT_SELECTION_RULE,
+        "position_rule": REAL_SUBSET_POSITION_SELECTION_RULE,
         "scenes": list(scenes),
+        "positions": list(positions),
         "checkpoints": [
             {
                 "seed": checkpoint["seed"],

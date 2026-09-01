@@ -12,6 +12,7 @@ import struct
 import sys
 import tempfile
 import time
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable, Mapping
@@ -58,9 +59,9 @@ from .formal_routing import ROUTE_NAMES, fit_route_normalization, route_dataset
 from .formal_teacher import load_teacher_bundle
 
 
-REPORT_SCHEMA = "csi-pairs-v6-real-evaluation-subset-equivalence-report-v1"
-WORKER_FRAGMENT_SCHEMA = "csi-pairs-v6-real-evaluation-subset-worker-fragment-v1"
-WORKER_REQUEST_SCHEMA = "csi-pairs-v6-real-evaluation-subset-worker-request-v1"
+REPORT_SCHEMA = "csi-pairs-v6-real-evaluation-subset-equivalence-report-v2"
+WORKER_FRAGMENT_SCHEMA = "csi-pairs-v6-real-evaluation-subset-worker-fragment-v2"
+WORKER_REQUEST_SCHEMA = "csi-pairs-v6-real-evaluation-subset-worker-request-v2"
 FROZEN_LEGACY_COMMIT = "9850fffe0b34f16b45066973308f18b10555ca5d"
 FROZEN_LEGACY_EVALUATION_SHA256 = (
     "259478e4acf6285cb1b00c2d3d02510f88e48caaf6ed26705fe2abf5d4eeddbb"
@@ -70,6 +71,10 @@ SELECTION_RULE = (
     "target:one-or-more-per-city-by-the-same-key;execution:lexicographic-bank_id;v1"
 )
 CHECKPOINT_SELECTION_RULE = "seed-ascending,frozen-arm-order,checkpoint-sha256;v1"
+POSITION_SELECTION_RULE = (
+    "per-scene:first-N-in-frozen-eligible-position-order;"
+    "source:ascending-position-index;target:ascending-query-position-index;v1"
+)
 GATE_REQUIRED_TABLES = (
     "cgs_per_bank.csv",
     "alignment_shortcut_baselines.csv",
@@ -417,6 +422,79 @@ def _frozen_subset_evaluation_scenes(
             "subset evaluation must contain only source unseen and target scenes"
         )
     return ordered
+
+
+def select_real_evaluation_positions(
+    dataset,
+    scenes: Iterable[int],
+    *,
+    positions_per_scene: int,
+) -> tuple[dict[str, object], ...]:
+    """Select a deterministic, real-data position prefix for every scene."""
+
+    if type(positions_per_scene) is not int or positions_per_scene < 1:
+        raise ValueError("positions_per_scene must be a positive integer")
+    selected = []
+    seen = set()
+    for scene_value in scenes:
+        scene = int(scene_value)
+        if scene in seen:
+            raise RuntimeError("position selection scenes must be unique")
+        seen.add(scene)
+        eligible = np.asarray(
+            legacy._eligible_evaluation_positions(dataset, scene), dtype=np.int64
+        )
+        if (
+            eligible.ndim != 1
+            or eligible.size < positions_per_scene
+            or np.any(eligible < 0)
+            or np.any(eligible >= int(dataset.position_count))
+            or len(set(int(value) for value in eligible)) != int(eligible.size)
+        ):
+            raise RuntimeError(
+                f"scene {scene} has too few valid eligible positions for the subset"
+            )
+        positions = [int(value) for value in eligible[:positions_per_scene]]
+        selected.append(
+            {
+                "scene_index": scene,
+                "eligible_position_count": int(eligible.size),
+                "selected_positions": positions,
+            }
+        )
+    if not selected:
+        raise RuntimeError("position selection must not be empty")
+    return tuple(selected)
+
+
+@contextmanager
+def _restricted_evaluation_positions(
+    dataset, position_selection: Iterable[Mapping[str, object]]
+):
+    """Temporarily bind both evaluator paths to the authenticated position subset."""
+
+    original = legacy._eligible_evaluation_positions
+    selected = {
+        int(row["scene_index"]): np.asarray(
+            row["selected_positions"], dtype=np.int64
+        )
+        for row in position_selection
+    }
+
+    def restricted(candidate_dataset, scene_value):
+        scene = int(scene_value)
+        if candidate_dataset is dataset and scene in selected:
+            return selected[scene].copy()
+        return original(candidate_dataset, scene_value)
+
+    legacy._eligible_evaluation_positions = restricted
+    try:
+        yield
+    finally:
+        selector_changed = legacy._eligible_evaluation_positions is not restricted
+        legacy._eligible_evaluation_positions = original
+        if selector_changed:
+            raise RuntimeError("eligible-position selector changed during subset execution")
 
 
 def select_legacy_checkpoints(
@@ -1627,11 +1705,14 @@ def _validate_loaded_source(
 def _selection_sha256(
     scenes: Iterable[Mapping[str, object]],
     checkpoints: Iterable[Mapping[str, object]],
+    positions: Iterable[Mapping[str, object]],
 ) -> str:
     payload = {
         "scene_rule": SELECTION_RULE,
         "checkpoint_rule": CHECKPOINT_SELECTION_RULE,
+        "position_rule": POSITION_SELECTION_RULE,
         "scenes": list(scenes),
+        "positions": list(positions),
         "checkpoints": [
             {
                 "seed": int(row["seed"]),
@@ -2010,6 +2091,11 @@ def run_worker_request(request_path: str | Path) -> dict[str, object]:
         source_scenes=int(request["source_scenes"]),
         target_scenes_per_city=int(request["target_scenes_per_city"]),
     )
+    position_selection = select_real_evaluation_positions(
+        dataset,
+        (int(row["scene_index"]) for row in selected_scenes),
+        positions_per_scene=int(request["positions_per_scene"]),
+    )
     selected_checkpoints = select_legacy_checkpoints(
         checkpoint_rows,
         config["factorial"]["arms"],
@@ -2029,7 +2115,10 @@ def run_worker_request(request_path: str | Path) -> dict[str, object]:
     selection = {
         "scene_rule": SELECTION_RULE,
         "checkpoint_rule": CHECKPOINT_SELECTION_RULE,
+        "position_rule": POSITION_SELECTION_RULE,
+        "requested_positions_per_scene": int(request["positions_per_scene"]),
         "scenes_in_execution_order": list(selected_scenes),
+        "positions_in_execution_order": list(position_selection),
         "checkpoints_in_execution_order": [
             {
                 "seed": int(row["seed"]),
@@ -2038,48 +2127,51 @@ def run_worker_request(request_path: str | Path) -> dict[str, object]:
             }
             for row in selected_checkpoints
         ],
-        "sha256": _selection_sha256(selected_scenes, selected_checkpoints),
+        "sha256": _selection_sha256(
+            selected_scenes, selected_checkpoints, position_selection
+        ),
     }
     evidence = evidence_context(config, dataset, "CANDIDATE_NOT_CLAIM")
-    if role == "frozen_legacy":
-        tables, legacy_evaluation_audit = _run_frozen_original_oracle(
-            config,
-            dataset,
-            legacy_root,
-            qualification_gate,
-            factorial_gate,
-            selected_scenes,
-            selected_checkpoints,
-        )
-        tables = _bind_complete_tables(
-            {
-                table: [
-                    {
-                        field: row[field]
-                        for field in EVALUATION_TABLE_FIELDS[table]
-                        if field in row
-                    }
-                    for row in rows
-                ]
-                for table, rows in tables.items()
-            },
-            evidence,
-        )
-        same_source_merged_tables = None
-    else:
-        legacy_evaluation_audit = None
-        same_source_merged_tables, tables = _run_candidate_tables(
-            config,
-            dataset,
-            legacy_root,
-            qualification_gate,
-            upstream_paths,
-            selected_scenes,
-            selected_checkpoints,
-            evidence,
-            execution_device=execution_device,
-            batch_size=int(request["batch_size"]),
-        )
+    with _restricted_evaluation_positions(dataset, position_selection):
+        if role == "frozen_legacy":
+            tables, legacy_evaluation_audit = _run_frozen_original_oracle(
+                config,
+                dataset,
+                legacy_root,
+                qualification_gate,
+                factorial_gate,
+                selected_scenes,
+                selected_checkpoints,
+            )
+            tables = _bind_complete_tables(
+                {
+                    table: [
+                        {
+                            field: row[field]
+                            for field in EVALUATION_TABLE_FIELDS[table]
+                            if field in row
+                        }
+                        for row in rows
+                    ]
+                    for table, rows in tables.items()
+                },
+                evidence,
+            )
+            same_source_merged_tables = None
+        else:
+            legacy_evaluation_audit = None
+            same_source_merged_tables, tables = _run_candidate_tables(
+                config,
+                dataset,
+                legacy_root,
+                qualification_gate,
+                upstream_paths,
+                selected_scenes,
+                selected_checkpoints,
+                evidence,
+                execution_device=execution_device,
+                batch_size=int(request["batch_size"]),
+            )
     read_only = _read_only_audit(input_records)
     identity["source_tree_sha256"] = evidence["source_tree_sha256"]
     identity["runtime_provenance_sha256"] = evidence["runtime_provenance_sha256"]
@@ -2351,7 +2443,7 @@ def validate_worker_pair(
     ):
         raise RuntimeError("cross-source workers did not bind identical formal inputs")
     if frozen_fragment.get("selection") != candidate_fragment.get("selection"):
-        raise RuntimeError("cross-source workers selected different scenes/checkpoints")
+        raise RuntimeError("cross-source workers selected different scenes/checkpoints/positions")
     selection = frozen_fragment["selection"]
     if (
         not isinstance(selection, dict)
@@ -2359,14 +2451,23 @@ def validate_worker_pair(
         != {
             "scene_rule",
             "checkpoint_rule",
+            "position_rule",
+            "requested_positions_per_scene",
             "scenes_in_execution_order",
+            "positions_in_execution_order",
             "checkpoints_in_execution_order",
             "sha256",
         }
         or selection.get("scene_rule") != SELECTION_RULE
         or selection.get("checkpoint_rule") != CHECKPOINT_SELECTION_RULE
+        or selection.get("position_rule") != POSITION_SELECTION_RULE
+        or type(selection.get("requested_positions_per_scene")) is not int
+        or selection["requested_positions_per_scene"] < 1
         or not isinstance(selection.get("scenes_in_execution_order"), list)
         or not selection["scenes_in_execution_order"]
+        or not isinstance(selection.get("positions_in_execution_order"), list)
+        or len(selection["positions_in_execution_order"])
+        != len(selection["scenes_in_execution_order"])
         or not isinstance(selection.get("checkpoints_in_execution_order"), list)
         or not selection["checkpoints_in_execution_order"]
     ):
@@ -2374,6 +2475,7 @@ def validate_worker_pair(
     if selection.get("sha256") != _selection_sha256(
         selection.get("scenes_in_execution_order", ()),
         selection.get("checkpoints_in_execution_order", ()),
+        selection.get("positions_in_execution_order", ()),
     ):
         raise RuntimeError("cross-source worker selection digest is invalid")
     if frozen_fragment.get("same_source_merged_tables") is not None:
@@ -2447,6 +2549,7 @@ def run_cross_source_subset_comparison(
     batch_size: int = 1,
     source_scenes: int = 1,
     target_scenes_per_city: int = 1,
+    positions_per_scene: int = 4,
     checkpoint_count: int = 1,
     checkpoint_arm: str | None = None,
 ) -> dict[str, object]:
@@ -2515,6 +2618,7 @@ def run_cross_source_subset_comparison(
         "batch_size": batch_size,
         "source_scenes": source_scenes,
         "target_scenes_per_city": target_scenes_per_city,
+        "positions_per_scene": positions_per_scene,
         "checkpoint_count": checkpoint_count,
         "checkpoint_arm": checkpoint_arm,
     }
@@ -2602,6 +2706,8 @@ def run_cross_source_subset_comparison(
             "full_legacy_evaluation_executed": False,
             "legacy_run_read_only": True,
             "frozen_legacy_run_body_executed": True,
+            "bounded_position_inventory": True,
+            "position_selection_rule": POSITION_SELECTION_RULE,
             "cross_source_expected_implementation_fields": list(
                 IMPLEMENTATION_EVIDENCE_FIELDS
             ),
@@ -2659,6 +2765,7 @@ def run_same_source_decomposition_comparison(
     batch_size: int = 1,
     source_scenes: int = 1,
     target_scenes_per_city: int = 1,
+    positions_per_scene: int = 4,
     checkpoint_count: int = 1,
     checkpoint_arm: str | None = None,
 ) -> dict[str, object]:
@@ -2695,6 +2802,11 @@ def run_same_source_decomposition_comparison(
         dataset,
         source_scenes=source_scenes,
         target_scenes_per_city=target_scenes_per_city,
+    )
+    position_selection = select_real_evaluation_positions(
+        dataset,
+        (int(row["scene_index"]) for row in selected_scenes),
+        positions_per_scene=positions_per_scene,
     )
     selected_checkpoints = select_legacy_checkpoints(
         checkpoint_rows,
@@ -2771,32 +2883,33 @@ def run_same_source_decomposition_comparison(
             destination["response_probe_contract.csv"].extend(
                 contracts["response_probe_contract.csv"]
             )
-        merged = _evaluate_legacy_merged_checkpoint(
-            model,
-            probes,
-            dataset,
-            teacher,
-            config,
-            normalization,
-            route_normalization,
-            scene_indices,
-            seed=seed,
-            arm=arm,
-            batch_size=batch_size,
-        )
-        per_scene = _evaluate_streaming_checkpoint(
-            model,
-            probes,
-            dataset,
-            teacher,
-            config,
-            normalization,
-            route_normalization,
-            scene_indices,
-            seed=seed,
-            arm=arm,
-            batch_size=batch_size,
-        )
+        with _restricted_evaluation_positions(dataset, position_selection):
+            merged = _evaluate_legacy_merged_checkpoint(
+                model,
+                probes,
+                dataset,
+                teacher,
+                config,
+                normalization,
+                route_normalization,
+                scene_indices,
+                seed=seed,
+                arm=arm,
+                batch_size=batch_size,
+            )
+            per_scene = _evaluate_streaming_checkpoint(
+                model,
+                probes,
+                dataset,
+                teacher,
+                config,
+                normalization,
+                route_normalization,
+                scene_indices,
+                seed=seed,
+                arm=arm,
+                batch_size=batch_size,
+            )
         _extend_tables(
             merged_tables,
             {
@@ -2886,13 +2999,19 @@ def run_same_source_decomposition_comparison(
         "selection": {
             "scene_rule": SELECTION_RULE,
             "checkpoint_rule": CHECKPOINT_SELECTION_RULE,
+            "position_rule": POSITION_SELECTION_RULE,
             "requested_source_scenes": source_scenes,
             "requested_target_scenes_per_city": target_scenes_per_city,
+            "requested_positions_per_scene": positions_per_scene,
             "requested_checkpoint_count": checkpoint_count,
             "requested_checkpoint_arm": checkpoint_arm,
             "scene_count": len(selected_scenes),
+            "position_count": sum(
+                len(row["selected_positions"]) for row in position_selection
+            ),
             "checkpoint_count": len(selected_checkpoints),
             "scenes_in_execution_order": list(selected_scenes),
+            "positions_in_execution_order": list(position_selection),
             "checkpoints_in_execution_order": [
                 {
                     "seed": int(row["seed"]),
@@ -2949,6 +3068,7 @@ def build_parser() -> argparse.ArgumentParser:
     compare.add_argument("--batch-size", type=int, default=1)
     compare.add_argument("--source-scenes", type=int, default=1)
     compare.add_argument("--target-scenes-per-city", type=int, default=1)
+    compare.add_argument("--positions-per-scene", type=int, default=4)
     compare.add_argument("--checkpoint-count", type=int, default=1)
     compare.add_argument("--checkpoint-arm")
     worker = subparsers.add_parser("worker")
@@ -2985,6 +3105,7 @@ def main(argv: list[str] | None = None) -> int:
         batch_size=args.batch_size,
         source_scenes=args.source_scenes,
         target_scenes_per_city=args.target_scenes_per_city,
+        positions_per_scene=args.positions_per_scene,
         checkpoint_count=args.checkpoint_count,
         checkpoint_arm=args.checkpoint_arm,
     )

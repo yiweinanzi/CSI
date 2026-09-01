@@ -54,10 +54,10 @@ from .formal_migration_evidence import (
 
 
 PERFORMANCE_OBSERVATION_SCHEMA = (
-    "csi-pairs-v6-migration-performance-observation-v1"
+    "csi-pairs-v6-migration-performance-observation-v2"
 )
 CONTROL_OBSERVATION_SCHEMA = "csi-pairs-v6-migration-control-observation-v1"
-PERFORMANCE_RUNNER_SCHEMA = "csi-pairs-v6-migration-performance-runner-v1"
+PERFORMANCE_RUNNER_SCHEMA = "csi-pairs-v6-migration-performance-runner-v2"
 CONTROL_RUNNER_SCHEMA = "csi-pairs-v6-migration-control-runner-v1"
 SUBSET_REFRESH_RECEIPT_SCHEMA = "csi-pairs-v6-subset-refresh-receipt-v1"
 INTERRUPTED_EXIT_CODE = 75
@@ -496,6 +496,7 @@ def _run_scale_worker(
     batch_size: int,
     source_scenes: int,
     target_scenes_per_city: int,
+    positions_per_scene: int,
     checkpoint_count: int,
     checkpoint_arm: str | None,
     gpu_sample_interval_seconds: float,
@@ -513,6 +514,7 @@ def _run_scale_worker(
         + ",batch_size=" + repr(batch_size)
         + ",source_scenes=" + repr(source_scenes)
         + ",target_scenes_per_city=" + repr(target_scenes_per_city)
+        + ",positions_per_scene=" + repr(positions_per_scene)
         + ",checkpoint_count=" + repr(checkpoint_count)
         + ",checkpoint_arm=" + repr(checkpoint_arm)
         + ")"
@@ -629,6 +631,7 @@ def _validate_scale_output(
     identity: Mapping[str, object],
     output_path: Path,
     checkpoint_count: int,
+    positions_per_scene: int,
     device: str,
 ) -> None:
     if not isinstance(output, dict) or set(output) != {
@@ -667,6 +670,8 @@ def _validate_scale_output(
             and output["selection"]["checkpoint_count"] == checkpoint_count
             and output["selection"]["requested_checkpoint_count"]
             == checkpoint_count
+            and output["selection"]["requested_positions_per_scene"]
+            == positions_per_scene
             and output["execution"]["device"] == device
             and Path(output["execution"]["report_path"]).resolve()
             == output_path.resolve()
@@ -682,6 +687,7 @@ def _performance_observation(
     *,
     scale: str,
     checkpoint_count: int,
+    positions_per_scene: int,
     identity: Mapping[str, object],
     output_path: Path,
     device: str,
@@ -693,6 +699,7 @@ def _performance_observation(
         identity=identity,
         output_path=output_path,
         checkpoint_count=checkpoint_count,
+        positions_per_scene=positions_per_scene,
         device=device,
     )
     output_binding = _binding(output_path)
@@ -704,8 +711,8 @@ def _performance_observation(
         "source_commit": identity["new_commit"],
         "source_tree_sha256": identity["new_source_tree_sha256"],
         "scale": scale,
-        "scaling_axis": "selected_formal_checkpoint_count",
-        "sample_count": checkpoint_count,
+        "scaling_axis": "selected_positions_per_formal_scene",
+        "sample_count": positions_per_scene,
         "execution_device": device,
         "batch_size": batch_size,
         "command": execution["command"],
@@ -785,7 +792,7 @@ def validate_performance_observation(
         or payload["source_commit"] != identity["new_commit"]
         or payload["source_tree_sha256"] != identity["new_source_tree_sha256"]
         or payload["scale"] not in SCALE_NAMES
-        or payload["scaling_axis"] != "selected_formal_checkpoint_count"
+        or payload["scaling_axis"] != "selected_positions_per_formal_scene"
         or type(payload["sample_count"]) is not int
         or payload["sample_count"] <= 0
         or type(payload["batch_size"]) is not int
@@ -916,7 +923,10 @@ def run_performance_evidence(args: argparse.Namespace) -> dict[str, object]:
     log_paths = []
     command_text = " ".join(sys.argv)
     for name, multiplier in zip(SCALE_NAMES, SCALE_MULTIPLIERS, strict=True):
-        checkpoint_count = args.base_checkpoint_count * multiplier
+        # Scale real rows, not retained checkpoint outputs, so the benchmark
+        # measures evaluator growth without turning evidence generation into OOM.
+        checkpoint_count = args.base_checkpoint_count
+        positions_per_scene = args.base_positions_per_scene * multiplier
         stem = name.lower().replace("2", "two-").replace("4", "four-")
         output_path = output_root / f"{stem}formal-subset.json"
         stdout_path = output_root / f"{stem}worker.stdout.log"
@@ -933,6 +943,7 @@ def run_performance_evidence(args: argparse.Namespace) -> dict[str, object]:
             batch_size=args.batch_size,
             source_scenes=args.source_scenes,
             target_scenes_per_city=args.target_scenes_per_city,
+            positions_per_scene=positions_per_scene,
             checkpoint_count=checkpoint_count,
             checkpoint_arm=args.checkpoint_arm,
             gpu_sample_interval_seconds=args.gpu_sample_interval_seconds,
@@ -940,6 +951,7 @@ def run_performance_evidence(args: argparse.Namespace) -> dict[str, object]:
         trace = _performance_observation(
             scale=name,
             checkpoint_count=checkpoint_count,
+            positions_per_scene=positions_per_scene,
             identity=identity,
             output_path=output_path,
             device=args.device,
@@ -950,7 +962,7 @@ def run_performance_evidence(args: argparse.Namespace) -> dict[str, object]:
         measurements.append(
             {
                 "scale": name,
-                "sample_count": checkpoint_count,
+                "sample_count": positions_per_scene,
                 "wall_seconds": execution["wall_seconds"],
                 "cpu_seconds": execution["cpu_seconds"],
                 "peak_rss_bytes": execution["peak_rss_bytes"],
@@ -1772,11 +1784,13 @@ def _performance_source(
         report["results"]["scales"][-1]["output"]["path"],
         "4N formal evaluator output",
     )
+    source_report = read_strict_json(source)
     _validate_scale_output(
-        read_strict_json(source),
+        source_report,
         identity=identity,
         output_path=source,
-        checkpoint_count=int(report["results"]["scales"][-1]["sample_count"]),
+        checkpoint_count=int(source_report["selection"]["checkpoint_count"]),
+        positions_per_scene=int(report["results"]["scales"][-1]["sample_count"]),
         device=str(report["results"]["scales"][-1]["execution_device"]),
     )
     return source
@@ -2396,6 +2410,7 @@ def build_parser() -> argparse.ArgumentParser:
     performance.add_argument("--device", default="cuda:0")
     performance.add_argument("--batch-size", type=int, default=256)
     performance.add_argument("--base-checkpoint-count", type=int, default=1)
+    performance.add_argument("--base-positions-per-scene", type=int, default=4)
     performance.add_argument("--source-scenes", type=int, default=1)
     performance.add_argument("--target-scenes-per-city", type=int, default=1)
     performance.add_argument("--checkpoint-arm")
@@ -2425,6 +2440,7 @@ def _validate_arguments(args: argparse.Namespace) -> None:
         for field in (
             "batch_size",
             "base_checkpoint_count",
+            "base_positions_per_scene",
             "source_scenes",
             "target_scenes_per_city",
         ):

@@ -146,7 +146,9 @@ class MigrationEvidenceRunnerTests(unittest.TestCase):
         }
         self.assertEqual(after - before, set())
 
-    def _subset_output(self, path: Path, checkpoint_count: int) -> dict[str, object]:
+    def _subset_output(
+        self, path: Path, checkpoint_count: int, positions_per_scene: int = 4
+    ) -> dict[str, object]:
         return {
             "schema_version": runner.SUBSET_REPORT_SCHEMA,
             "status": "PASS",
@@ -172,6 +174,7 @@ class MigrationEvidenceRunnerTests(unittest.TestCase):
             "selection": {
                 "checkpoint_count": checkpoint_count,
                 "requested_checkpoint_count": checkpoint_count,
+                "requested_positions_per_scene": positions_per_scene,
             },
             "comparison": {"exact": True},
             "gate_required_aggregates": {"exact": True},
@@ -204,17 +207,23 @@ class MigrationEvidenceRunnerTests(unittest.TestCase):
 
         def fake_scale_worker(**kwargs):
             checkpoint_count = kwargs["checkpoint_count"]
+            positions_per_scene = kwargs["positions_per_scene"]
             output_path = kwargs["output_path"]
             stdout_path = kwargs["stdout_path"]
             stderr_path = kwargs["stderr_path"]
             output_path.write_text(
-                json.dumps(self._subset_output(output_path, checkpoint_count)) + "\n",
+                json.dumps(
+                    self._subset_output(
+                        output_path, checkpoint_count, positions_per_scene
+                    )
+                )
+                + "\n",
                 encoding="ascii",
             )
             stdout_path.write_text("worker complete\n", encoding="ascii")
             stderr_path.write_text("", encoding="ascii")
             index = len(calls)
-            calls.append(checkpoint_count)
+            calls.append(positions_per_scene)
             sample = {
                 "observed_utc": "2026-08-31T00:00:00Z",
                 "evaluator_namespace_pid": 100 + index,
@@ -250,7 +259,9 @@ class MigrationEvidenceRunnerTests(unittest.TestCase):
                     "all_observed_samples_exclusive": True,
                 },
                 "gpu_samples": [sample],
-                "output": self._subset_output(output_path, checkpoint_count),
+                "output": self._subset_output(
+                    output_path, checkpoint_count, positions_per_scene
+                ),
                 "stdout": runner._binding(stdout_path),
                 "stderr": runner._binding(stderr_path),
             }
@@ -263,6 +274,7 @@ class MigrationEvidenceRunnerTests(unittest.TestCase):
             device="cuda:0",
             batch_size=8,
             base_checkpoint_count=1,
+            base_positions_per_scene=4,
             source_scenes=1,
             target_scenes_per_city=1,
             checkpoint_arm=None,
@@ -278,7 +290,7 @@ class MigrationEvidenceRunnerTests(unittest.TestCase):
             report = runner.run_performance_evidence(args)
             with self.assertRaises(FileExistsError):
                 runner.run_performance_evidence(args)
-        self.assertEqual(calls, [1, 2, 4])
+        self.assertEqual(calls, [4, 8, 16])
         self.assertEqual(report["status"], "PASS")
         validate_evidence_report(
             "performance",
@@ -336,6 +348,7 @@ class MigrationEvidenceRunnerTests(unittest.TestCase):
         observation = runner._performance_observation(
             scale="N",
             checkpoint_count=1,
+            positions_per_scene=4,
             identity=self.identity,
             output_path=output,
             device="cuda:0",
@@ -486,6 +499,7 @@ class MigrationEvidenceRunnerTests(unittest.TestCase):
                     batch_size=1,
                     source_scenes=1,
                     target_scenes_per_city=1,
+                    positions_per_scene=4,
                     checkpoint_count=1,
                     checkpoint_arm="endpoint",
                     gpu_sample_interval_seconds=0.5,
@@ -520,6 +534,7 @@ class MigrationEvidenceRunnerTests(unittest.TestCase):
                     batch_size=1,
                     source_scenes=1,
                     target_scenes_per_city=1,
+                    positions_per_scene=4,
                     checkpoint_count=1,
                     checkpoint_arm="endpoint",
                     gpu_sample_interval_seconds=0.5,
