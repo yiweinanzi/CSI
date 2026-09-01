@@ -37,16 +37,15 @@ root remains:
 
 This snapshot includes source/run identities, the frozen compute plan, strict
 receipts, the critical JUnit report, runtime provenance preflight, launch and
-supervision scripts, the independent LLM judge prompt, and nonempty diagnostic
-logs available at snapshot time.
+supervision scripts, the independent LLM judge prompt, nonempty diagnostic
+logs available at snapshot time, and the complete base-to-new `formal_v2`
+review patch.
 
 ## Deliberately excluded
 
 - datasets, fixtures, checkpoints, model weights, CSV tables and run outputs;
 - virtual environments and external runtime trees or links;
-- active temporary files and empty wait logs;
-- `base_to_new_formal_v2.patch`, because it is a redundant 1.7 MB rendering of
-  changes already represented by Git commits.
+- active temporary files and empty wait logs.
 
 Final performance, equivalence, controls, migration approval, evaluation and
 downstream receipts must be added only after their official validators pass.
