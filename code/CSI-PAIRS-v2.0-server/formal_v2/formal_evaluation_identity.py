@@ -25,6 +25,65 @@ from .formal_upstream import AuthenticatedUpstream
 FIXTURE_EVALUATION_PLAN_SCHEMA = "csi-pairs-v6-fixture-evaluation-plan-v1"
 FIXTURE_CHECKPOINT_INDEX_SCHEMA = "csi-pairs-formal-checkpoint-index-v2.1-v6"
 FIXTURE_EVALUATION_DEVICES = ("cuda:0", "cuda:1")
+DEFAULT_PRODUCTION_BATCH_SIZE = 256
+
+
+def _is_cuda_device(value: object) -> bool:
+    if type(value) is not str or not value.startswith("cuda:"):
+        return False
+    suffix = value[5:]
+    return suffix.isdigit() and str(int(suffix)) == suffix
+
+
+def resolve_production_batch_size(config: dict, plan: dict | None = None) -> int:
+    """Production / default streaming batch size. Fixture path stays frozen at 1."""
+
+    evaluation = config.get("evaluation") if isinstance(config, dict) else None
+    if isinstance(evaluation, dict):
+        value = evaluation.get("batch_size")
+        if type(value) is int and value >= 1:
+            return value
+    if isinstance(plan, dict):
+        value = plan.get("batch_size")
+        if type(value) is int and value >= 1:
+            return value
+    return DEFAULT_PRODUCTION_BATCH_SIZE
+
+
+def resolve_production_devices(dataset, plan: dict | None = None) -> tuple[str, ...]:
+    """Accept 1 or 2 CUDA devices from CSI_PAIRS_DEVICES / compute plan."""
+
+    planned: tuple[str, ...] | None = None
+    if isinstance(plan, dict):
+        mapping = plan.get("gpu_mapping")
+        if isinstance(mapping, list) and 1 <= len(mapping) <= 2:
+            candidates = tuple(
+                str(row.get("logical_device"))
+                for row in mapping
+                if isinstance(row, dict)
+            )
+            if (
+                len(candidates) == len(mapping)
+                and all(_is_cuda_device(device) for device in candidates)
+                and len(set(candidates)) == len(candidates)
+            ):
+                planned = candidates
+    resolved = tuple(str(device) for device in resolve_execution_devices(dataset))
+    if planned is not None:
+        if resolved != planned:
+            raise RuntimeError(
+                "CSI_PAIRS_DEVICES must match the compute-plan GPU mapping: "
+                + ",".join(planned)
+            )
+        return planned
+    if (
+        not resolved
+        or not all(_is_cuda_device(device) for device in resolved)
+        or not 1 <= len(resolved) <= 2
+        or len(set(resolved)) != len(resolved)
+    ):
+        raise RuntimeError("production evaluation requires 1 or 2 unique CUDA devices")
+    return resolved
 
 
 @dataclass(frozen=True)
@@ -371,22 +430,12 @@ def build_migrated_evaluation_execution(
             raise RuntimeError(f"migrated evaluation {key} differs from legacy upstream")
 
     plan = migration.new_compute_plan
-    batch_size = plan.get("batch_size")
-    if type(batch_size) is not int or batch_size != 1:
-        raise RuntimeError(
-            "formal optimized evaluation requires frozen batch_size=1 for exact parity"
-        )
-    mapping = plan.get("gpu_mapping")
-    if not isinstance(mapping, list) or len(mapping) != 2:
-        raise RuntimeError("migration compute plan does not bind exactly two GPUs")
-    planned_devices = tuple(str(row.get("logical_device")) for row in mapping)
-    if planned_devices != ("cuda:0", "cuda:1"):
-        raise RuntimeError("migration GPU order must be exactly cuda:0,cuda:1")
-    devices = tuple(str(device) for device in resolve_execution_devices(dataset))
-    if devices != planned_devices:
-        raise RuntimeError(
-            "CSI_PAIRS_DEVICES must exactly match the accepted migration GPU order"
-        )
+    # Fixture / subset-compare keep batch_size==1 and the two-GPU pin in
+    # build_fixture_evaluation_execution. Production / migrated / default
+    # streaming takes batch_size from config (default 256) and accepts 1 or
+    # 2 CUDA devices from CSI_PAIRS_DEVICES / the compute plan.
+    batch_size = resolve_production_batch_size(config, plan)
+    devices = resolve_production_devices(dataset, plan)
     execution_profile = EvaluationExecutionProfile(
         execution_devices=devices,
         batch_size=batch_size,
@@ -408,6 +457,77 @@ def build_migrated_evaluation_execution(
         runtime_provenance_sha256=str(evidence["runtime_provenance_sha256"]),
         run_nonce=migration.new_run_nonce,
         compute_plan_sha256=migration.new_compute_plan_sha256,
+        execution_profile=execution_profile,
+        output_schema_id=STREAMING_EVALUATION_SCHEMA,
+        output_schema_sha256=evaluation_output_schema_sha256(),
+    )
+    return MigratedEvaluationExecution(
+        identity=identity,
+        devices=devices,
+        batch_size=batch_size,
+    )
+
+
+def build_local_evaluation_execution(
+    config: dict,
+    dataset,
+    output_root: str | Path,
+    upstream: AuthenticatedUpstream,
+) -> MigratedEvaluationExecution:
+    """Bind default streaming evaluation without an accepted migration."""
+
+    evidence = evidence_context(
+        config,
+        dataset,
+        "FORBIDDEN" if dataset.is_fixture else "CANDIDATE_NOT_CLAIM",
+    )
+    source = _running_source_identity()
+    if bool(getattr(dataset, "is_fixture", False)):
+        devices = FIXTURE_EVALUATION_DEVICES
+        batch_size = 1
+        resolved = tuple(str(device) for device in resolve_execution_devices(dataset))
+        if resolved != devices:
+            raise RuntimeError(
+                "fixture equivalence evaluation requires cuda:0,cuda:1 and batch_size=1"
+            )
+    else:
+        devices = resolve_production_devices(dataset)
+        batch_size = resolve_production_batch_size(config)
+    execution_profile = EvaluationExecutionProfile(
+        execution_devices=devices,
+        batch_size=batch_size,
+    )
+    qualification_sha256 = sha256_file(upstream.qualification_gate)
+    factorial_sha256 = sha256_file(upstream.factorial_gate)
+    output = Path(output_root).resolve()
+    local_plan = {
+        "kind": "local_streaming_execution",
+        "output_root": str(output),
+        "devices": list(devices),
+        "batch_size": batch_size,
+        "qualification_gate_sha256": qualification_sha256,
+        "factorial_gate_sha256": factorial_sha256,
+    }
+    identity = EvaluationRunIdentity(
+        code_revision=str(source["git_commit"]),
+        source_tree_sha256=str(evidence["source_tree_sha256"]),
+        config_sha256=str(evidence["config_sha256"]),
+        dataset_sha256=str(evidence["dataset_sha256"]),
+        migration_accepted_sha256=NO_MIGRATION_SHA256,
+        legacy_checkpoint_inventory_sha256=NO_MIGRATION_SHA256,
+        qualification_gate_sha256=qualification_sha256,
+        factorial_gate_sha256=factorial_sha256,
+        runtime_provenance_sha256=str(evidence["runtime_provenance_sha256"]),
+        run_nonce=_canonical_sha256(
+            {
+                "output_root": str(output),
+                "dataset_sha256": evidence["dataset_sha256"],
+                "config_sha256": evidence["config_sha256"],
+                "qualification_gate_sha256": qualification_sha256,
+                "factorial_gate_sha256": factorial_sha256,
+            }
+        ),
+        compute_plan_sha256=_canonical_sha256(local_plan),
         execution_profile=execution_profile,
         output_schema_id=STREAMING_EVALUATION_SCHEMA,
         output_schema_sha256=evaluation_output_schema_sha256(),

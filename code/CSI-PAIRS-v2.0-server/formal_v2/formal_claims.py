@@ -11,11 +11,52 @@ from .formal_evidence import (
     evidence_context,
     require_stage_manifested_gate,
 )
-from .formal_io import artifact_manifest, read_strict_json, sha256_file, write_json
+from .formal_io import artifact_manifest, read_strict_json, sha256_file, write_csv, write_json
 
 
 OPTIONAL_CLAIM_GATES = frozenset({"G0", "G8"})
-OPTIONAL_CLAIM_STAGES = frozenset({"G0", "G8", "rt_calibration"})
+OPTIONAL_CLAIM_STAGES = frozenset({"G0", "G8", "rt_calibration", "wrong_map"})
+DESCRIPTIVE_PUBLISHABLE = "DESCRIPTIVE_PUBLISHABLE"
+NON_CLAIM = "NON_CLAIM"
+ENGINEERING_UNAPPROVED_NAME = "ENGINEERING_UNAPPROVED.json"
+_CORRUPT_STAGE_STATUSES = frozenset({"INVALID"})
+_SCIENTIFIC_FAIL_STATUSES = frozenset({"FAIL"})
+_INCOMPLETE_ASSESSMENT = "INCOMPLETE"
+_INCOMPLETE_PAYLOAD_STATUSES = frozenset(
+    {"INCOMPLETE_FAIL_CLOSED", "ERROR", "PARTIAL"}
+)
+_CLI_ASSEMBLE_CLAIMS_EXIT_NOTE = (
+    "formal_cli._stage_exit_code uses assemble_claims_exit_code for "
+    "assemble-claims/all: scientific FAIL is not a process failure. "
+    "Exit 1 only on incomplete or corrupt required evidence."
+)
+_DESCRIPTIVE_ARTIFACT_NAMES = (
+    ("factorial_gate", "gate.json"),
+    ("factorial_statistics", "factorial_statistics.json"),
+    ("localization_summary", "localization_summary.csv"),
+    ("localization_per_bank", "localization_per_bank.csv"),
+)
+_EVALUATION_ARTIFACT_NAMES = (
+    ("evaluation_gate", "evaluation/gate.json"),
+    ("evaluation_manifest", "evaluation/manifest.json"),
+)
+_MASTER_SLICE_KEY = "city × k × method"
+_SOTA_COMPARISON_METHODS = (
+    ("full", "factorial_arm"),
+    ("alignment", "factorial_arm"),
+    ("response", "factorial_arm"),
+    ("endpoint", "factorial_arm"),
+    ("Wi-GATr", "c1_external"),
+    ("PMNet", "c1_external"),
+)
+_DESCRIPTIVE_ONLY_METHODS = (
+    ("representation", "representation_baseline"),
+    ("resource_control", "resource_control"),
+)
+_MASTER_COMPARISON_METHODS = _SOTA_COMPARISON_METHODS + _DESCRIPTIVE_ONLY_METHODS
+_SOTA_METHOD_NAMES = frozenset(name for name, _family in _SOTA_COMPARISON_METHODS)
+_STAGE_FAILURES_NAME = "stage_failures.json"
+MIGRATED_LEGACY_FACTORIAL_NAME = "MIGRATED_LEGACY_FACTORIAL.json"
 
 CLAIM_DEPENDENCIES = {
     "C1": ("external_baselines",),
@@ -62,6 +103,10 @@ STAGE_SPECS = {
         "qualification/rt_calibration/gate.json",
         "csi-pairs-v6-rt-calibration-gate-v6",
     ),
+    "wrong_map": (
+        "wrong_map/gate.json",
+        "csi-pairs-formal-wrong-map-status-v2.1-v6",
+    ),
 }
 
 
@@ -72,8 +117,9 @@ def assemble_claim_evidence(config, dataset, output_root):
     upstream = resolve_authenticated_upstream(config, dataset, root)
     output_dir = root / "claims"
     output_dir.mkdir(parents=True, exist_ok=True)
+    nonclaim_reasons = _nonclaim_reasons(root, dataset)
     evidence = evidence_context(
-        config, dataset, "FORBIDDEN" if dataset.is_fixture else "CANDIDATE_NOT_CLAIM"
+        config, dataset, _publication_scientific_use(dataset, nonclaim_reasons)
     )
     assessments = {}
     errors = {}
@@ -108,12 +154,8 @@ def assemble_claim_evidence(config, dataset, output_root):
     gates = {gate_id: "NOT_ASSESSED" for gate_id in GATE_IDS}
     gates["G0"] = _gate_state(assessments["G0"])
     qualification = assessments["G1_G2"]
-    if qualification == "PASS":
-        gates["G1"] = "PASS"
-        gates["G2"] = "PASS"
-    elif qualification in {"FAIL", "INVALID"}:
-        gates["G1"] = "FAIL"
-        gates["G2"] = "FAIL"
+    gates["G1"] = _gate_state(qualification)
+    gates["G2"] = _gate_state(qualification)
     for gate_id in ("G3", "G4", "G5", "G6", "G7", "G8"):
         gates[gate_id] = _gate_state(assessments[gate_id])
 
@@ -124,21 +166,83 @@ def assemble_claim_evidence(config, dataset, output_root):
             for value in CLAIM_DEPENDENCIES[claim_id]
         ]
         claims[claim_id] = _claim_state(claim_id, statuses, dataset.is_fixture)
+    if nonclaim_reasons:
+        claims = {claim_id: NON_CLAIM for claim_id in CLAIM_IDS}
 
+    required_cities, required_budgets, min_cities = _sota_required_grid(
+        config, dataset
+    )
+    descriptive = _assemble_descriptive_results(
+        root=root,
+        upstream=upstream,
+        gates=gates,
+        fixture=dataset.is_fixture or bool(nonclaim_reasons),
+        required_cities=required_cities,
+        required_budgets=required_budgets,
+        min_cities=min_cities,
+    )
+    write_csv(
+        output_dir / "comparison_master_table.csv",
+        descriptive["comparison_master_table"]["rows"],
+    )
+    descriptive["artifacts"]["comparison_master_table"] = _describe_existing_artifact(
+        output_dir / "comparison_master_table.csv"
+    )
+    stage_failures = _read_stage_failures(root)
+    package_status = _claim_package_status(
+        gates,
+        errors,
+        assessments=assessments,
+        nonclaim=bool(nonclaim_reasons),
+        stage_failures=stage_failures,
+    )
+    master = descriptive["comparison_master_table"]
+    sota_report = _sota_readiness_report(
+        package_status=package_status,
+        nonclaim=bool(nonclaim_reasons),
+        master=master,
+        fixture=dataset.is_fixture,
+        required_cities=required_cities,
+        required_budgets=required_budgets,
+        min_cities=min_cities,
+        legacy_factorial_reused=_legacy_factorial_reused(root)
+        or bool(upstream.migrated),
+    )
+    primary_table_complete = bool(sota_report["primary_table_complete"])
+    sota_ready = bool(sota_report["sota_ready"])
     result = {
         "schema_version": "csi-pairs-v6-claim-evidence-v2",
-        "status": _claim_package_status(gates, errors),
+        "status": package_status,
         **evidence,
         "gate_vector": gates,
         "claim_vector": claims,
         "stage_assessments": assessments,
         "evidence_errors": errors,
         "claim_dependencies": {key: list(value) for key, value in CLAIM_DEPENDENCIES.items()},
+        "descriptive_results": descriptive,
+        "primary_table_complete": primary_table_complete,
+        "sota_ready": sota_ready,
+        "sota_publication_status": "SOTA_READY" if sota_ready else "SOTA_BLOCKED",
+        "sota_block_reasons": list(sota_report["block_reasons"]),
+        "sota_grid_status": sota_report["sota_grid_status"],
+        "legacy_factorial_reused": bool(sota_report["legacy_factorial_reused"]),
+        "success_claim_upgrade": "NOT_PERMITTED",
+        "nonclaim_reasons": list(nonclaim_reasons),
+        "assemble_claims_exit_code": None,
+        "cli_exit_note": _CLI_ASSEMBLE_CLAIMS_EXIT_NOTE,
         "rule": (
             "Only exact-schema, stage-manifested, semantically complete evidence can become PASS. "
-            "Missing, malformed, BLOCKED, or NOT_ASSESSED evidence cannot support a claim."
+            "Scientific FAIL is FAILED and remains descriptively publishable. "
+            "INVALID/BLOCKED are reserved for missing or corrupt evidence. "
+            "DESCRIPTIVE_PUBLISHABLE tables may be shown; success claims may not be upgraded. "
+            "Missing, malformed, BLOCKED, or NOT_ASSESSED evidence cannot support a claim. "
+            "COMPLETE means required gates were assessed; it is not a SOTA draft. "
+            "SOTA publication requires sota_ready: a complete unique city × k grid "
+            "for four arms plus Wi-GATr/PMNet, and Full strictly first on every cell. "
+            "Restricted/representation/resource-control rows are descriptive only."
         ),
     }
+    result["assemble_claims_exit_code"] = assemble_claims_exit_code(result)
     write_json(output_dir / "claim_evidence.json", result)
     write_json(
         output_dir / "manifest.json",
@@ -151,7 +255,48 @@ def assemble_claim_evidence(config, dataset, output_root):
     return result
 
 
-def _claim_package_status(gates, errors):
+def _nonclaim_reasons(root, dataset) -> list[str]:
+    del dataset
+    reasons = []
+    marker = Path(root) / ENGINEERING_UNAPPROVED_NAME
+    if marker.is_file():
+        reasons.append("ENGINEERING_UNAPPROVED")
+    return reasons
+
+
+def _legacy_factorial_reused(root) -> bool:
+    return (Path(root) / MIGRATED_LEGACY_FACTORIAL_NAME).is_file()
+
+
+def _read_stage_failures(root) -> list[dict]:
+    path = Path(root) / _STAGE_FAILURES_NAME
+    if not path.is_file():
+        return []
+    try:
+        payload = read_strict_json(path)
+    except Exception:
+        return [{"stage": _STAGE_FAILURES_NAME, "error": "unreadable"}]
+    if not isinstance(payload, dict):
+        return [{"stage": _STAGE_FAILURES_NAME, "error": "invalid"}]
+    failures = payload.get("failures")
+    if not isinstance(failures, list):
+        return []
+    return [row for row in failures if isinstance(row, dict)]
+
+
+def _claim_package_status(
+    gates, errors, *, assessments=None, nonclaim=False, stage_failures=None
+):
+    if nonclaim:
+        return NON_CLAIM
+    if stage_failures:
+        return "INCOMPLETE_FAIL_CLOSED"
+    if isinstance(assessments, dict) and any(
+        assessments.get(name) == _INCOMPLETE_ASSESSMENT
+        for name in assessments
+        if name not in OPTIONAL_CLAIM_STAGES
+    ):
+        return "INCOMPLETE_FAIL_CLOSED"
     required_assessed = all(
         value in {"PASS", "FAIL"}
         for gate_id, value in gates.items()
@@ -165,14 +310,723 @@ def _claim_package_status(gates, errors):
     return "COMPLETE" if required_assessed and not blocking_errors else "INCOMPLETE_FAIL_CLOSED"
 
 
+def _publication_scientific_use(dataset, nonclaim_reasons=None):
+    if getattr(dataset, "is_fixture", False) or nonclaim_reasons:
+        return "FORBIDDEN"
+    return DESCRIPTIVE_PUBLISHABLE
+
+
+def assemble_claims_exit_code(result):
+    """Exit 0 when the descriptive report was written, including honest FAIL.
+
+    Non-zero only for missing/corrupt required inputs or a missing report.
+    Scientific gate FAIL is not a process failure. CLI should call this
+    helper; formal_cli._stage_exit_code uses this for assemble-claims/all.
+    """
+    if not isinstance(result, dict):
+        return 1
+    if not isinstance(result.get("descriptive_results"), dict):
+        return 1
+    errors = result.get("evidence_errors")
+    if not isinstance(errors, dict):
+        return 1
+    blocking_errors = {
+        name: error
+        for name, error in errors.items()
+        if name not in OPTIONAL_CLAIM_STAGES
+    }
+    if blocking_errors or result.get("status") in {
+        "INCOMPLETE_FAIL_CLOSED",
+        NON_CLAIM,
+    }:
+        return 1
+    return 0
+
+
 def _claim_state(_claim_id, statuses, fixture):
-    if any(value in {"FAIL", "INVALID"} for value in statuses):
+    # Missing/corrupt (hash, schema, exception) stays INVALID/BLOCKED.
+    # Scientific FAIL is FAILED so C7/C8 numbers remain exportable.
+    if any(value in _CORRUPT_STAGE_STATUSES for value in statuses):
         return "INVALID"
+    if any(value in _SCIENTIFIC_FAIL_STATUSES for value in statuses):
+        return "FAILED"
     if not all(value == "PASS" for value in statuses):
         return "BLOCKED"
     if fixture:
         return "SOFTWARE_ONLY"
     return "SUPPORTED"
+
+
+def _assemble_descriptive_results(
+    *,
+    root,
+    upstream,
+    gates,
+    fixture,
+    required_cities=None,
+    required_budgets=None,
+    min_cities=2,
+):
+    artifacts = {}
+    for name, relative in _DESCRIPTIVE_ARTIFACT_NAMES:
+        artifacts[name] = _describe_existing_artifact(upstream.factorial_path(relative))
+    for name, relative in _EVALUATION_ARTIFACT_NAMES:
+        artifacts[name] = _describe_existing_artifact(root / relative)
+
+    loc_artifact = artifacts["localization_summary"]
+    localization = _read_localization_cells(loc_artifact)
+    extra_rows = _collect_nonfactorial_master_rows(root)
+    statistics = _read_optional_json(artifacts["factorial_statistics"])
+    factorial_gate = _read_optional_json(artifacts["factorial_gate"])
+    evaluation_gate = _read_optional_json(artifacts["evaluation_gate"])
+    return {
+        "claim_scope": (
+            "descriptive localization/factorial/evaluation comparison only; "
+            "this package cannot upgrade a success claim"
+        ),
+        "scientific_use": "FORBIDDEN" if fixture else DESCRIPTIVE_PUBLISHABLE,
+        "success_claim_upgrade": "NOT_PERMITTED",
+        "artifacts": artifacts,
+        "localization_cells": localization,
+        "confidence_intervals": _extract_descriptive_intervals(
+            statistics, factorial_gate, evaluation_gate
+        ),
+        "g5_four_cells": _extract_g5_four_cells(factorial_gate),
+        "comparison_master_table": _assemble_comparison_master_table(
+            localization,
+            extra_rows=extra_rows,
+            factorial_source_path=loc_artifact.get("path"),
+            factorial_source_sha256=loc_artifact.get("sha256"),
+            required_cities=required_cities,
+            required_budgets=required_budgets,
+            min_cities=min_cities,
+        ),
+        "gate_vector": dict(gates),
+    }
+
+
+def _primary_table_complete(master) -> bool:
+    if not isinstance(master, dict):
+        return False
+    return master.get("sota_grid_status") == "PRESENT"
+
+
+def _sota_ready(
+    *,
+    package_status,
+    nonclaim,
+    master,
+    fixture=False,
+    required_cities=None,
+    required_budgets=None,
+    min_cities=2,
+    legacy_factorial_reused=False,
+) -> bool:
+    return bool(
+        _sota_readiness_report(
+            package_status=package_status,
+            nonclaim=nonclaim,
+            master=master,
+            fixture=fixture,
+            required_cities=required_cities,
+            required_budgets=required_budgets,
+            min_cities=min_cities,
+            legacy_factorial_reused=legacy_factorial_reused,
+        )["sota_ready"]
+    )
+
+
+def _sota_required_grid(config, dataset):
+    min_cities = 2
+    required_budgets = None
+    required_cities = None
+    if isinstance(config, dict):
+        try:
+            min_cities = int(config["data"]["minimum_target_cities"])
+        except (KeyError, TypeError, ValueError):
+            min_cities = 2
+        try:
+            required_budgets = tuple(
+                int(value) for value in config["localization"]["label_budgets"]
+            )
+        except (KeyError, TypeError, ValueError):
+            required_budgets = None
+    city_ids = getattr(dataset, "city_ids", None)
+    roles = getattr(dataset, "scene_roles", None)
+    if city_ids is not None and roles is not None:
+        try:
+            required_cities = tuple(
+                sorted(
+                    {
+                        str(city)
+                        for city, role in zip(city_ids.tolist(), roles.tolist())
+                        if str(role) == "target"
+                    }
+                )
+            )
+        except Exception:
+            required_cities = None
+    return required_cities, required_budgets, min_cities
+
+
+def _grid_city(value):
+    if value in {None, ""}:
+        return None
+    return str(value)
+
+
+def _grid_budget(value):
+    if value in {None, ""}:
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _finite_meter(value) -> bool:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return False
+    return number == number and number != float("inf") and number != float("-inf")
+
+
+def _sota_readiness_report(
+    *,
+    package_status,
+    nonclaim,
+    master,
+    fixture=False,
+    required_cities=None,
+    required_budgets=None,
+    min_cities=2,
+    legacy_factorial_reused=False,
+) -> dict:
+    reasons = []
+    if nonclaim:
+        reasons.append("nonclaim_or_engineering_marker")
+    if fixture:
+        reasons.append("fixture")
+    if package_status != "COMPLETE":
+        reasons.append(f"package_status={package_status}")
+    if legacy_factorial_reused:
+        reasons.append("migrated_legacy_factorial_reused")
+    rows = list(master.get("rows") or []) if isinstance(master, dict) else []
+    keyed = {}
+    duplicates = []
+    inferred_cities = set()
+    inferred_budgets = set()
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        method = row.get("method")
+        family = row.get("family")
+        if method not in _SOTA_METHOD_NAMES or family not in {
+            "factorial_arm",
+            "c1_external",
+        }:
+            continue
+        city = _grid_city(row.get("city"))
+        budget = _grid_budget(row.get("k"))
+        if family == "factorial_arm" and row.get("status") == "PRESENT":
+            if city is not None:
+                inferred_cities.add(city)
+            if budget is not None:
+                inferred_budgets.add(budget)
+        if (
+            row.get("status") != "PRESENT"
+            or row.get("join_ready") is not True
+            or city is None
+            or budget is None
+            or not _finite_meter(row.get("median_error_m"))
+        ):
+            continue
+        key = (city, budget, method)
+        if key in keyed:
+            duplicates.append(key)
+            continue
+        keyed[key] = float(row["median_error_m"])
+    if duplicates:
+        reasons.append("duplicate_city_k_method_keys")
+    if required_cities:
+        cities = {_grid_city(city) for city in required_cities}
+        cities.discard(None)
+    else:
+        cities = inferred_cities
+    if required_budgets:
+        budgets = set()
+        for budget in required_budgets:
+            normalized = _grid_budget(budget)
+            if normalized is not None:
+                budgets.add(normalized)
+    else:
+        budgets = inferred_budgets
+    if len(cities) < int(min_cities):
+        reasons.append("insufficient_target_cities")
+    if not cities or not budgets:
+        reasons.append("missing_factorial_city_k_grid")
+    expected = {
+        (city, budget, method)
+        for city in cities
+        for budget in budgets
+        for method in _SOTA_METHOD_NAMES
+    }
+    missing = sorted(
+        expected - set(keyed),
+        key=lambda item: (str(item[0]), int(item[1]) if item[1] is not None else -1, str(item[2])),
+    )
+    if missing:
+        reasons.append(f"incomplete_sota_grid:{len(missing)}")
+    rank_failures = []
+    for city in cities:
+        for budget in budgets:
+            full_key = (city, budget, "full")
+            if full_key not in keyed:
+                continue
+            full_error = keyed[full_key]
+            for method in _SOTA_METHOD_NAMES:
+                if method == "full":
+                    continue
+                other = keyed.get((city, budget, method))
+                if other is None or not (full_error < other):
+                    rank_failures.append((city, budget, method))
+    if rank_failures:
+        reasons.append("full_not_strictly_first_on_every_cell")
+    grid_complete = (
+        not missing
+        and not duplicates
+        and bool(cities)
+        and bool(budgets)
+        and len(cities) >= int(min_cities)
+    )
+    sota_ready = not reasons and grid_complete
+    return {
+        "sota_ready": sota_ready,
+        "primary_table_complete": grid_complete,
+        "sota_grid_status": "PRESENT" if grid_complete else "PARTIAL" if keyed else "NOT_ASSESSED",
+        "block_reasons": reasons,
+        "legacy_factorial_reused": bool(legacy_factorial_reused),
+        "missing_cells": missing[:32],
+    }
+
+
+def _master_row(
+    *,
+    city,
+    k,
+    method,
+    family,
+    median_error_m,
+    status,
+    join_ready,
+    missing_join_fields,
+    source,
+    source_sha256=None,
+):
+    return {
+        "slice_key": _MASTER_SLICE_KEY,
+        "city": city,
+        "k": k,
+        "method": method,
+        "family": family,
+        "median_error_m": median_error_m,
+        "status": status,
+        "join_ready": join_ready,
+        "missing_join_fields": list(missing_join_fields),
+        "source": source,
+        "source_sha256": source_sha256,
+    }
+
+
+def _collect_nonfactorial_master_rows(root) -> list[dict]:
+    root = Path(root)
+    rows = []
+    rows.extend(
+        _rows_from_external_csv(root / "external_baselines" / "six_condition_results.csv")
+    )
+    rows.extend(
+        _rows_from_representation_csv(
+            root / "representation_baselines" / "localization_across_seed_summary.csv"
+        )
+    )
+    rows.extend(
+        _rows_from_resource_csv(root / "controls" / "localization_per_bank.csv")
+    )
+    return rows
+
+
+def _rows_from_external_csv(path: Path) -> list[dict]:
+    if not path.is_file():
+        return []
+    digest = sha256_file(path)
+    grouped = {}
+    methods = set()
+    for row in _read_csv_rows(path):
+        if str(row.get("condition") or "") != "correct":
+            continue
+        method = row.get("model_name")
+        if method in {None, ""}:
+            continue
+        methods.add(method)
+        city = row.get("city_id")
+        budget = row.get("budget", row.get("k"))
+        error = row.get("localization_error_m")
+        if city in {None, ""} or budget in {None, ""} or not _finite_meter(error):
+            continue
+        grouped.setdefault((city, budget, method), []).append(float(error))
+    rows = []
+    present = set()
+    for key, values in grouped.items():
+        city, budget, method = key
+        present.add(method)
+        rows.append(
+            _master_row(
+                city=city,
+                k=budget,
+                method=method,
+                family="c1_external",
+                median_error_m=float(sum(values) / len(values)),
+                status="PRESENT",
+                join_ready=True,
+                missing_join_fields=[],
+                source=str(path),
+                source_sha256=digest,
+            )
+        )
+    for method in methods - present:
+        rows.append(
+            _master_row(
+                city=None,
+                k=None,
+                method=method,
+                family="c1_external",
+                median_error_m=None,
+                status="NOT_ASSESSED",
+                join_ready=False,
+                missing_join_fields=["k"],
+                source=str(path),
+                source_sha256=digest,
+            )
+        )
+    return rows
+
+
+def _rows_from_representation_csv(path: Path) -> list[dict]:
+    if not path.is_file():
+        return []
+    digest = sha256_file(path)
+    rows = []
+    for row in _read_csv_rows(path):
+        if str(row.get("split_role") or "") != "target":
+            continue
+        method = row.get("model_name") or row.get("paper_label")
+        city = row.get("city_id")
+        budget = row.get("budget")
+        error = row.get("cluster_macro_across_seed_mean_error_m") or row.get(
+            "median_error_m"
+        )
+        if method in {None, ""}:
+            continue
+        join_ready = (
+            city not in {None, ""}
+            and budget not in {None, ""}
+            and _finite_meter(error)
+        )
+        rows.append(
+            _master_row(
+                city=city if join_ready else None,
+                k=budget if join_ready else None,
+                method=method,
+                family="representation_baseline",
+                median_error_m=float(error) if join_ready else None,
+                status="PRESENT" if join_ready else "NOT_ASSESSED",
+                join_ready=join_ready,
+                missing_join_fields=[] if join_ready else ["city", "k"],
+                source=str(path),
+                source_sha256=digest,
+            )
+        )
+    return rows
+
+
+def _rows_from_resource_csv(path: Path) -> list[dict]:
+    if not path.is_file():
+        return []
+    digest = sha256_file(path)
+    grouped = {}
+    for row in _read_csv_rows(path):
+        method = row.get("arm")
+        city = row.get("city_id")
+        budget = row.get("budget")
+        if method in {None, ""} or city in {None, ""} or budget in {None, ""}:
+            continue
+        error = row.get("median_error_m")
+        if not _finite_meter(error) and _finite_meter(row.get("utility_neg_log_median")):
+            error = None
+        if not _finite_meter(error):
+            continue
+        grouped.setdefault((city, budget, method), []).append(float(error))
+    return [
+        _master_row(
+            city=city,
+            k=budget,
+            method=method,
+            family="resource_control",
+            median_error_m=float(sum(values) / len(values)),
+            status="PRESENT",
+            join_ready=True,
+            missing_join_fields=[],
+            source=str(path),
+            source_sha256=digest,
+        )
+        for (city, budget, method), values in grouped.items()
+    ]
+
+
+def _read_csv_rows(path: Path) -> list[dict]:
+    try:
+        with path.open(newline="", encoding="utf-8") as handle:
+            return [_coerce_descriptive_row(row) for row in csv.DictReader(handle)]
+    except Exception:
+        return []
+
+
+def _assemble_comparison_master_table(
+    localization,
+    extra_rows=None,
+    *,
+    factorial_source_path=None,
+    factorial_source_sha256=None,
+    required_cities=None,
+    required_budgets=None,
+    min_cities=2,
+):
+    rows = []
+    present_methods = set()
+    source = factorial_source_path or "factorial/localization_summary.csv"
+    if localization.get("status") == "PRESENT":
+        for cell in localization.get("rows") or []:
+            if not isinstance(cell, dict):
+                continue
+            method = cell.get("arm")
+            if method in {None, ""}:
+                continue
+            present_methods.add(method)
+            rows.append(
+                _master_row(
+                    city=cell.get("city_id"),
+                    k=cell.get("budget"),
+                    method=method,
+                    family="factorial_arm",
+                    median_error_m=cell.get("mean_bank_median_error_m"),
+                    status="PRESENT",
+                    join_ready=True,
+                    missing_join_fields=[],
+                    source=source,
+                    source_sha256=factorial_source_sha256,
+                )
+            )
+    for extra in extra_rows or []:
+        method = extra.get("method")
+        if method in {None, ""}:
+            continue
+        if extra.get("status") == "PRESENT":
+            present_methods.add(method)
+        rows.append(extra)
+    for method, family in _MASTER_COMPARISON_METHODS:
+        if method in present_methods:
+            continue
+        missing_fields = [] if family == "factorial_arm" else ["city", "k"]
+        rows.append(
+            _master_row(
+                city=None,
+                k=None,
+                method=method,
+                family=family,
+                median_error_m=None,
+                status="NOT_ASSESSED",
+                join_ready=False,
+                missing_join_fields=missing_fields,
+                source=None,
+            )
+        )
+    present = any(row["status"] == "PRESENT" for row in rows)
+    missing = any(row["status"] == "NOT_ASSESSED" for row in rows)
+    if present and missing:
+        status = "PARTIAL"
+    elif present:
+        status = "PRESENT"
+    else:
+        status = "NOT_ASSESSED"
+    grid = _sota_readiness_report(
+        package_status="COMPLETE",
+        nonclaim=False,
+        master={"rows": rows},
+        fixture=False,
+        required_cities=required_cities,
+        required_budgets=required_budgets,
+        min_cities=min_cities,
+    )
+    return {
+        "status": status,
+        "sota_grid_status": grid["sota_grid_status"],
+        "slice_key": _MASTER_SLICE_KEY,
+        "sota_methods": [name for name, _family in _SOTA_COMPARISON_METHODS],
+        "descriptive_only_methods": [name for name, _family in _DESCRIPTIVE_ONLY_METHODS],
+        "join_rule": (
+            "SOTA slice is city × k × method for four arms plus Wi-GATr/PMNet. "
+            "Restricted/representation/resource-control rows are descriptive and "
+            "never invent meters. External rows join only when they expose k."
+        ),
+        "success_claim_upgrade": "NOT_PERMITTED",
+        "rows": rows,
+    }
+
+
+def _describe_existing_artifact(path):
+    candidate = Path(path)
+    record = {
+        "path": str(candidate),
+        "status": "NOT_ASSESSED",
+        "sha256": None,
+    }
+    if not candidate.is_file():
+        return record
+    record["status"] = "PRESENT"
+    record["sha256"] = sha256_file(candidate)
+    return record
+
+
+def _read_optional_json(artifact):
+    if artifact.get("status") != "PRESENT":
+        return {"status": "NOT_ASSESSED", "payload": None, "error": None}
+    try:
+        payload = read_strict_json(artifact["path"])
+    except Exception as error:
+        return {
+            "status": "INVALID",
+            "payload": None,
+            "error": f"{type(error).__name__}: {error}",
+        }
+    if not isinstance(payload, dict):
+        return {"status": "INVALID", "payload": None, "error": "payload is not an object"}
+    return {"status": "PRESENT", "payload": payload, "error": None}
+
+
+def _read_localization_cells(artifact):
+    if artifact.get("status") != "PRESENT":
+        return {"status": "NOT_ASSESSED", "row_count": 0, "rows": [], "error": None}
+    try:
+        with Path(artifact["path"]).open(newline="", encoding="utf-8") as handle:
+            rows = [_coerce_descriptive_row(row) for row in csv.DictReader(handle)]
+    except Exception as error:
+        return {
+            "status": "INVALID",
+            "row_count": 0,
+            "rows": [],
+            "error": f"{type(error).__name__}: {error}",
+        }
+    return {"status": "PRESENT", "row_count": len(rows), "rows": rows, "error": None}
+
+
+def _coerce_descriptive_row(row):
+    coerced = {}
+    for key, value in row.items():
+        if value is None or value == "":
+            coerced[key] = value
+            continue
+        coerced[key] = _maybe_number(value)
+    return coerced
+
+
+def _maybe_number(value):
+    if not isinstance(value, str):
+        return value
+    stripped = value.strip()
+    if stripped in {"", "NOT_ASSESSED"}:
+        return stripped
+    try:
+        if any(character in stripped for character in ".eE"):
+            return float(stripped)
+        return int(stripped)
+    except ValueError:
+        return value
+
+
+def _extract_g5_four_cells(factorial_gate):
+    if factorial_gate.get("status") != "PRESENT":
+        return {
+            "status": factorial_gate.get("status", "NOT_ASSESSED"),
+            "subgates": None,
+            "localization_city_budget_checks": [],
+            "error": factorial_gate.get("error"),
+        }
+    payload = factorial_gate.get("payload") or {}
+    subgates = payload.get("g5_subgates")
+    checks = payload.get("localization_city_budget_checks")
+    return {
+        "status": "PRESENT" if isinstance(subgates, dict) else "NOT_ASSESSED",
+        "subgates": dict(subgates) if isinstance(subgates, dict) else None,
+        "localization_city_budget_checks": (
+            list(checks) if isinstance(checks, list) else []
+        ),
+        "error": None,
+    }
+
+
+def _extract_descriptive_intervals(statistics, factorial_gate, evaluation_gate):
+    intervals = {
+        "status": "NOT_ASSESSED",
+        "factorial_statistics": None,
+        "evaluation_intervals": None,
+        "error": None,
+    }
+    present = False
+    if statistics.get("status") == "PRESENT":
+        payload = statistics.get("payload") or {}
+        intervals["factorial_statistics"] = {
+            "exact": payload.get("exact") if "exact" in payload else None,
+            "hierarchical_bootstrap": (
+                payload.get("hierarchical_bootstrap")
+                if "hierarchical_bootstrap" in payload
+                else None
+            ),
+            "bank_only_bootstrap": (
+                payload.get("bank_only_bootstrap")
+                if "bank_only_bootstrap" in payload
+                else None
+            ),
+        }
+        present = True
+    elif statistics.get("status") == "INVALID":
+        intervals["error"] = statistics.get("error")
+    if factorial_gate.get("status") == "PRESENT":
+        payload = factorial_gate.get("payload") or {}
+        if "localization_city_budget_checks" in payload:
+            intervals.setdefault("factorial_statistics", {})
+            if intervals["factorial_statistics"] is None:
+                intervals["factorial_statistics"] = {}
+            intervals["factorial_statistics"]["localization_city_budget_checks"] = (
+                payload.get("localization_city_budget_checks")
+            )
+            present = True
+    if evaluation_gate.get("status") == "PRESENT":
+        payload = evaluation_gate.get("payload") or {}
+        extracted = {}
+        for key in ("g3_intervals", "g3_scope_intervals", "g4_intervals"):
+            if key in payload:
+                extracted[key] = payload.get(key)
+        if extracted:
+            intervals["evaluation_intervals"] = extracted
+            present = True
+    elif evaluation_gate.get("status") == "INVALID" and intervals["error"] is None:
+        intervals["error"] = evaluation_gate.get("error")
+    if present:
+        intervals["status"] = "PRESENT"
+    elif statistics.get("status") == "INVALID" or evaluation_gate.get("status") == "INVALID":
+        intervals["status"] = "INVALID"
+    return intervals
 
 
 def _assess_stage(
@@ -221,7 +1075,19 @@ def _assess_stage(
         return "INVALID", f"{type(error).__name__}: {error}"
 
 
+def _payload_is_incomplete(payload):
+    if not isinstance(payload, dict):
+        return False
+    if payload.get("status") in _INCOMPLETE_PAYLOAD_STATUSES:
+        return True
+    if payload.get("engineering_complete") is False:
+        return True
+    return False
+
+
 def _semantic_status(name, payload):
+    if _payload_is_incomplete(payload):
+        return _INCOMPLETE_ASSESSMENT
     if name == "G0":
         decision = payload.get("decision")
         if (
@@ -266,9 +1132,15 @@ def _semantic_status(name, payload):
     if name == "G3_C5":
         return "PASS" if payload.get("c5_evidence_complete") is True else "FAIL"
     if name == "G3":
-        if not _require_pass_subgates(payload, "g3_subgates", 9):
-            return "FAIL"
-        if payload.get("c3_evidence_complete") is not True or payload.get("c5_evidence_complete") is not True:
+        subgates = payload.get("g3_subgates")
+        if not isinstance(subgates, dict) or len(subgates) != 9:
+            raise RuntimeError("g3_subgates must contain exactly 9 entries")
+        if any(value not in {"PASS", "FAIL"} for value in subgates.values()):
+            return _INCOMPLETE_ASSESSMENT
+        if (
+            payload.get("c3_evidence_complete") is not True
+            or payload.get("c5_evidence_complete") is not True
+        ):
             return "FAIL"
     elif name == "G4":
         if not _require_pass_subgates(payload, "g4_subgates", 7):
@@ -503,6 +1375,13 @@ def _semantic_status(name, payload):
         ):
             return "FAIL"
     elif name == "scene_id_mechanism":
+        if (
+            payload.get("status") == "BLOCKED"
+            and payload.get("engineering_complete") is True
+            and isinstance(payload.get("skip_reason"), str)
+            and payload["skip_reason"].strip()
+        ):
+            return "BLOCKED"
         assessments = payload.get("model_assessments")
         if (
             not isinstance(assessments, list)
@@ -588,6 +1467,8 @@ def _semantic_status(name, payload):
             return "FAIL"
     if payload.get("passed") is True and payload.get("status") == "PASS":
         return "PASS"
+    if payload.get("status") in _INCOMPLETE_PAYLOAD_STATUSES:
+        return _INCOMPLETE_ASSESSMENT
     if payload.get("passed") is False or payload.get("status") in {"FAIL", "BLOCKED"}:
         return "FAIL"
     raise RuntimeError(f"stage {name} has no unambiguous PASS/FAIL result")
@@ -1203,6 +2084,15 @@ def _validate_stage_bound_input(
         ):
             raise RuntimeError("G8 precomputed archive cannot claim adapter runtime provenance")
     elif stage_name == "scene_id_mechanism":
+        if (
+            payload.get("status") == "BLOCKED"
+            and payload.get("engineering_complete") is True
+            and isinstance(payload.get("skip_reason"), str)
+            and payload["skip_reason"].strip()
+        ):
+            if manifest.get("schema_version") != "csi-pairs-v6-scene-id-skip-v1":
+                raise RuntimeError("scene-ID skip receipt schema mismatch")
+            return
         from .formal_scene_id import _validate_manifest, _verify_adapter_files
 
         _validate_manifest(manifest)
@@ -1355,6 +2245,10 @@ def _validate_stage_bound_input(
 def _gate_state(status):
     if status == "PASS":
         return "PASS"
-    if status in {"FAIL", "INVALID"}:
-        return "FAIL" if status == "FAIL" else "BLOCKED"
+    if status == "FAIL":
+        return "FAIL"
+    if status == _INCOMPLETE_ASSESSMENT:
+        return "NOT_ASSESSED"
+    if status in {"INVALID", "BLOCKED"}:
+        return "BLOCKED"
     return "NOT_ASSESSED"

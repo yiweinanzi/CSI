@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import argparse
-import fcntl
 import json
 import os
 import secrets
 import sys
 from pathlib import Path
+
+from .formal_locks import LOCK_EX, LOCK_NB, LOCK_SH, LOCK_UN, flock
 
 from .formal_config import load_formal_config, resolve_dataset_path
 from .formal_dataset import FormalDataset, SOURCE_ROLES
@@ -52,6 +53,21 @@ COMMAND_OUTPUT_PATHS = {
 }
 FILE_OUTPUT_COMMANDS = frozenset({"inspect-data"})
 SELF_RESERVING_DIRECTORY_COMMANDS = frozenset({"run-representation-baselines"})
+RESUME_SAFE_DIRECTORY_COMMANDS = frozenset({"run-evaluation", "run-factorial"})
+ALL_START_DECISION = (
+    "Start `all` in exactly one of these ways:\n"
+    "  1) Formal publication: --approval-manifest bound to OUTPUT/approval/request.json\n"
+    "  2) Migrated publication: OUTPUT/migration/accepted.json already present\n"
+    "  3) Engineering (non-claim): --engineering-run when dataset+config resolve; "
+    "skips formal resource/C1 preflight, writes ENGINEERING_UNAPPROVED, "
+    "and is never formal evidence.\n"
+    "--approval-manifest and --engineering-run are mutually exclusive.\n"
+    "--approval-manifest and an existing migration/accepted.json are mutually exclusive.\n"
+    "Migrated `all` reuses the legacy factorial and cannot be a new-recipe SOTA run.\n"
+    "subset-compare is an independent audit and is not part of `all`.\n"
+    "Windows is not a formal evidence host."
+)
+ENGINEERING_UNAPPROVED_SCHEMA = "csi-pairs-engineering-unapproved-v1"
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -213,15 +229,42 @@ def build_parser() -> argparse.ArgumentParser:
                 "--representation-baseline-config",
                 default=str(Path(__file__).resolve().parent / "configs" / "representation_baselines_v1.json"),
             )
+        if command in {"prepare-full-run", "all"}:
+            child.add_argument(
+                "--enforce-compute-plan",
+                action="store_true",
+                help="hard-enforce GPU/disk/exclusive/license checks from --compute-plan",
+            )
+        if command == "run-evaluation":
+            child.add_argument(
+                "--legacy-evaluator",
+                action="store_true",
+                help=argparse.SUPPRESS,
+            )
         if command == "all":
+            child.help = (
+                "full chain; start with --approval-manifest, "
+                "migration/accepted.json, or --engineering-run"
+            )
+            child.formatter_class = argparse.RawDescriptionHelpFormatter
+            child.description = ALL_START_DECISION
+            child.epilog = ALL_START_DECISION
             child.add_argument(
                 "--approval-manifest",
                 help="external llm-judge approval bound to OUTPUT/approval/request.json",
             )
             child.add_argument(
-                "--approve-full-experiment",
+                "--engineering-run",
                 action="store_true",
-                help="deprecated compatibility flag; it has no authorization power",
+                help=(
+                    "start when dataset+config resolve; write ENGINEERING_UNAPPROVED; "
+                    "not formal evidence (Windows is never a formal evidence host)"
+                ),
+            )
+            child.add_argument(
+                "--continue-on-stage-fail",
+                action="store_true",
+                help="record a failed stage and continue; keep CSVs from completed stages",
             )
         if command == "run-wrong-map":
             child.add_argument("--qualification-gate", help="defaults to OUTPUT/qualification/gate.json")
@@ -272,17 +315,43 @@ def main(argv: list[str] | None = None) -> int:
     except RuntimeError as error:
         print(f"error: {error}", file=sys.stderr)
         return 2
-    migration_accepted = (
-        args.command == "all"
-        and (Path(args.output).resolve() / "migration" / "accepted.json").is_file()
-    )
-    if args.command == "all" and not args.approval_manifest and not migration_accepted:
-        print(
-            "error: all requires --approval-manifest for the exact prepared run; "
-            "--approve-full-experiment is deprecated and cannot authorize execution",
-            file=sys.stderr,
-        )
-        return 2
+    if args.command == "all":
+        if bool(getattr(args, "legacy_evaluator", False)):
+            print(
+                "error: --legacy-evaluator is not allowed on all; "
+                "formal evaluation uses streaming only",
+                file=sys.stderr,
+            )
+            return 2
+        if bool(getattr(args, "engineering_run", False)) and getattr(
+            args, "approval_manifest", None
+        ):
+            print(
+                "error: --approval-manifest and --engineering-run are mutually exclusive",
+                file=sys.stderr,
+            )
+            return 2
+        accepted_migration = Path(args.output) / "migration" / "accepted.json"
+        if getattr(args, "approval_manifest", None) and accepted_migration.is_file():
+            print(
+                "error: --approval-manifest cannot be combined with "
+                "an existing migration/accepted.json",
+                file=sys.stderr,
+            )
+            return 2
+        if _resolve_all_start_mode(args) is None:
+            print(f"error: {ALL_START_DECISION}", file=sys.stderr)
+            return 2
+    if args.command == "run-evaluation" and bool(
+        getattr(args, "legacy_evaluator", False)
+    ):
+        if os.environ.get("CSI_PAIRS_ALLOW_LEGACY_EVALUATOR") != "1":
+            print(
+                "error: --legacy-evaluator requires CSI_PAIRS_ALLOW_LEGACY_EVALUATOR=1; "
+                "formal evaluation uses streaming",
+                file=sys.stderr,
+            )
+            return 2
     output_lock: _OutputLock | None = None
     try:
         if args.command == "make-fixture":
@@ -429,13 +498,24 @@ def main(argv: list[str] | None = None) -> int:
         output_argument = Path(args.output)
         _reject_unsafe_mutating_output_argument(args.command, output_argument)
         output = output_argument.resolve()
+        if (
+            args.command == "all"
+            and bool(getattr(args, "engineering_run", False))
+            and not output.is_symlink()
+        ):
+            output.mkdir(parents=True, exist_ok=True)
         migration_mode = (output / "migration").exists() or (
             output / "migration"
         ).is_symlink()
         full_run_preflight = None
+        skip_formal_preflight = (
+            args.command == "all"
+            and bool(getattr(args, "engineering_run", False))
+            and not migration_mode
+        )
         if args.command in {"prepare-full-run", "all"} and not (
             args.command == "all" and migration_mode
-        ):
+        ) and not skip_formal_preflight:
             from .formal_run_approval import (
                 full_run_input_values,
                 preflight_full_run,
@@ -454,13 +534,22 @@ def main(argv: list[str] | None = None) -> int:
                 ),
                 waibu_root=Path(__file__).resolve().parents[1] / "waibu",
                 resume=args.command == "all",
+                enforce_compute_plan=bool(
+                    getattr(args, "enforce_compute_plan", False)
+                ),
             )
         output_lock = _acquire_output_lock(output)
         if args.command == "prepare-full-run":
             _reserve_full_run_output(output)
         elif args.command == "all":
-            if not output.is_dir() or output.is_symlink():
+            if output.is_symlink():
+                raise RuntimeError("all output root cannot be a symlink")
+            if bool(getattr(args, "engineering_run", False)):
+                output.mkdir(parents=True, exist_ok=True)
+                _write_engineering_preflight_skip(output)
+            elif not output.is_dir():
                 raise RuntimeError("all requires an existing prepared run root")
+            _maybe_write_nonclaim_run_marker(output, args)
         elif args.command == "run-evaluation" and migration_mode:
             if not output.is_dir() or output.is_symlink():
                 raise RuntimeError(
@@ -547,6 +636,10 @@ def main(argv: list[str] | None = None) -> int:
                 allow_nonscientific_fixture=bool(args.allow_nonscientific_fixture),
             )
         elif args.command == "run-evaluation":
+            _write_engineering_unapproved_marker(
+                output,
+                reason="standalone run-evaluation is not a formal publication start",
+            )
             result = _run_evaluation_command(config, dataset, output, args)
         elif args.command == "run-risk":
             from .formal_risk import run_risk_contract
@@ -684,7 +777,13 @@ def main(argv: list[str] | None = None) -> int:
             return _result_exit_code(result)
         from .formal_evidence import evidence_context
 
-        root_scientific_use = "FORBIDDEN" if dataset.is_fixture else "CANDIDATE_NOT_CLAIM"
+        root_scientific_use = (
+            "FORBIDDEN"
+            if dataset.is_fixture
+            or bool(getattr(args, "engineering_run", False))
+            or _windows_is_not_formal_evidence_host()
+            else "CANDIDATE_NOT_CLAIM"
+        )
         root_evidence = evidence_context(config, dataset, root_scientific_use)
         write_json(
             output / "manifest.json",
@@ -695,7 +794,7 @@ def main(argv: list[str] | None = None) -> int:
             },
         )
         print(json.dumps({"status": result.get("status", "success"), "output": str(output.resolve())}, sort_keys=True))
-        return _result_exit_code(result)
+        return _stage_exit_code(args.command, result)
     except Exception as error:
         print(f"error: {error}", file=sys.stderr)
         return 2
@@ -737,6 +836,12 @@ def _prepare_full_run(config, dataset, output, args, preflight):
         verification = _try_optional_stage(
             "independent data verification",
             lambda: run_data_verification(config, dataset, verifier, output),
+        )
+    if not dataset.is_fixture and (
+        verification is None or verification.get("passed") is not True
+    ):
+        raise RuntimeError(
+            "prepare-full-run requires LIVE data verification before qualification"
         )
     if verification is not None and verification.get("passed") is True:
         qualification = run_formal_qualification(
@@ -790,121 +895,207 @@ def _run_authorized_full_chain(config, dataset, output, args, preflight):
 def _run_authorized_full_chain_for_upstream(
     config, dataset, output, args, preflight, upstream
 ):
-    if upstream.migrated:
-        qualification = read_strict_json(upstream.qualification_gate)
-        factorial = read_strict_json(upstream.factorial_gate)
-    else:
-        from .formal_run_approval import (
-            authenticate_prepared_run,
-            mark_approval_accepted,
+    continue_on_fail = bool(getattr(args, "continue_on_stage_fail", False))
+    failures: list[dict[str, object]] = []
+
+    def require(result, label):
+        _require_full_stage(
+            result,
+            label,
+            dataset,
+            continue_on_fail=continue_on_fail,
+            failures=failures,
         )
 
-        accepted = authenticate_prepared_run(
-            config,
-            dataset,
-            output,
-            preflight,
-            args.approval_manifest,
-        )
-        mark_approval_accepted(output, accepted)
+    def invoke_stage(label, callback):
+        try:
+            result = callback()
+        except Exception as error:
+            if continue_on_fail:
+                failures.append({"stage": label, "error": str(error)})
+                print(
+                    f"warning: {label} failed; continuing because "
+                    f"--continue-on-stage-fail ({type(error).__name__}: {error})",
+                    file=sys.stderr,
+                )
+                return None
+            raise
+        require(result, label)
+        return result
+
+    if upstream.migrated:
+        _write_migrated_legacy_factorial_marker(output)
+        if bool(getattr(args, "engineering_run", False)):
+            _write_engineering_unapproved_marker(
+                output,
+                reason="--engineering-run on a migrated root reuses legacy factorial",
+            )
         qualification = read_strict_json(upstream.qualification_gate)
+        factorial = read_strict_json(upstream.factorial_gate)
+        if bool(getattr(args, "engineering_run", False)):
+            wrong_map_dir = Path(output) / "wrong_map"
+            if not (wrong_map_dir / "gate.json").is_file():
+                from .formal_wrong_map import run_formal_wrong_map
+
+                invoke_stage(
+                    "wrong-map control",
+                    lambda: run_formal_wrong_map(
+                        config, dataset, output, qualification
+                    ),
+                )
+    else:
+        if bool(getattr(args, "engineering_run", False)):
+            _write_engineering_unapproved_marker(
+                output,
+                reason="--engineering-run; dataset+config resolved without formal approval",
+            )
+        else:
+            from .formal_run_approval import (
+                authenticate_prepared_run,
+                mark_approval_accepted,
+            )
+
+            accepted = authenticate_prepared_run(
+                config,
+                dataset,
+                output,
+                preflight,
+                args.approval_manifest,
+            )
+            mark_approval_accepted(output, accepted)
+        qualification_path = Path(upstream.qualification_gate)
+        if qualification_path.is_file() and not qualification_path.is_symlink():
+            qualification = read_strict_json(qualification_path)
+        else:
+            from .formal_qualification import run_formal_qualification
+
+            qualification = invoke_stage(
+                "G1/G2 Response qualification",
+                lambda: run_formal_qualification(config, dataset, output, None),
+            )
+            if qualification is None:
+                qualification = {"status": "ERROR", "passed": False}
 
         from .formal_wrong_map import run_formal_wrong_map
 
-        _require_full_stage(
-            run_formal_wrong_map(config, dataset, output, qualification),
+        invoke_stage(
             "wrong-map control",
-            dataset,
+            lambda: run_formal_wrong_map(config, dataset, output, qualification),
         )
         from .formal_factorial import run_formal_factorial
 
-        factorial = run_formal_factorial(
+        factorial = invoke_stage(
+            "four-arm factorial",
+            lambda: run_formal_factorial(
+                config,
+                dataset,
+                output,
+                qualification,
+                allow_nonscientific_fixture=bool(
+                    args.allow_nonscientific_fixture
+                ),
+            ),
+        )
+        if factorial is None:
+            factorial = {"status": "ERROR", "passed": False}
+
+    evaluation = invoke_stage(
+        "formal evaluation",
+        lambda: _run_evaluation_for_upstream(
             config,
             dataset,
             output,
+            upstream,
             qualification,
-            allow_nonscientific_fixture=bool(args.allow_nonscientific_fixture),
-        )
-        _require_full_stage(factorial, "four-arm factorial", dataset)
-
-    evaluation = _run_evaluation_for_upstream(
-        config,
-        dataset,
-        output,
-        upstream,
-        qualification,
-        factorial,
-    )
-
-    _require_full_stage(
-        evaluation,
-        "formal evaluation",
-        dataset,
+            factorial,
+            legacy_evaluator=bool(getattr(args, "legacy_evaluator", False)),
+        ),
     )
     from .formal_risk import run_risk_contract
 
-    _require_full_stage(run_risk_contract(config, dataset, output), "risk contract", dataset)
+    invoke_stage(
+        "risk contract",
+        lambda: run_risk_contract(config, dataset, output),
+    )
     from .formal_path import run_path_audit
 
-    _require_full_stage(
-        run_path_audit(config, dataset, upstream.factorial_root, output),
+    invoke_stage(
         "path audit",
-        dataset,
+        lambda: run_path_audit(config, dataset, upstream.factorial_root, output),
     )
     from .formal_external import run_external_baselines
 
-    _require_full_stage(
-        run_external_baselines(config, dataset, args.adapter_manifest, output),
+    invoke_stage(
         "external baselines",
-        dataset,
+        lambda: run_external_baselines(
+            config, dataset, args.adapter_manifest, output
+        ),
     )
     from .formal_representation_baselines import run_representation_baselines
 
-    _require_full_stage(
-        run_representation_baselines(
+    invoke_stage(
+        "representation baselines",
+        lambda: run_representation_baselines(
             config,
             dataset,
             args.representation_baseline_config,
             output,
         ),
-        "representation baselines",
-        dataset,
     )
     from .formal_controls import run_resource_controls
 
-    _require_full_stage(
-        run_resource_controls(config, dataset, args.control_manifest, output),
+    invoke_stage(
         "resource controls",
-        dataset,
+        lambda: run_resource_controls(
+            config, dataset, args.control_manifest, output
+        ),
     )
     from .formal_scene_id import run_scene_id_audit
 
-    _require_full_stage(
-        run_scene_id_audit(config, dataset, args.scene_id_manifest, output),
+    invoke_stage(
         "scene-ID audit",
-        dataset,
+        lambda: run_scene_id_audit(
+            config, dataset, args.scene_id_manifest, output
+        ),
     )
     from .formal_claim_controls import run_retention_audit, run_shuffled_pair_control
 
-    _require_full_stage(
-        run_shuffled_pair_control(
+    invoke_stage(
+        "shuffled-pair control",
+        lambda: run_shuffled_pair_control(
             config,
             dataset,
             args.shuffled_pair_manifest,
             output,
         ),
-        "shuffled-pair control",
-        dataset,
     )
-    _require_full_stage(
-        run_retention_audit(config, dataset, args.retention_manifest, output),
+    invoke_stage(
         "retention audit",
-        dataset,
+        lambda: run_retention_audit(
+            config, dataset, args.retention_manifest, output
+        ),
     )
     from .formal_claims import assemble_claim_evidence
 
-    result = assemble_claim_evidence(config, dataset, output)
-    _require_full_stage(result, "claim assembly", dataset)
+    result = invoke_stage(
+        "claim assembly",
+        lambda: assemble_claim_evidence(config, dataset, output),
+    )
+    if failures:
+        write_json(
+            Path(output) / "stage_failures.json",
+            {
+                "schema_version": "csi-pairs-stage-failures-v1",
+                "continue_on_stage_fail": True,
+                "failures": failures,
+            },
+        )
+    if result is None:
+        result = {
+            "status": "INCOMPLETE_FAIL_CLOSED",
+            "passed": False,
+            "stage_failures": failures,
+        }
     return result
 
 
@@ -935,6 +1126,7 @@ def _run_evaluation_command(config, dataset, output, args):
             upstream,
             qualification,
             factorial,
+            legacy_evaluator=bool(getattr(args, "legacy_evaluator", False)),
         )
 
     return _run_with_authenticated_upstream(
@@ -946,19 +1138,47 @@ def _run_evaluation_command(config, dataset, output, args):
 
 
 def _run_evaluation_for_upstream(
-    config, dataset, output, upstream, qualification, factorial
+    config,
+    dataset,
+    output,
+    upstream,
+    qualification,
+    factorial,
+    *,
+    legacy_evaluator=False,
 ):
+    if legacy_evaluator:
+        from .formal_evaluation import run_formal_evaluation
+
+        return run_formal_evaluation(
+            config,
+            dataset,
+            output,
+            qualification,
+            factorial,
+        )
     if upstream.migrated:
         return _run_migrated_evaluation(config, dataset, output, upstream)
+    return _run_local_streaming_evaluation(config, dataset, output, upstream)
 
-    from .formal_evaluation import run_formal_evaluation
 
-    return run_formal_evaluation(
+def _run_local_streaming_evaluation(config, dataset, output, upstream):
+    from .formal_evaluation_identity import build_local_evaluation_execution
+    from .formal_evaluation_streaming import run_streaming_formal_evaluation
+
+    execution = build_local_evaluation_execution(config, dataset, output, upstream)
+    return run_streaming_formal_evaluation(
         config,
         dataset,
         output,
-        qualification,
-        factorial,
+        upstream_root=output,
+        qualification_gate_path=upstream.qualification_gate,
+        factorial_gate_path=upstream.factorial_gate,
+        checkpoint_index_path=upstream.checkpoint_index,
+        checkpoint_inventory_sha256=execution.identity.legacy_checkpoint_inventory_sha256,
+        run_identity=execution.identity,
+        execution_devices=execution.devices,
+        batch_size=execution.batch_size,
     )
 
 
@@ -1026,6 +1246,93 @@ def _run_with_authenticated_upstream(config, dataset, output, invoke):
     return _run_with_legacy_read_lock(located, reauthenticate_and_invoke)
 
 
+def _windows_is_not_formal_evidence_host() -> bool:
+    return sys.platform == "win32" or os.name == "nt"
+
+
+def _resolve_all_start_mode(args) -> str | None:
+    output = Path(args.output)
+    try:
+        resolved = output.resolve()
+    except OSError:
+        resolved = output
+    if getattr(args, "approval_manifest", None):
+        return "approval"
+    if (resolved / "migration" / "accepted.json").is_file():
+        return "migrated"
+    if bool(getattr(args, "engineering_run", False)):
+        return "engineering"
+    return None
+
+
+def _write_engineering_unapproved_marker(output: Path, *, reason: str) -> Path:
+    path = Path(output) / "ENGINEERING_UNAPPROVED.json"
+    write_json(
+        path,
+        {
+            "schema_version": ENGINEERING_UNAPPROVED_SCHEMA,
+            "status": "ENGINEERING_UNAPPROVED",
+            "scientific_use": "FORBIDDEN",
+            "claim_status": "NON_CLAIM",
+            "formal_evidence_host": False,
+            "platform": sys.platform,
+            "reason": reason,
+        },
+    )
+    return path
+
+
+def _write_migrated_legacy_factorial_marker(output: Path) -> Path:
+    from .formal_claims import MIGRATED_LEGACY_FACTORIAL_NAME
+
+    path = Path(output) / MIGRATED_LEGACY_FACTORIAL_NAME
+    write_json(
+        path,
+        {
+            "schema_version": "csi-pairs-migrated-legacy-factorial-v1",
+            "status": "LEGACY_FACTORIAL_REUSED",
+            "sota_ready": False,
+            "scientific_use": "FORBIDDEN",
+            "reason": (
+                "migrated all/evaluation reuses the authenticated legacy factorial; "
+                "new-recipe SOTA requires a fresh four-arm run"
+            ),
+        },
+    )
+    return path
+
+
+def _write_engineering_preflight_skip(output: Path) -> Path:
+    path = Path(output) / "ENGINEERING_PREFLIGHT_SKIPPED.json"
+    write_json(
+        path,
+        {
+            "schema_version": "csi-pairs-engineering-preflight-skip-v1",
+            "status": "SKIPPED",
+            "scientific_use": "FORBIDDEN",
+            "reason": (
+                "--engineering-run skipped formal preflight_full_run "
+                "(resource registry, C1 runtime, platform). "
+                "This is not a formal start receipt."
+            ),
+        },
+    )
+    return path
+
+
+def _maybe_write_nonclaim_run_marker(output: Path, args) -> None:
+    reasons = []
+    if bool(getattr(args, "engineering_run", False)):
+        reasons.append(
+            "--engineering-run; dataset+config resolved without formal approval"
+        )
+    if _windows_is_not_formal_evidence_host():
+        reasons.append("Windows is not a formal evidence host")
+    if not reasons:
+        return
+    _write_engineering_unapproved_marker(output, reason="; ".join(reasons))
+
+
 def _optional_arg(args, name):
     value = getattr(args, name, None)
     if value is None:
@@ -1060,7 +1367,25 @@ def _require_preapproval_pass(
         raise RuntimeError(f"{label} did not pass; no approval request was issued")
 
 
-def _require_full_stage(result, label, dataset):
+def _require_full_stage(
+    result, label, dataset, *, continue_on_fail=False, failures=None
+):
+    try:
+        _check_full_stage(result, label, dataset)
+    except RuntimeError as error:
+        if continue_on_fail:
+            if failures is not None:
+                failures.append({"stage": label, "error": str(error)})
+            print(
+                f"warning: {label} failed; continuing because "
+                f"--continue-on-stage-fail ({error})",
+                file=sys.stderr,
+            )
+            return
+        raise
+
+
+def _check_full_stage(result, label, dataset):
     if not isinstance(result, dict):
         raise RuntimeError(f"{label} returned no auditable stage result")
     status = result.get("status")
@@ -1111,7 +1436,7 @@ class _OutputLock:
         try:
             self.path.unlink(missing_ok=missing_ok)
         finally:
-            fcntl.flock(self.guard_handle.fileno(), fcntl.LOCK_UN)
+            flock(self.guard_handle.fileno(), LOCK_UN)
             self.guard_handle.close()
             self.released = True
 
@@ -1126,7 +1451,7 @@ class _LegacyReadLock:
         if self.released:
             return
         try:
-            fcntl.flock(self.handle.fileno(), fcntl.LOCK_UN)
+            flock(self.handle.fileno(), LOCK_UN)
         finally:
             self.handle.close()
             self.released = True
@@ -1146,7 +1471,7 @@ def _acquire_legacy_read_lock(legacy_run_root: str | Path) -> _LegacyReadLock:
     )
     handle = os.fdopen(descriptor, "rb", buffering=0)
     try:
-        fcntl.flock(handle.fileno(), fcntl.LOCK_SH | fcntl.LOCK_NB)
+        flock(handle.fileno(), LOCK_SH | LOCK_NB)
     except BlockingIOError as error:
         handle.close()
         raise RuntimeError(
@@ -1169,7 +1494,7 @@ def _acquire_output_lock(output_root: Path) -> _OutputLock:
     )
     guard_handle = os.fdopen(descriptor, "r+b", buffering=0)
     try:
-        fcntl.flock(guard_handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        flock(guard_handle.fileno(), LOCK_EX | LOCK_NB)
     except BlockingIOError as error:
         guard_handle.close()
         raise FileExistsError(
@@ -1193,7 +1518,7 @@ def _acquire_output_lock(output_root: Path) -> _OutputLock:
         os.replace(temporary, lock_path)
         return _OutputLock(lock_path, guard_path, guard_handle)
     except Exception:
-        fcntl.flock(guard_handle.fileno(), fcntl.LOCK_UN)
+        flock(guard_handle.fileno(), LOCK_UN)
         guard_handle.close()
         raise
 
@@ -1232,6 +1557,11 @@ def _reserve_command_output(command: str, output_root: Path) -> Path | None:
         if target.exists() or target.is_symlink():
             raise FileExistsError(f"refusing to overwrite V2 output: {target}")
         return target
+    if command in RESUME_SAFE_DIRECTORY_COMMANDS:
+        if target.is_symlink() or target.is_file():
+            raise FileExistsError(f"refusing to overwrite V2 output: {target}")
+        target.mkdir(parents=True, exist_ok=True)
+        return target
     try:
         if command in FILE_OUTPUT_COMMANDS:
             target.touch(exist_ok=False)
@@ -1259,6 +1589,15 @@ def _reserve_full_run_output(output_root: Path) -> None:
             "refusing to reuse V2 full-run output directory except for a single "
             f"pre-staged inputs directory: {output_root}"
         )
+
+
+def _stage_exit_code(command: str, result: object) -> int:
+    if command in {"assemble-claims", "all"} and isinstance(result, dict):
+        if isinstance(result.get("descriptive_results"), dict):
+            from .formal_claims import assemble_claims_exit_code
+
+            return assemble_claims_exit_code(result)
+    return _result_exit_code(result)
 
 
 def _result_exit_code(result: object) -> int:

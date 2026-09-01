@@ -106,6 +106,9 @@ FACTORIAL_KEYS = {
     "response_null_weight",
     "response_null_physical_weight",
     "natural_endpoint_weight",
+    "full_joint_loss",
+    "task_log_variance_init",
+    "encoder_grad_cosine_interval",
 }
 LOCALIZATION_KEYS = {
     "label_budgets",
@@ -115,11 +118,14 @@ LOCALIZATION_KEYS = {
     "maximum_city_regression",
     "minimum_city_improvement",
     "head_steps",
+    "head_steps_per_labeled_point",
+    "early_stop_patience",
     "learning_rate",
     "failure_threshold_m",
     "sigma_min",
 }
 EVALUATION_KEYS = {
+    "batch_size",
     "probe_steps",
     "probe_learning_rate",
     "probe_hidden_dim",
@@ -193,6 +199,7 @@ def load_formal_config(path: str | Path) -> dict[str, Any]:
 def validate_formal_config(config: object) -> None:
     if not isinstance(config, dict):
         raise ValueError("formal configuration root must be an object")
+    _apply_forward_recipe_defaults(config)
     public = {key for key in config if not key.startswith("_")}
     _exact_keys("configuration", public, TOP_LEVEL_KEYS)
     if config["schema_version"] != SCHEMA_VERSION:
@@ -370,6 +377,15 @@ def validate_formal_config(config: object) -> None:
         "natural_endpoint_weight",
     ):
         _finite_number(factorial[key], f"factorial.{key}", minimum=0.0)
+    if factorial["full_joint_loss"] not in {"uncertainty_weighting", "static_sum"}:
+        raise ValueError(
+            "factorial.full_joint_loss must be 'uncertainty_weighting' or 'static_sum'"
+        )
+    _finite_number(factorial["task_log_variance_init"], "factorial.task_log_variance_init")
+    _positive_int(
+        factorial["encoder_grad_cosine_interval"],
+        "factorial.encoder_grad_cosine_interval",
+    )
 
     localization = config["localization"]
     budgets = localization["label_budgets"]
@@ -381,6 +397,15 @@ def validate_formal_config(config: object) -> None:
     _positive_int(localization["label_draws"], "localization.label_draws")
     _finite_number(localization["ridge"], "localization.ridge", minimum=0.0)
     _positive_int(localization["head_steps"], "localization.head_steps")
+    _positive_int(
+        localization["head_steps_per_labeled_point"],
+        "localization.head_steps_per_labeled_point",
+    )
+    _positive_int(
+        localization["early_stop_patience"],
+        "localization.early_stop_patience",
+        minimum=0,
+    )
     _finite_number(localization["learning_rate"], "localization.learning_rate", minimum=1e-12)
     _finite_number(localization["failure_threshold_m"], "localization.failure_threshold_m", minimum=0.0)
     _finite_number(localization["sigma_min"], "localization.sigma_min", minimum=1e-12)
@@ -396,6 +421,7 @@ def validate_formal_config(config: object) -> None:
     )
 
     evaluation = config["evaluation"]
+    _positive_int(evaluation["batch_size"], "evaluation.batch_size")
     _positive_int(evaluation["probe_steps"], "evaluation.probe_steps")
     _positive_int(evaluation["probe_hidden_dim"], "evaluation.probe_hidden_dim")
     _finite_number(evaluation["probe_learning_rate"], "evaluation.probe_learning_rate", minimum=1e-12)
@@ -583,6 +609,21 @@ def resolve_dataset_path(config: dict[str, Any]) -> Path:
 
 def public_formal_config(config: dict[str, Any]) -> dict[str, Any]:
     return {key: value for key, value in config.items() if not key.startswith("_")}
+
+
+def _apply_forward_recipe_defaults(config: dict[str, Any]) -> None:
+    factorial = config.get("factorial")
+    if isinstance(factorial, dict):
+        factorial.setdefault("full_joint_loss", "uncertainty_weighting")
+        factorial.setdefault("task_log_variance_init", 0.0)
+        factorial.setdefault("encoder_grad_cosine_interval", 100)
+    localization = config.get("localization")
+    if isinstance(localization, dict):
+        localization.setdefault("head_steps_per_labeled_point", 50)
+        localization.setdefault("early_stop_patience", 50)
+    evaluation = config.get("evaluation")
+    if isinstance(evaluation, dict):
+        evaluation.setdefault("batch_size", 256)
 
 
 def _exact_keys(name: str, actual: set[str], expected: set[str]) -> None:

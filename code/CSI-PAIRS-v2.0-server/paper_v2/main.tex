@@ -29,6 +29,7 @@ Supervision for Map-Conditioned Wireless Localization}
 \newcommand{\route}{\operatorname{Route}}
 \newcommand{\rms}{\operatorname{RMS}}
 \newcommand{\planned}{\textsc{Planned}}
+\newcommand{\wired}{\textsc{Wired, not run}}
 \newcommand{\auditcell}[2]{%
 \fbox{\parbox[c][0.36in][c]{0.27\linewidth}{\centering\small
 \textbf{#1}\\[-1pt]#2}}}
@@ -57,8 +58,9 @@ statistics, shortcut controls, and claim-evidence gates that distinguish local
 paired sensitivity from global map validity, joint supervision from extra
 compute, and simulator-defined effects from real-world causality.  A decisive
 no-position Response qualification compares oracle-$x$, no-$x$, copy,
-no-action, action-swap, map/edit-only, and null behavior before the protocol
-advances to two-city localization and external validation.
+no-action, action-swap, map/edit-only, and null behavior.  The frozen
+\texttt{9850fff} two-city localization has already been executed as a
+historical negative (G5 FAIL); same-data C1 meters remain unrun.
 \end{abstract}
 
 \section{Introduction}
@@ -114,16 +116,17 @@ This evidence-gated V2.1 draft makes three methodological contributions:
     auxiliary CSI-only teacher target, no receiver position in the headline
     input, and explicit null dead zones.
     \item We preregister a strict $2\times2$ comparison, equal-resource and
-    shortcut controls, scene-level inference, and downgrade rules.  These tests,
-    rather than the objective alone, determine whether joint value,
-    cross-city localization, or bounded paired-context risk become eligible.
+    shortcut controls, and scene-level inference.  Whether joint supervision
+    is better than the single branches is decided by localization meters and
+    same-data baselines, not by whether a gate licenses the discussion.
 \end{itemize}
 
-The central empirical question is whether no-position Response clears its
-information test and whether the two supervision factors then improve the
-retained localization representation beyond single-task and resource-matched
-controls.  The gate sequence makes that question testable without tuning on
-target-city outcomes.
+Qualification and the strict four-arm factorial have been executed.  The
+central empirical question is no longer whether those stages may start.
+It is whether the retained representation improves unseen-city meters
+relative to the single branches and to in-repository same-data baselines.
+The executed factorial is a historical negative result under the frozen
+recipe; that record stays visible while the recipe is revised.
 
 \begin{figure}[t]
 \centering
@@ -451,7 +454,9 @@ experiments are therefore required.
 \caption{Fail-closed gate sequence. Seven disjoint source roles freeze models,
 thresholds, probes, and calibration before final-unseen and target evaluation.
 The scene bank is the highest independent unit; target support siblings are
-excluded from every query denominator.}
+excluded from every query denominator.
+G5 in this figure is the preregistered order; the \texttt{9850fff} execution
+already produced a historical G5 FAIL, and same-data C1 cells are still empty.}
 \label{fig:gates}
 \end{figure}
 
@@ -535,47 +540,53 @@ has an excessive reverse effect.  Multiplicity within a gate is controlled by
 Holm correction or simultaneous scene-cluster intervals.  A failed upstream
 gate makes downstream tests exploratory.
 
-\section{Experiment Readiness and Launch Rule}
+\section{Experiment Status}
 
-Table~\ref{tab:status} separates completed software checks from the launch
-criteria for formal experiments.  Synthetic qualification tests exercise file
-formats, samplers, allowlists, metrics, checkpoints, and stop decisions; their
-artifacts are excluded from scientific claims.  Formal execution begins with a
-no-position gate on independent ray-traced scene banks.
+Table~\ref{tab:status} separates software checks from executed scientific
+stages and from comparison work that is wired but not yet run.  Synthetic
+qualification tests exercise file formats, samplers, allowlists, metrics,
+checkpoints, and stop decisions; their artifacts are excluded from scientific
+claims.
 
-No result panel is instantiated before authenticated non-fixture rows exist.
-Tables~\ref{tab:planned-arms} and~\ref{tab:planned-target} freeze the admissible
-result schemas; each populated cell must bind its scene banks, seeds, label
-draws where applicable, analysis unit, interval, and pass threshold.
+Qualification (G1/G2) and the strict four-arm, two-city localization study
+have been executed on commit
+\texttt{9850fffe0b34f16b45066973308f18b10555ca5d} with dataset SHA-256
+\texttt{060d8671380acaf43bd0beb2c77ac5c6ec112e4ddc083451ab36a5916b7c9cac}.
+Tables~\ref{tab:localization}--\ref{tab:g5} report the complete 32-cell
+meter table, secondary utility, and the historical G5 FAIL.  Empty
+comparison cells are marked \wired{} and are never ``not authorized.''
+A success or SOTA claim still requires same-data baseline meters; those
+adapters exist in the repository and have not been run.  Each populated
+cell binds its scene banks, seeds, label draws where applicable, analysis
+unit, interval, and recorded gate.
 
 \begin{table}[t]
-\caption{Formal experiment launch sequence. Software readiness and scientific
-gate completion are tracked separately.}
+\caption{Formal experiment status. Executed factorial rows are historical
+negatives. Comparison adapters are wired in the repository and not yet run.}
 \label{tab:status}
 \centering
 \small
-\begin{tabular}{p{0.29\linewidth}p{0.17\linewidth}p{0.44\linewidth}}
+\begin{tabular}{p{0.29\linewidth}p{0.20\linewidth}p{0.41\linewidth}}
 \toprule
-Stage & Readiness & Launch criterion \\
+Stage & Readiness & Record \\
 \midrule
 Official format/policy & Ready & Preserve anonymity; recheck before submission \\
-Canonical world-bank code & Input blocked & Pass independent RT regeneration \\
-Six-condition pipeline & Model blocked & Execute two C1-eligible models \\
-Teacher and routing & Input blocked & Pass physical-route coverage and teacher audit strata per bank \\
-Masked no-$x$ Response & Input blocked & Beat three controls per scene and pass null safety \\
-Strict four arms & Not authorized & Start after the Response stop/go review \\
-Unseen-city localization & Not authorized & Start after both native skill gates \\
-External validity & Input blocked & Test cross-engine transfer after internal gates \\
+Canonical world-bank code & Executed & Dataset SHA \texttt{060d8671\ldots}; independent RT regeneration bound \\
+Six-condition / C1 baselines & Wired, not yet run & In-repo Wi-GATr and PMNet adapters; no same-data meters yet \\
+Teacher and routing & Executed & G1 PASS \\
+Masked no-$x$ Response & Executed & G2 PASS; qualification complete \\
+Strict four arms & Executed & Historical negative: interaction FAIL; Response-only best primary utility \\
+Unseen-city localization & Executed & Historical negative: G5 FAIL ($1/4$); meters in Table~\ref{tab:localization} \\
+External validity & Wired, not yet run & Cross-engine transfer remains unrun \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-The experiment therefore starts with a qualified RT engine, independent assets,
-source-frozen physical and teacher targets, and the no-position gate on new
-scene banks.  An oracle-$x$ pass paired with a no-$x$ failure identifies an
-information gap and triggers the preregistered Alignment-only fallback.  A
-no-$x$ pass over copy, no-action, and action-swap with null safety unlocks the
-four-arm experiment.
+The next required measurements are evaluation and the in-repo same-data
+baselines.  Full is not first under the frozen recipe; that recipe will be
+revised.  The old G5 FAIL stands and is not relabeled.  An oracle-$x$
+information gap remains a registered diagnostic.  It does not hide the
+executed localization table.
 
 \section{Limitations and Conclusion}
 
@@ -602,11 +613,15 @@ is not a safety or deployment certification.
 should react to geometry---into a paired, routed, and falsifiable supervision
 problem.  Scene-level reuse restricts position lookup; symmetric active
 quartets support relative Alignment; physical and teacher targets define
-Response; and strict controls determine whether the information survives in the
-retained localization state.  The implementation turns these requirements into
-executable gates.  Its next milestone is the independent Response qualification
-that decides whether the full factorial and two-city localization study should
-proceed.
+Response; and strict controls ask whether the information survives in the
+retained localization state.  Qualification and the strict $2\times2$
+factorial are complete.  Under the frozen recipe the executed factorial is
+a historical negative result: Response-only has the highest primary macro
+utility ($-2.5385957759$), Full is $-2.6657030121$, the interaction is
+$-0.112904$ (FAIL), and G5 fails ($1/4$).  Full is not first; the old G5
+FAIL stands.  The next work is to finish evaluation and the in-repo
+same-data baselines, then revise the joint recipe.  A same-data SOTA
+comparison remains the project goal, not a current result.
 
 \section*{AI Use Statement}
 
@@ -690,37 +705,188 @@ source-calibration-selection, source-final-unseen-bank, target adaptation
 support, and final target query.  No partition can be
 renamed ``pilot'' to bypass this ledger.
 
-\section{Planned Main Tables}
+\section{Executed Factorial Localization and Remaining Comparisons}
+
+The $2\times2$ factorial and two-city localization study have been executed.
+Table~\ref{tab:localization} reports every bank-macro cell: four arms, two
+unseen cities, and four label budgets.  The headline numbers are meters;
+utility is secondary.  This is a descriptive negative result and an
+ablation, not a SOTA claim.  Full is not first under the frozen recipe,
+the interaction fails, and G5 fails.  The old G5 FAIL stands.
+
+Same-data comparison meters do not exist yet.  Table~\ref{tab:c1-baselines}
+reserves the strict C1 column for the in-repository official-code
+adaptations of Wi-GATr and PMNet; those cells are \wired{}.
+Table~\ref{tab:restricted-baselines} keeps SigMap, WiSER, RFIR, and
+representation baselines in a restricted descriptive column.  They are not
+a C1 SOTA column.  Foreign-paper meters are not transferred.
 
 \begin{table}[h]
-\caption{Alignment and Response result schema for formal scene-bank experiments.}
-\label{tab:planned-arms}
+\caption{Unseen-city localization on the executed factorial run
+\texttt{9850fff} (dataset SHA-256
+\texttt{060d8671380acaf43bd0beb2c77ac5c6ec112e4ddc083451ab36a5916b7c9cac}).
+Median and P90 are bank-macro errors in meters (lower is better).  Utility
+is \texttt{mean\_utility\_neg\_log\_median} (higher is better).  The
+preregistered primary budgets are $k\in\{0,8\}$.}
+\label{tab:localization}
 \centering
-\small
-\begin{tabular}{lcccc}
+\footnotesize
+\begin{tabular}{llrrrr}
 \toprule
-Arm & Active CGS $\uparrow$ & Null gap $\downarrow$ & Response NMSE $\downarrow$ & FLOPs \\
+Arm & City & $k$ & Median (m) $\downarrow$ & P90 (m) $\downarrow$ & Utility $\uparrow$ \\
 \midrule
-Endpoint & \planned & \planned & \planned & \planned \\
-Alignment only & \planned & \planned & \planned & \planned \\
-Response only & \planned & \planned & \planned & \planned \\
-Full & \planned & \planned & \planned & \planned \\
+Endpoint & Boston & 0 & 12.215 & 33.520 & $-2.296331$ \\
+Endpoint & Boston & 8 & 29.069 & 68.843 & $-3.195868$ \\
+Endpoint & Boston & 32 & 17.997 & 47.065 & $-2.746024$ \\
+Endpoint & Boston & 128 & 13.700 & 36.031 & $-2.487091$ \\
+Endpoint & Seattle & 0 & 9.531 & 30.763 & $-2.087860$ \\
+Endpoint & Seattle & 8 & 29.173 & 69.405 & $-3.094485$ \\
+Endpoint & Seattle & 32 & 15.947 & 46.950 & $-2.638212$ \\
+Endpoint & Seattle & 128 & 11.105 & 32.833 & $-2.306929$ \\
+Alignment only & Boston & 0 & 13.192 & 34.668 & $-2.388247$ \\
+Alignment only & Boston & 8 & 33.098 & 76.303 & $-3.281602$ \\
+Alignment only & Boston & 32 & 19.047 & 47.812 & $-2.812792$ \\
+Alignment only & Boston & 128 & 14.371 & 37.679 & $-2.540757$ \\
+Alignment only & Seattle & 0 & 10.081 & 32.320 & $-2.165294$ \\
+Alignment only & Seattle & 8 & 21.312 & 55.911 & $-2.896214$ \\
+Alignment only & Seattle & 32 & 15.430 & 43.699 & $-2.631250$ \\
+Alignment only & Seattle & 128 & 11.690 & 34.311 & $-2.366961$ \\
+Response only & Boston & 0 & 11.594 & 31.377 & $-2.206524$ \\
+Response only & Boston & 8 & 29.269 & 67.441 & $-3.156546$ \\
+Response only & Boston & 32 & 18.804 & 47.087 & $-2.770196$ \\
+Response only & Boston & 128 & 12.699 & 33.388 & $-2.402709$ \\
+Response only & Seattle & 0 & 8.775 & 27.960 & $-1.989213$ \\
+Response only & Seattle & 8 & 19.779 & 54.499 & $-2.802101$ \\
+Response only & Seattle & 32 & 13.402 & 38.313 & $-2.484177$ \\
+Response only & Seattle & 128 & 10.457 & 30.986 & $-2.241442$ \\
+Full & Boston & 0 & 11.942 & 33.146 & $-2.277652$ \\
+Full & Boston & 8 & 35.080 & 79.633 & $-3.295764$ \\
+Full & Boston & 32 & 21.007 & 50.454 & $-2.866607$ \\
+Full & Boston & 128 & 13.526 & 36.303 & $-2.482274$ \\
+Full & Seattle & 0 & 9.278 & 30.004 & $-2.056456$ \\
+Full & Seattle & 8 & 26.253 & 66.106 & $-3.032939$ \\
+Full & Seattle & 32 & 14.445 & 42.438 & $-2.547102$ \\
+Full & Seattle & 128 & 11.106 & 33.349 & $-2.304328$ \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 \begin{table}[h]
-\caption{Unseen-city localization and paired-risk result schema. Risk columns
-are permitted only for the frozen $k=0$ paired-proposal audit.}
+\caption{Preregistered primary-macro utility and interaction on
+$k\in\{0,8\}$.  Utility is higher-better.  Hierarchical-bootstrap 95\%
+intervals are shown.  Response-only is best; the interaction does not
+exceed the preregistered minimum $+0.02$.}
+\label{tab:factorial-stats}
+\centering
+\small
+\begin{tabular}{lcc}
+\toprule
+Estimand & Value & Hierarchical 95\% CI \\
+\midrule
+Endpoint macro utility & $-2.6686361650$ & --- \\
+Alignment-only macro utility & $-2.6828391901$ & --- \\
+Response-only macro utility & $-2.5385957759$ & --- \\
+Full macro utility & $-2.6657030121$ & --- \\
+Full $-$ Alignment-only & $+0.017136$ & $[-0.111669,+0.153435]$ \\
+Full $-$ Response-only & $-0.127107$ & $[-0.277954,+0.017099]$ \\
+$2\times2$ interaction & $-0.112904$ & $[-0.362228,+0.121388]$; FAIL \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[h]
+\caption{G5: Full minus Endpoint utility on the four city$\times k$
+primary cells.  The preregistered minimum practical improvement is
+$+0.01$ on every cell.  One of four cells passes, so G5 FAIL.  This
+historical FAIL is not relabeled.}
+\label{tab:g5}
+\centering
+\small
+\begin{tabular}{llccc}
+\toprule
+City & $k$ & Difference & Paired 95\% CI & Pass \\
+\midrule
+Boston & 0 & $+0.018679$ & $[-0.017633,+0.060512]$ & No \\
+Boston & 8 & $-0.099896$ & $[-0.120133,-0.080000]$ & No \\
+Seattle & 0 & $+0.031404$ & $[-0.013199,+0.074221]$ & No \\
+Seattle & 8 & $+0.061545$ & $[+0.034051,+0.089043]$ & Yes \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[h]
+\caption{Alignment and Response evaluation schema.  CGS and NMSE require
+the unfinished evaluation stage and remain \wired{}.  FLOPs/step are
+mean measured training FLOPs from the executed factorial bill, not a
+held-out skill metric.}
+\label{tab:planned-arms}
+\centering
+\small
+\begin{tabular}{lcccc}
+\toprule
+Arm & Active CGS $\uparrow$ & Null gap $\downarrow$ & Response NMSE $\downarrow$ & FLOPs/step \\
+\midrule
+Endpoint & \wired & \wired & \wired & $1.238\times 10^{10}$ \\
+Alignment only & \wired & \wired & \wired & $8.047\times 10^{11}$ \\
+Response only & \wired & \wired & \wired & $1.026\times 10^{11}$ \\
+Full & \wired & \wired & \wired & $8.949\times 10^{11}$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[h]
+\caption{Paired-risk schema.  Risk columns are permitted only for the
+frozen $k=0$ paired-proposal audit.  Evaluation and risk stages have not
+been run.}
 \label{tab:planned-target}
 \centering
 \small
-\begin{tabular}{llcccc}
+\begin{tabular}{llcc}
 \toprule
-City & $k$ & Median $\downarrow$ & P90 $\downarrow$ & AURC $\downarrow$ & ECE $\downarrow$ \\
+City & $k$ & AURC $\downarrow$ & ECE $\downarrow$ \\
 \midrule
-City A & 0/8/32/128 & \planned & \planned & \planned & \planned \\
-City B & 0/8/32/128 & \planned & \planned & \planned & \planned \\
+Boston & 0 & \wired & \wired \\
+Seattle & 0 & \wired & \wired \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[h]
+\caption{Strict C1 same-data baselines.  Only the official-code Wi-GATr
+and PMNet adaptations are C1-eligible.  Adapters are wired in the
+repository; localization has not been run on this dataset.
+Foreign-paper meters are not transferred.}
+\label{tab:c1-baselines}
+\centering
+\small
+\begin{tabular}{lcccc}
+\toprule
+Method & Boston $k=0$ & Boston $k=8$ & Seattle $k=0$ & Seattle $k=8$ \\
+\midrule
+Wi-GATr & \wired & \wired & \wired & \wired \\
+PMNet & \wired & \wired & \wired & \wired \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[h]
+\caption{Restricted descriptive comparisons, not a C1 SOTA column.
+Adapters are wired and not yet run.  WiSER and RFIR are
+style-controlled; WWM is an inspired same-world control; representation
+rows are not C1-eligible.}
+\label{tab:restricted-baselines}
+\centering
+\small
+\begin{tabular}{llc}
+\toprule
+Method & Role & Localization meters \\
+\midrule
+SigMap & Restricted map prompt; not C1-eligible & \wired \\
+WiSER & Style-controlled diagnostic & \wired \\
+RFIR & Style-controlled diagnostic & \wired \\
+CSI-MAE / CSI-CLIP / CSI-CLIP++ & Representation; not C1 & \wired \\
+ContraWiMAE & Representation; not C1 & \wired \\
+WWM-inspired & Inspired same-world control & \wired \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -729,13 +895,16 @@ City B & 0/8/32/128 & \planned & \planned & \planned & \planned \\
 
 Before replacing any dash, the artifact must include scene IDs, split role,
 route counts, sample denominator, seed, model/input allowlist, checkpoint hash,
-configuration hash, sufficient statistics, and failure cases.  A result enters
-the abstract only after its corresponding gate passes.  Specifically: a
+configuration hash, sufficient statistics, and failure cases.  Descriptive
+localization meters from an executed factorial may appear as a negative or
+ablation table.  A success or SOTA claim still requires same-data baseline
+meters and does not enter the abstract from the historical negative run
+alone.  Specifically: a
 wrong-map domain claim needs at least two runnable map-conditioned models;
 Response needs teacher agreement and per-scene wins over copy, no-action, and
-action-swap; joint value needs both native skills, equal-resource controls, and
-a positive preregistered interaction; cross-city claims need both target cities;
-and any simulator-consistent wording needs qualified RT plus an external engine
-or controlled real intervention.
+action-swap; a joint-improvement claim needs both native skills, equal-resource
+controls, and meters that beat both single branches; a cross-city improvement
+claim needs both target cities; and any simulator-consistent wording needs
+qualified RT plus an external engine or controlled real intervention.
 
 \end{document}

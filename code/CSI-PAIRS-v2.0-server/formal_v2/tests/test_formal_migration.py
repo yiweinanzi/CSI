@@ -32,7 +32,12 @@ from formal_v2.formal_evidence import (
     RUNTIME_PROVENANCE_FIELDS,
     config_sha256,
 )
-from formal_v2.formal_io import artifact_manifest, sha256_file, write_json
+from formal_v2.formal_data_verification import (
+    BLOCKING_ROLES as DATA_VERIFICATION_BLOCKING_ROLES,
+    LIVE_VERIFICATION_MODE,
+    SCHEMA as DATA_VERIFICATION_SCHEMA,
+)
+from formal_v2.formal_io import artifact_manifest, read_strict_json, sha256_file, write_json
 from formal_v2.formal_llm_judge import (
     APPROVAL_ATTESTATION,
     LLM_JUDGE_APPROVAL_SCHEMA,
@@ -111,6 +116,7 @@ class FormalMigrationFixture:
             "factorial", "CANDIDATE_NOT_CLAIM"
         )
 
+        self._make_data_verification()
         self._make_qualification()
         self._make_factorial()
         self._make_legacy_approval()
@@ -189,6 +195,33 @@ class FormalMigrationFixture:
             },
         )
 
+    def _make_data_verification(self) -> None:
+        stage = self.legacy_run / "data_verification"
+        stage.mkdir()
+        self.data_verification_evidence = self._evidence(
+            "data_verification", "CANDIDATE_NOT_CLAIM"
+        )
+        self.data_verification_gate = stage / "gate.json"
+        write_json(
+            self.data_verification_gate,
+            {
+                "schema_version": DATA_VERIFICATION_SCHEMA,
+                "status": "PASS",
+                "passed": True,
+                "blocking_passed": True,
+                "verification_mode": LIVE_VERIFICATION_MODE,
+                "blocking_roles": list(DATA_VERIFICATION_BLOCKING_ROLES),
+                "target_and_other_roles_are_nonblocking": True,
+                "role_status": {
+                    "source_encoder_train": "PASS",
+                    "source_method_selection": "PASS",
+                    "target": "PASS",
+                },
+                **self.data_verification_evidence,
+            },
+        )
+        self._write_manifest(stage, self.data_verification_evidence)
+
     def _make_qualification(self) -> None:
         stage = self.legacy_run / "qualification"
         stage.mkdir()
@@ -203,6 +236,15 @@ class FormalMigrationFixture:
                 "status": "QUALIFICATION_PASS",
                 "passed": True,
                 "upstream_gates": {"G1": "PASS", "G2": "PASS"},
+                "data_verification_gate_schema": DATA_VERIFICATION_SCHEMA,
+                "data_verification_blocking_roles": list(
+                    DATA_VERIFICATION_BLOCKING_ROLES
+                ),
+                "data_verification_mode": LIVE_VERIFICATION_MODE,
+                "data_verification_passed": True,
+                "data_verification_gate_sha256": sha256_file(
+                    self.data_verification_gate
+                ),
                 "teacher_checkpoint": str(self.teacher.resolve()),
                 "teacher_checkpoint_sha256": sha256_file(self.teacher),
                 **self.qualification_evidence,
@@ -1562,6 +1604,22 @@ class FormalMigrationTests(unittest.TestCase):
         )
         with self.assertRaises(FileExistsError):
             migration.write_migration_request(**self.fixture.request_arguments())
+
+    def test_schema_only_data_verification_does_not_authenticate(self) -> None:
+        qualification = read_strict_json(self.fixture.qualification_gate)
+        qualification.pop("data_verification_gate_sha256", None)
+        qualification.pop("data_verification_mode", None)
+        qualification.pop("data_verification_passed", None)
+        write_json(self.fixture.qualification_gate, qualification)
+        self.fixture._write_manifest(
+            self.fixture.legacy_run / "qualification",
+            self.fixture.qualification_evidence,
+        )
+        with self.assertRaisesRegex(
+            RuntimeError,
+            "live_independent_regeneration|LIVE data verification|gate hash",
+        ):
+            migration.write_migration_request(**self.fixture.request_arguments())
         with self.assertRaises(FileExistsError):
             self._accept(request, approval)
 
@@ -1769,6 +1827,100 @@ class FormalMigrationTests(unittest.TestCase):
         )
         with self.assertRaisesRegex(RuntimeError, "tracked modifications"):
             migration._source_identity(self.fixture.new_source)
+
+
+class LegacyDataVerificationBindingTests(unittest.TestCase):
+    def test_missing_sibling_gate_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "data_verification").mkdir()
+            with self.assertRaisesRegex(RuntimeError, "data-verification"):
+                migration._authenticate_legacy_data_verification(
+                    root,
+                    {
+                        "source_tree_sha256": "a" * 64,
+                        "requirements_lock_sha256": "b" * 64,
+                    },
+                    dataset_sha256="c" * 64,
+                    config_sha256="d" * 64,
+                    qualification_gate={
+                        "data_verification_gate_schema": DATA_VERIFICATION_SCHEMA,
+                    },
+                )
+
+    def test_schema_string_without_hash_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            stage = root / "data_verification"
+            stage.mkdir()
+            gate = {
+                "schema_version": DATA_VERIFICATION_SCHEMA,
+                "status": "PASS",
+                "passed": True,
+                "blocking_passed": True,
+                "verification_mode": LIVE_VERIFICATION_MODE,
+                "blocking_roles": list(DATA_VERIFICATION_BLOCKING_ROLES),
+                "target_and_other_roles_are_nonblocking": True,
+                "role_status": {
+                    "source_encoder_train": "PASS",
+                    "source_method_selection": "PASS",
+                },
+            }
+            write_json(stage / "gate.json", gate)
+            write_json(stage / "manifest.json", {"files": []})
+            with mock.patch.object(migration, "_authenticate_stage", return_value={}):
+                with self.assertRaisesRegex(RuntimeError, "gate hash"):
+                    migration._authenticate_legacy_data_verification(
+                        root,
+                        {
+                            "source_tree_sha256": "a" * 64,
+                            "requirements_lock_sha256": "b" * 64,
+                        },
+                        dataset_sha256="c" * 64,
+                        config_sha256="d" * 64,
+                        qualification_gate={
+                            "data_verification_gate_schema": DATA_VERIFICATION_SCHEMA,
+                            "data_verification_mode": LIVE_VERIFICATION_MODE,
+                            "data_verification_passed": True,
+                        },
+                    )
+
+    def test_live_gate_must_name_exact_blocking_roles(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            stage = root / "data_verification"
+            stage.mkdir()
+            gate = {
+                "schema_version": DATA_VERIFICATION_SCHEMA,
+                "status": "PASS",
+                "passed": True,
+                "blocking_passed": True,
+                "verification_mode": LIVE_VERIFICATION_MODE,
+                "role_status": {
+                    "source_encoder_train": "PASS",
+                    "source_method_selection": "PASS",
+                },
+            }
+            write_json(stage / "gate.json", gate)
+            write_json(stage / "manifest.json", {"files": []})
+            with mock.patch.object(migration, "_authenticate_stage", return_value={}):
+                with self.assertRaisesRegex(
+                    RuntimeError, "passing LIVE regeneration gate"
+                ):
+                    migration._authenticate_legacy_data_verification(
+                        root,
+                        {
+                            "source_tree_sha256": "a" * 64,
+                            "requirements_lock_sha256": "b" * 64,
+                        },
+                        dataset_sha256="c" * 64,
+                        config_sha256="d" * 64,
+                        qualification_gate={
+                            "data_verification_gate_schema": DATA_VERIFICATION_SCHEMA,
+                            "data_verification_mode": LIVE_VERIFICATION_MODE,
+                            "data_verification_passed": True,
+                        },
+                    )
 
 
 if __name__ == "__main__":

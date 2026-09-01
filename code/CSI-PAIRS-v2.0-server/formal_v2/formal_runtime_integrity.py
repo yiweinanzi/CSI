@@ -43,9 +43,10 @@ def _normalize_distribution_name(name: str) -> str:
 
 def _sha256_file(path: Path) -> str:
     before = _file_fingerprint(path)
+    cacheable = os.name != "nt" and int(before[1] or 0) > 0
     with _DIGEST_CACHE_LOCK:
         cached = _DIGEST_CACHE.get(path)
-    if cached is not None and cached[0] == before:
+    if cacheable and cached is not None and cached[0] == before:
         return cached[1]
     digest = hashlib.sha256()
     with path.open("rb") as handle:
@@ -55,8 +56,9 @@ def _sha256_file(path: Path) -> str:
     if after != before:
         raise RuntimeError(f"runtime file changed while it was being authenticated: {path}")
     value = digest.hexdigest()
-    with _DIGEST_CACHE_LOCK:
-        _DIGEST_CACHE[path] = (after, value)
+    if cacheable:
+        with _DIGEST_CACHE_LOCK:
+            _DIGEST_CACHE[path] = (after, value)
     return value
 
 

@@ -10,9 +10,9 @@ scientific-readiness decision.
 
 - Dataset SHA-256: `060d8671380acaf43bd0beb2c77ac5c6ec112e4ddc083451ab36a5916b7c9cac`
 - Formal source-tree SHA-256: `a6284fe400a3443b3805ca8896b04513c1d064d25f2461fdd304e1cf8a5efd7f`
-- Formal configuration SHA-256: `6842a565ba733ec6e6d2d3f96e99926cba75ea29dc87d46019bdea795d6def42`
+- Formal configuration SHA-256: `fe14ec03e9b8b4071f82400039b9ce505ef990174db917493ef6c334fe27a2fc`
 - Paper claim file: `code/CSI-PAIRS-v2.0-server/paper_v2/main.tex`
-- Paper claim SHA-256: `9a0d4aeb3655d16788c9d234cc454c8f6d22b45026de93877f96206e31379183`
+- Paper claim SHA-256: `c6d899caba2865f1fa82c39857d2305ea262f19489426ed9355094335d5f96cb`
 - Frozen machine test evidence: unittest methods under `formal_v2/tests/`
 - These results are **unit tests**, not executed C1–C13 / G0–G8 scientific gates; `FORMAL_GO` remains NO-GO until authenticated data and formal stages pass.
 - Do not treat the bound dataset SHA as an authenticated formal NPZ in this clone; no `.npz` is present.

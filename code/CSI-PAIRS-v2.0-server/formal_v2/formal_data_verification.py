@@ -283,24 +283,39 @@ def require_verified_roles_from_root(
     config: dict,
     dataset,
     roles: Iterable[str],
+    *,
+    fail_closed: bool | None = None,
 ) -> dict:
+    """Load the sibling data-verification gate and require the given roles.
+
+    Non-fixture callers fail closed by default: a missing, skipped, diagnostic,
+    or failed gate raises. Fixture software tests keep the advisory skip so
+    they can run without a live regeneration bundle.
+    """
+    fixture = bool(getattr(dataset, "is_fixture", False))
+    closed = (not fixture) if fail_closed is None else bool(fail_closed)
     path = Path(output_root) / "data_verification" / "gate.json"
+    skipped = {
+        "schema_version": SCHEMA,
+        "status": "NOT_ASSESSED",
+        "passed": None,
+        "skipped": True,
+        "reason": "independent data verification was not supplied",
+    }
     if not path.is_file() or path.is_symlink():
-        return {
-            "schema_version": SCHEMA,
-            "status": "NOT_ASSESSED",
-            "passed": None,
-            "skipped": True,
-            "reason": "independent data verification was not supplied",
-        }
+        if closed:
+            raise RuntimeError(
+                "formal stages require a live independent data-verification gate"
+            )
+        return skipped
     gate = read_strict_json(path)
     if not isinstance(gate, dict) or gate.get("passed") is not True:
-        return gate if isinstance(gate, dict) else {
-            "schema_version": SCHEMA,
-            "status": "NOT_ASSESSED",
-            "passed": None,
-            "skipped": True,
-        }
+        if closed:
+            raise RuntimeError(
+                "formal stages require a passing live independent "
+                "data-verification gate"
+            )
+        return gate if isinstance(gate, dict) else skipped
     return require_verified_roles(
         gate,
         config,

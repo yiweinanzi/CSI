@@ -28,11 +28,13 @@ from formal_v2.formal_factorial import (
     city_support_candidates,
     eligible_query_indices,
 )
-from formal_v2.formal_io import read_strict_json, sha256_file, write_csv, write_json
+from formal_v2.formal_io import read_strict_json, sha256_file, sha256_text_lf, write_csv, write_json
 from formal_v2.formal_localization import (
     HeteroscedasticPositionHead,
+    _head_early_stop_patience,
     adapt_position_head,
     predict_position_distribution,
+    scheduled_head_steps,
 )
 from formal_v2.formal_routing import fit_route_normalization
 from formal_v2.formal_teacher import load_teacher_bundle
@@ -156,8 +158,8 @@ def run_control(
     model_specs, step_counts = _select_control_design(
         control_id, architecture, config, corpus, pilot, training_rows
     )
-    source_hash = sha256_file(Path(__file__).resolve())
-    architecture_hash = sha256_file(architecture_path)
+    source_hash = sha256_text_lf(Path(__file__).resolve())
+    architecture_hash = sha256_text_lf(architecture_path)
     records = []
     localization_rows = []
     for seed in map(int, config["seeds"]):
@@ -440,8 +442,8 @@ def replay_control(control_id, output_root, architecture_path, replay_output):
         "schema_version": "csi-pairs-v6-resource-replay-v2",
         "control_id": control_id,
         "resource_index_sha256": sha256_file(index_path),
-        "architecture_spec_sha256": sha256_file(architecture_path),
-        "adapter_source_sha256": sha256_file(Path(__file__).resolve()),
+        "architecture_spec_sha256": sha256_text_lf(architecture_path),
+        "adapter_source_sha256": sha256_text_lf(Path(__file__).resolve()),
         "localization_per_bank_sha256": sha256_file(
             output / "localization_per_bank.csv"
         ),
@@ -602,7 +604,9 @@ def _fit_source_localizer(control_id, representations, dataset, config, seed):
         list(bottleneck.parameters()) if bottleneck is not None else []
     )
     optimizer = torch.optim.AdamW(
-        parameters, lr=float(config["localization"]["learning_rate"])
+        parameters,
+        lr=float(config["localization"]["learning_rate"]),
+        weight_decay=float(config["localization"]["ridge"]),
     )
     x = torch.as_tensor(features)
     y = torch.as_tensor(targets)
@@ -616,7 +620,11 @@ def _fit_source_localizer(control_id, representations, dataset, config, seed):
         bottleneck_flops_per_step = float(counter.get_total_flops())
         if bottleneck_flops_per_step <= 0:
             raise RuntimeError("resource control could not measure bottleneck FLOPs")
-    for step in range(int(config["localization"]["head_steps"])):
+    head_steps = scheduled_head_steps(config, int(features.shape[0]))
+    patience = _head_early_stop_patience(config, head_steps)
+    best = float("inf")
+    stale = 0
+    for step in range(head_steps):
         def compute_loss():
             encoded = bottleneck(x) if bottleneck is not None else x
             mean, raw_scale = head(encoded)
@@ -645,9 +653,18 @@ def _fit_source_localizer(control_id, representations, dataset, config, seed):
             )
         )
         optimizer.step()
+        current = float(loss.detach())
         trace.append(
-            {"step": step + 1, "localization_loss": float(loss.detach()), "gradient_norm": gradient}
+            {"step": step + 1, "localization_loss": current, "gradient_norm": gradient}
         )
+        if patience > 0:
+            if current < best - 1e-8:
+                best = current
+                stale = 0
+            else:
+                stale += 1
+                if stale >= patience:
+                    break
     head.eval()
     if bottleneck is not None:
         bottleneck.eval()
@@ -655,7 +672,7 @@ def _fit_source_localizer(control_id, representations, dataset, config, seed):
         bottleneck,
         head,
         trace,
-        bottleneck_flops_per_step * int(config["localization"]["head_steps"]),
+        bottleneck_flops_per_step * head_steps,
     )
 
 
@@ -673,7 +690,7 @@ def _bottleneck_training_flops(config, corpus):
     per_step = float(counter.get_total_flops())
     if per_step <= 0:
         raise RuntimeError("resource-control architecture search could not measure bottleneck FLOPs")
-    return per_step * int(config["localization"]["head_steps"])
+    return per_step * scheduled_head_steps(config, sample_count)
 
 
 def _evaluate_localization(

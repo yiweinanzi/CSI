@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import argparse
-import fcntl
 import hashlib
 import json
 import os
@@ -15,6 +14,7 @@ from typing import Callable, Iterator, Mapping, Sequence
 
 from . import formal_migration_evidence as evidence
 from .formal_io import parse_strict_json, read_strict_json, sha256_file
+from .formal_locks import LOCK_EX, LOCK_NB, LOCK_UN, flock
 
 
 RUNNER_SCHEMA = "csi-pairs-v6-post-exit-migration-runner-v1"
@@ -232,7 +232,7 @@ def _exclusive_guard(path: Path) -> Iterator[_GuardRecord]:
         if opened.st_dev != before.st_dev or opened.st_ino != before.st_ino:
             raise PostExitMigrationError("operation-lock guard changed while opening")
         try:
-            fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            flock(descriptor, LOCK_EX | LOCK_NB)
             locked = True
         except BlockingIOError as error:
             raise PostExitMigrationError(
@@ -245,7 +245,7 @@ def _exclusive_guard(path: Path) -> Iterator[_GuardRecord]:
             _verify_guard_unchanged(path, descriptor, snapshot)
     finally:
         if locked:
-            fcntl.flock(descriptor, fcntl.LOCK_UN)
+            flock(descriptor, LOCK_UN)
         os.close(descriptor)
 
 

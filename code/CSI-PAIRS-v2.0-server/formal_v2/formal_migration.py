@@ -13,6 +13,11 @@ from pathlib import Path
 from typing import Mapping, Sequence
 
 from .formal_config import ARMS
+from .formal_data_verification import (
+    BLOCKING_ROLES as DATA_VERIFICATION_BLOCKING_ROLES,
+    LIVE_VERIFICATION_MODE,
+    SCHEMA as DATA_VERIFICATION_SCHEMA,
+)
 from .formal_evidence import (
     EVIDENCE_AUTH_KEYS,
     FACTORIAL_SCHEMA,
@@ -1138,6 +1143,13 @@ def _inspect_legacy_upstream(
         or qualification_gate.get("upstream_gates", {}).get("G2") != "PASS"
     ):
         raise RuntimeError("legacy qualification did not preserve G1/G2 PASS")
+    _authenticate_legacy_data_verification(
+        root,
+        source,
+        dataset_sha256=dataset_sha256,
+        config_sha256=config_sha256,
+        qualification_gate=qualification_gate,
+    )
     teacher_path = _regular_file(
         qualification_gate.get("teacher_checkpoint", ""),
         "legacy teacher checkpoint",
@@ -1298,6 +1310,75 @@ def _inspect_legacy_upstream(
         "checkpoint_inventory": checkpoints,
         "legacy_scientific_state": scientific_state,
     }
+
+
+def _authenticate_legacy_data_verification(
+    root: Path,
+    source: dict[str, object],
+    *,
+    dataset_sha256: str,
+    config_sha256: str,
+    qualification_gate: dict[str, object],
+) -> dict[str, object]:
+    verification_root = root / "data_verification"
+    gate_path = _regular_file(
+        verification_root / "gate.json", "legacy data-verification gate"
+    )
+    manifest_path = _regular_file(
+        verification_root / "manifest.json", "legacy data-verification manifest"
+    )
+    gate = read_strict_json(gate_path)
+    evidence = _authenticate_stage(
+        verification_root,
+        gate,
+        manifest_path,
+        expected_schema=DATA_VERIFICATION_SCHEMA,
+        expected_scientific_use="CANDIDATE_NOT_CLAIM",
+        source=source,
+        dataset_sha256=dataset_sha256,
+        config_sha256=config_sha256,
+    )
+    if (
+        gate.get("verification_mode") != LIVE_VERIFICATION_MODE
+        or gate.get("passed") is not True
+        or gate.get("blocking_passed") is not True
+        or gate.get("status") != "PASS"
+        or gate.get("blocking_roles") != list(DATA_VERIFICATION_BLOCKING_ROLES)
+        or gate.get("target_and_other_roles_are_nonblocking") is not True
+    ):
+        raise RuntimeError(
+            "legacy data verification is not a passing LIVE regeneration gate"
+        )
+    statuses = gate.get("role_status")
+    if not isinstance(statuses, dict):
+        raise RuntimeError("legacy data-verification gate is missing per-role status")
+    missing = [
+        role
+        for role in DATA_VERIFICATION_BLOCKING_ROLES
+        if statuses.get(role) != "PASS"
+    ]
+    if missing:
+        raise RuntimeError(
+            "legacy data verification did not PASS blocking roles: "
+            + ", ".join(missing)
+        )
+    if qualification_gate.get("data_verification_gate_schema") != DATA_VERIFICATION_SCHEMA:
+        raise RuntimeError(
+            "legacy qualification is not bound to LIVE data verification"
+        )
+    if qualification_gate.get("data_verification_mode") != LIVE_VERIFICATION_MODE:
+        raise RuntimeError(
+            "legacy qualification is not bound to live_independent_regeneration"
+        )
+    if qualification_gate.get("data_verification_passed") is not True:
+        raise RuntimeError("legacy qualification did not record a passing LIVE gate")
+    actual_sha = sha256_file(gate_path)
+    recorded_sha = qualification_gate.get("data_verification_gate_sha256")
+    if recorded_sha != actual_sha:
+        raise RuntimeError(
+            "legacy qualification does not bind the LIVE data-verification gate hash"
+        )
+    return evidence
 
 
 def _authenticate_stage(

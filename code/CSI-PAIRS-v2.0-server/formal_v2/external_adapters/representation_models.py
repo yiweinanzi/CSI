@@ -1,3 +1,13 @@
+"""Source-only representation baselines for descriptive localization comparison.
+
+None of these models are C1-eligible. WWMJEPA is a restricted WWM-inspired
+method: the teacher/target encoder sees source position
+(``include_position=True``) while the online encoder does not. That is the
+intended inspired recipe, not a silent bug, and it is not a strict
+no-position C1 baseline. SigMap/WiSER/RFIR stay style-controlled and
+C1-ineligible in the map-adapter registry.
+"""
+
 from __future__ import annotations
 
 import copy
@@ -381,7 +391,17 @@ class WWMEncoder(nn.Module):
 
 
 class WWMJEPA(nn.Module):
-    """WWM-inspired same-world JEPA with CSI, map, radio/BS, and source trajectory tokens."""
+    """Restricted WWM-inspired same-world JEPA with CSI, map, radio/BS, and trajectory tokens.
+
+    The teacher target uses ``include_position=True``; the online encoder and
+    ``encode`` path stay ``include_position=False``. This is an inspired
+    style-controlled method, not a faithful no-position WWM reproduction and
+    not a C1-eligible baseline.
+    """
+
+    claim_eligible = False
+    restricted = True
+    c1_eligible = False
 
     def __init__(self, spec: PatchSpec, map_channels: int, context_dim: int, dim: int, heads: int, layers: int, ema: float):
         super().__init__()

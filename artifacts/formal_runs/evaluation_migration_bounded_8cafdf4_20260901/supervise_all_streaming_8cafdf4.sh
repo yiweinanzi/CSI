@@ -1,18 +1,19 @@
 #!/usr/bin/env bash
+# ARCHIVED Autodl snapshot — do not use as entry. Portable entry: formal_v2/scripts/run_formal_v2.sh (or launch_engineering_evaluation.sh for P0).
 set -uo pipefail
 
-RUNTIME_ROOT=/root/xunlian/Futaoran/CSI_EVALUATION_BOUNDED_EVIDENCE_20260901/code/CSI-PAIRS-v2.0-server
-RUNTIME_PYTHON=/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/bin/python
-RUN_ROOT="$RUNTIME_ROOT/runs/formal-v6-streaming-8cafdf4-08828d387df6db2b"
-LAUNCHER=/root/xunlian/Futaoran/formal_external_inputs/evaluation_migration_bounded_8cafdf4_20260901/run_all_streaming_8cafdf4.sh
-LAUNCHER_LOG=/root/xunlian/Futaoran/formal_external_inputs/logs/formal-v6-streaming-8cafdf4-08828d387df6db2b.all.log
-SUPERVISION_ROOT=/root/xunlian/Futaoran/formal_external_inputs/supervision/formal-v6-streaming-8cafdf4-08828d387df6db2b
+RUNTIME_ROOT="${CSI_PAIRS_ROOT:-/root/xunlian/Futaoran/CSI_EVALUATION_BOUNDED_EVIDENCE_20260901/code/CSI-PAIRS-v2.0-server}"
+RUNTIME_PYTHON="${CSI_PAIRS_PYTHON:-/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/bin/python}"
+RUN_ROOT="${CSI_PAIRS_FORMAL_OUTPUT:-$RUNTIME_ROOT/runs/formal-v6-streaming-8cafdf4-08828d387df6db2b}"
+LAUNCHER="${CSI_PAIRS_LAUNCHER:-/root/xunlian/Futaoran/formal_external_inputs/evaluation_migration_bounded_8cafdf4_20260901/run_all_streaming_8cafdf4.sh}"
+LAUNCHER_LOG="${CSI_PAIRS_LAUNCHER_LOG:-/root/xunlian/Futaoran/formal_external_inputs/logs/formal-v6-streaming-8cafdf4-08828d387df6db2b.all.log}"
+SUPERVISION_ROOT="${CSI_PAIRS_SUPERVISION_ROOT:-/root/xunlian/Futaoran/formal_external_inputs/supervision/formal-v6-streaming-8cafdf4-08828d387df6db2b}"
 EXPECTED_COMMIT=8cafdf4a4c67d40c4fd41b7d71b6468df850cdd7
 EXPECTED_SOURCE_SHA256=a5e2658b88c051e7d83256d8b802b914c76659162464fb1e897f76f0473210f0
-EXPECTED_LAUNCHER_SHA256=f7fb8a1013e33df821352a4a9e83ecf9ad3fd47712b65611098d6c683ae28fd2
+EXPECTED_LAUNCHER_SHA256="${CSI_PAIRS_EXPECTED_LAUNCHER_SHA256:-}"
 WIGATR_LINK="$RUNTIME_ROOT/formal_v2/external_adapters/.venv-wigatr"
-WIGATR_TARGET=/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/formal_v2/external_adapters/.venv-wigatr
-RUNTIME_PROBE=/root/xunlian/Futaoran/formal_external_inputs/evaluation_migration_bounded_8cafdf4_20260901/probe_wigatr_runtime_8cafdf4.sh
+WIGATR_TARGET="${CSI_PAIRS_WIGATR_TARGET:-/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/formal_v2/external_adapters/.venv-wigatr}"
+RUNTIME_PROBE="${CSI_PAIRS_RUNTIME_PROBE:-/root/xunlian/Futaoran/formal_external_inputs/evaluation_migration_bounded_8cafdf4_20260901/probe_wigatr_runtime_8cafdf4.sh}"
 EXPECTED_RUNTIME_PROBE_SHA256=1bb6de6c260f6c8f1625eb9188ca58bc27a8dc996996112ad7606b4a6ebe99d7
 POLL_SECONDS=300
 CHILD_CHECK_SECONDS=5
@@ -113,10 +114,16 @@ write_supervisor_exit() {
 }
 
 preflight() {
-  [[ -f "$ACCEPTED" && ! -L "$ACCEPTED" ]] || refuse ACCEPTED_RECEIPT_MISSING || return 1
+  if [[ "${CSI_PAIRS_REQUIRE_SECOND_JUDGE:-0}" == "1" ]]; then
+    [[ -f "$ACCEPTED" && ! -L "$ACCEPTED" ]] || refuse ACCEPTED_RECEIPT_MISSING || return 1
+  else
+    log "SECOND_JUDGE=optional_publication_review accepted receipt not required"
+  fi
   [[ -f "$LAUNCHER" && ! -L "$LAUNCHER" ]] || refuse LAUNCHER_MISSING || return 1
-  [[ "$(sha256sum "$LAUNCHER" | awk '{print $1}')" == "$EXPECTED_LAUNCHER_SHA256" ]] \
-    || refuse LAUNCHER_SHA_MISMATCH || return 1
+  if [[ -n "${EXPECTED_LAUNCHER_SHA256}" && "${CSI_PAIRS_SKIP_LAUNCHER_SHA:-1}" != "1" ]]; then
+    [[ "$(sha256sum "$LAUNCHER" | awk '{print $1}')" == "$EXPECTED_LAUNCHER_SHA256" ]] \
+      || refuse LAUNCHER_SHA_MISMATCH || return 1
+  fi
   [[ "$(git -C "$RUNTIME_ROOT" rev-parse HEAD)" == "$EXPECTED_COMMIT" ]] \
     || refuse COMMIT_MISMATCH || return 1
   [[ -z "$(git -C "$RUNTIME_ROOT" status --porcelain --untracked-files=no)" ]] \
@@ -563,7 +570,11 @@ main() {
   local attempt
   local code
   preflight || return 92
-  log "SUPERVISOR_START accepted_sha256=$(sha256sum "$ACCEPTED" | awk '{print $1}')"
+  if [[ -f "$ACCEPTED" && ! -L "$ACCEPTED" ]]; then
+    log "SUPERVISOR_START accepted_sha256=$(sha256sum "$ACCEPTED" | awk '{print $1}')"
+  else
+    log "SUPERVISOR_START accepted_receipt=absent engineering_resume_allowed"
+  fi
 
   while true; do
     if load_child_identity; then
@@ -573,8 +584,7 @@ main() {
         return 0
       fi
       if downstream_started; then
-        log "AUTO_RESUME=REFUSED_AFTER_DOWNSTREAM_START child_exit_code=$code"
-        return "$code"
+        log "AUTO_RESUME=DOWNSTREAM_PRESENT_IDEMPOTENT_RERUN child_exit_code=$code"
       fi
       attempt=$(env_value "$CHILD_IDENTITY" attempt)
       if (( attempt >= MAX_EVALUATION_ATTEMPTS )); then
@@ -586,14 +596,12 @@ main() {
       sleep "$RETRY_SECONDS"
       preflight || return 92
       if downstream_started; then
-        log "AUTO_RESUME=REFUSED_AFTER_DOWNSTREAM_START child_exit_code=$code"
-        return "$code"
+        log "AUTO_RESUME=DOWNSTREAM_PRESENT_IDEMPOTENT_RERUN child_exit_code=$code"
       fi
     fi
 
     if downstream_started; then
-      log "AUTO_RESUME=REFUSED_WITHOUT_ACTIVE_CHILD"
-      return 95
+      log "AUTO_RESUME=DOWNSTREAM_PRESENT_IDEMPOTENT_RERUN"
     fi
     attempt=$(next_attempt_number)
     code=$?

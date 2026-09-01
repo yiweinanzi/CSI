@@ -508,6 +508,18 @@ def run_formal_factorial(
                 "teacher_checkpoint_sha256": qualification_gate["teacher_checkpoint_sha256"],
                 "checkpoint_rule": "fixed_final_step_no_target_selection",
                 "state_dict": portable_state_dict(model),
+                "joint_training_sidecar": {
+                    "full_joint_loss": row.get("full_joint_loss"),
+                    "task_log_variance_alignment": row.get("task_log_variance_alignment"),
+                    "task_log_variance_response": row.get("task_log_variance_response"),
+                    "encoder_alignment_response_grad_cosine_mean": row.get(
+                        "encoder_alignment_response_grad_cosine_mean"
+                    ),
+                    "encoder_alignment_response_grad_cosine_count": row.get(
+                        "encoder_alignment_response_grad_cosine_count"
+                    ),
+                    "encoder_grad_cosine_note": row.get("encoder_grad_cosine_note"),
+                },
                 **evidence,
             },
             checkpoint,
@@ -1194,11 +1206,49 @@ def _train_arm(
             device=device,
         )
     )
-    optimizer = torch.optim.AdamW(
-        model.parameters(),
-        lr=float(config["model"]["learning_rate"]),
-        weight_decay=float(config["model"]["weight_decay"]),
+    alignment_factor, response_factor = ARM_FACTORS[arm]
+    weights = _loss_weights(
+        config,
+        alignment_factor,
+        response_factor,
+        float(pilot["alignment_scale"]),
+        float(pilot["response_scale"]),
+        float(pilot["alignment_null_tolerance"]),
     )
+    joint_mode = str(config["factorial"].get("full_joint_loss", "uncertainty_weighting"))
+    use_uncertainty = (
+        float(alignment_factor) != 0.0
+        and float(response_factor) != 0.0
+        and joint_mode == "uncertainty_weighting"
+    )
+    log_var_alignment = None
+    log_var_response = None
+    if use_uncertainty:
+        init = float(config["factorial"].get("task_log_variance_init", 0.0))
+        variance_device = module_device(model)
+        log_var_alignment = torch.nn.Parameter(
+            torch.tensor(init, dtype=torch.float32, device=variance_device)
+        )
+        log_var_response = torch.nn.Parameter(
+            torch.tensor(init, dtype=torch.float32, device=variance_device)
+        )
+        optimizer = torch.optim.AdamW(
+            [
+                {"params": model.parameters()},
+                {
+                    "params": [log_var_alignment, log_var_response],
+                    "weight_decay": 0.0,
+                },
+            ],
+            lr=float(config["model"]["learning_rate"]),
+            weight_decay=float(config["model"]["weight_decay"]),
+        )
+    else:
+        optimizer = torch.optim.AdamW(
+            model.parameters(),
+            lr=float(config["model"]["learning_rate"]),
+            weight_decay=float(config["model"]["weight_decay"]),
+        )
     steps = int(config["factorial"]["steps"] if step_count is None else step_count)
     batch_size = int(config["factorial"]["batch_size"])
     if steps < 1:
@@ -1213,19 +1263,11 @@ def _train_arm(
         type(stop_after_step) is not int or not 1 <= stop_after_step <= steps
     ):
         raise ValueError("injected interruption step is outside the training schedule")
-    alignment_factor, response_factor = ARM_FACTORS[arm]
-    weights = _loss_weights(
-        config,
-        alignment_factor,
-        response_factor,
-        float(pilot["alignment_scale"]),
-        float(pilot["response_scale"]),
-        float(pilot["alignment_null_tolerance"]),
-    )
     alignment_gradient_norms = []
     response_gradient_norms = []
     raw_alignment_gradient_norms = []
     raw_response_gradient_norms = []
+    encoder_grad_cosines = []
     execution = None
     last_losses = None
     prior_elapsed = 0.0
@@ -1251,6 +1293,8 @@ def _train_arm(
                 "response_gradient_norms",
                 "raw_alignment_gradient_norms",
                 "raw_response_gradient_norms",
+                "encoder_grad_cosines",
+                "task_log_variances",
                 "last_losses",
                 "elapsed_seconds",
                 "loss_trace",
@@ -1262,6 +1306,30 @@ def _train_arm(
             response_gradient_norms = list(state["response_gradient_norms"])
             raw_alignment_gradient_norms = list(state["raw_alignment_gradient_norms"])
             raw_response_gradient_norms = list(state["raw_response_gradient_norms"])
+            encoder_grad_cosines = list(state["encoder_grad_cosines"])
+            stored_variances = state["task_log_variances"]
+            if use_uncertainty:
+                if (
+                    not isinstance(stored_variances, dict)
+                    or set(stored_variances) != {"alignment", "response"}
+                ):
+                    raise RuntimeError("factorial resume task log-variances are invalid")
+                log_var_alignment.data.copy_(
+                    torch.as_tensor(
+                        stored_variances["alignment"],
+                        dtype=torch.float32,
+                        device=log_var_alignment.device,
+                    )
+                )
+                log_var_response.data.copy_(
+                    torch.as_tensor(
+                        stored_variances["response"],
+                        dtype=torch.float32,
+                        device=log_var_response.device,
+                    )
+                )
+            elif stored_variances is not None:
+                raise RuntimeError("factorial resume task log-variances are invalid")
             last_losses = state["last_losses"]
             prior_elapsed = state["elapsed_seconds"]
             stored_trace = state["loss_trace"]
@@ -1279,6 +1347,7 @@ def _train_arm(
                         response_gradient_norms,
                         raw_alignment_gradient_norms,
                         raw_response_gradient_norms,
+                        encoder_grad_cosines,
                     )
                 )
             ):
@@ -1319,6 +1388,15 @@ def _train_arm(
                 "response_gradient_norms": response_gradient_norms,
                 "raw_alignment_gradient_norms": raw_alignment_gradient_norms,
                 "raw_response_gradient_norms": raw_response_gradient_norms,
+                "encoder_grad_cosines": encoder_grad_cosines,
+                "task_log_variances": (
+                    {
+                        "alignment": float(log_var_alignment.detach()),
+                        "response": float(log_var_response.detach()),
+                    }
+                    if use_uncertainty
+                    else None
+                ),
                 "last_losses": last_losses,
                 "elapsed_seconds": elapsed,
                 "loss_trace": list(loss_trace) if loss_trace is not None else None,
@@ -1340,29 +1418,60 @@ def _train_arm(
                 plan,
                 weights,
             )
-        components = _loss_components(
-            model, corpus, plan, weights, pairing_break=pairing_break
+        task_log_variances = (
+            (log_var_alignment, log_var_response) if use_uncertainty else None
         )
-        if step in {0, steps - 1}:
+        components = _loss_components(
+            model,
+            corpus,
+            plan,
+            weights,
+            pairing_break=pairing_break,
+            task_log_variances=task_log_variances,
+        )
+        alignment_term = (
+            float(weights.alignment)
+            * components["alignment"]
+            / max(float(weights.alignment_scale), 1e-12)
+        )
+        response_term = (
+            float(weights.response)
+            * components["response"]
+            / max(float(weights.response_scale), 1e-12)
+        )
+        cosine_interval = int(
+            config["factorial"].get("encoder_grad_cosine_interval", 100)
+        )
+        cosine_steps = {0, steps - 1}
+        cosine_steps.update(range(0, steps, max(1, cosine_interval)))
+        if step in {0, steps - 1} or step in cosine_steps:
             retained = _retained_parameters(model)
-            raw_alignment_gradient_norms.append(_gradient_norm(components["alignment"], retained))
-            raw_response_gradient_norms.append(_gradient_norm(components["response"], retained))
-            alignment_gradient_norms.append(
-                _gradient_norm(
-                    float(weights.alignment)
-                    * components["alignment"]
-                    / max(float(weights.alignment_scale), 1e-12),
-                    retained,
+            if step in {0, steps - 1}:
+                raw_alignment_gradient_norms.append(
+                    _gradient_norm(components["alignment"], retained)
                 )
-            )
-            response_gradient_norms.append(
-                _gradient_norm(
-                    float(weights.response)
-                    * components["response"]
-                    / max(float(weights.response_scale), 1e-12),
-                    retained,
+                raw_response_gradient_norms.append(
+                    _gradient_norm(components["response"], retained)
                 )
-            )
+                alignment_gradient_norms.append(_gradient_norm(alignment_term, retained))
+                response_gradient_norms.append(_gradient_norm(response_term, retained))
+            if (
+                step in cosine_steps
+                and float(weights.alignment) != 0.0
+                and float(weights.response) != 0.0
+            ):
+                if task_log_variances is not None:
+                    log_var_alignment, log_var_response = task_log_variances
+                    cosine_alignment = torch.exp(-log_var_alignment) * alignment_term
+                    cosine_response = torch.exp(-log_var_response) * response_term
+                else:
+                    cosine_alignment = alignment_term
+                    cosine_response = response_term
+                cosine = _gradient_cosine(cosine_alignment, cosine_response, retained)
+                if cosine is not None:
+                    encoder_grad_cosines.append(
+                        {"step": step + 1, "cosine": cosine}
+                    )
         optimizer.zero_grad(set_to_none=True)
         components["total"].backward()
         if loss_trace is not None:
@@ -1419,7 +1528,14 @@ def _train_arm(
         "arm": arm,
         "steps": steps,
         "batch_size": batch_size,
-        "parameters": int(sum(parameter.numel() for parameter in model.parameters())),
+        "parameters": int(
+            sum(parameter.numel() for parameter in model.parameters())
+            + (
+                int(log_var_alignment.numel() + log_var_response.numel())
+                if log_var_alignment is not None and log_var_response is not None
+                else 0
+            )
+        ),
         "elapsed_seconds": elapsed,
         "state_calls_per_step": execution["state_calls"],
         "predict_calls_per_step": execution["predict_calls"],
@@ -1434,6 +1550,23 @@ def _train_arm(
         "response_gradient_norm_mean": float(np.mean(response_gradient_norms)),
         "raw_alignment_gradient_norm_mean": float(np.mean(raw_alignment_gradient_norms)),
         "raw_response_gradient_norm_mean": float(np.mean(raw_response_gradient_norms)),
+        "full_joint_loss": joint_mode if use_uncertainty else "static_sum",
+        "task_log_variance_alignment": (
+            float(log_var_alignment.detach()) if use_uncertainty else None
+        ),
+        "task_log_variance_response": (
+            float(log_var_response.detach()) if use_uncertainty else None
+        ),
+        "encoder_alignment_response_grad_cosine_mean": (
+            float(np.mean([item["cosine"] for item in encoder_grad_cosines]))
+            if encoder_grad_cosines
+            else None
+        ),
+        "encoder_alignment_response_grad_cosine_count": len(encoder_grad_cosines),
+        "encoder_grad_cosine_note": (
+            "diagnostic cosine of alignment vs response grads on shared encoder "
+            "parameters; not a conflict-rate proof"
+        ),
         "checkpoint_rule": "fixed_final_step_no_target_selection",
         "execution_device": str(module_device(model)),
         "batch_plan_contract": "identical bank/edge/direction/mask/query sequence for all arms at a seed",
@@ -1474,7 +1607,9 @@ def _loss_weights(config, alignment_factor, response_factor, alignment_scale, re
     )
 
 
-def _loss_components(model, corpus, plan, weights, *, pairing_break=None):
+def _loss_components(
+    model, corpus, plan, weights, *, pairing_break=None, task_log_variances=None
+):
     endpoint_batch = _identity_batch(
         corpus, plan.endpoint, [corpus.teacher.mask_bank[index] for index in plan.endpoint_masks]
     )
@@ -1592,10 +1727,12 @@ def _loss_components(model, corpus, plan, weights, *, pairing_break=None):
             + float(weights.response_delta) * response_active
             + float(weights.response_null) * response_null
         )
-    total = (
-        endpoint_total
-        + float(weights.alignment) * alignment / max(float(weights.alignment_scale), 1e-12)
-        + float(weights.response) * response / max(float(weights.response_scale), 1e-12)
+    total = _joint_supervised_total(
+        endpoint_total,
+        alignment,
+        response,
+        weights,
+        task_log_variances=task_log_variances,
     )
     return {
         "total": total,
@@ -1990,6 +2127,74 @@ def _gradient_norm(loss, parameters):
     return float(torch.sqrt(torch.sum(torch.stack(squared))).item()) if squared else 0.0
 
 
+def _joint_supervised_total(
+    endpoint_total, alignment, response, weights, *, task_log_variances=None
+):
+    alignment_term = (
+        float(weights.alignment) * alignment / max(float(weights.alignment_scale), 1e-12)
+    )
+    response_term = (
+        float(weights.response) * response / max(float(weights.response_scale), 1e-12)
+    )
+    if (
+        task_log_variances is not None
+        and float(weights.alignment) != 0.0
+        and float(weights.response) != 0.0
+    ):
+        log_var_alignment, log_var_response = task_log_variances
+        return (
+            endpoint_total
+            + torch.exp(-log_var_alignment) * alignment_term
+            + torch.exp(-log_var_response) * response_term
+            + log_var_alignment
+            + log_var_response
+        )
+    return endpoint_total + alignment_term + response_term
+
+
+def _gradient_cosine(loss_a, loss_b, parameters):
+    if not loss_a.requires_grad or not loss_b.requires_grad:
+        return None
+    grads_a = torch.autograd.grad(
+        loss_a, parameters, retain_graph=True, allow_unused=True
+    )
+    grads_b = torch.autograd.grad(
+        loss_b, parameters, retain_graph=True, allow_unused=True
+    )
+    flat_a = []
+    flat_b = []
+    for first, second in zip(grads_a, grads_b):
+        if first is None or second is None:
+            continue
+        flat_a.append(first.detach().reshape(-1))
+        flat_b.append(second.detach().reshape(-1))
+    if not flat_a:
+        return None
+    vector_a = torch.cat(flat_a)
+    vector_b = torch.cat(flat_b)
+    denom = torch.linalg.vector_norm(vector_a) * torch.linalg.vector_norm(vector_b)
+    if float(denom) <= 0.0:
+        return None
+    return float((torch.dot(vector_a, vector_b) / denom).item())
+
+
+def _g4_status_from_subgates(subgates):
+    values = list(subgates.values())
+    if any(value == "FAIL" for value in values):
+        return "FAIL"
+    if values and all(value == "PASS" for value in values):
+        return "PASS"
+    return "NOT_ASSESSED"
+
+
+def _g4_subgate_partitions(subgates):
+    assessed = {
+        key: value for key, value in subgates.items() if value != "NOT_ASSESSED"
+    }
+    unassessed = [key for key, value in subgates.items() if value == "NOT_ASSESSED"]
+    return assessed, unassessed
+
+
 def _measure_execution(model, corpus, plan, weights):
     counts = {"state_calls": 0, "predict_calls": 0}
     state_hook = model.fusion.register_forward_hook(
@@ -2380,6 +2585,7 @@ def _preliminary_factorial_gate(
         "6_equal_flop_single_branch_superiority": "NOT_ASSESSED",
         "7_parameter_and_flop_matched_concat_superiority": "NOT_ASSESSED",
     }
+    g4_assessed_subgates, g4_unassessed_subgates = _g4_subgate_partitions(subgates)
     localization_checks = []
     for city in sorted({row["city_id"] for row in rows}):
         for budget in sorted(primary):
@@ -2434,11 +2640,21 @@ def _preliminary_factorial_gate(
     }
     g5_passed = all(value == "PASS" for value in g5_subgates.values())
     software_only = bool(dataset.is_fixture)
+    publication_rule = (
+        "comparison tables must use per-cell meters; "
+        "G5 AND is a label, not a reason to hide cells."
+    )
+    g5_cell_report = {
+        "publication_rule": publication_rule,
+        "g5_and_label": "PASS" if g5_passed else "FAIL",
+        "g5_and_contract": "4/4 subgates required for G5 PASS; failing AND does not omit cells",
+        "cells": localization_checks,
+    }
     gate_vector = complete_gate_vector(
         {
             "G1": "FAIL" if software_only else "PASS",
             "G2": "FAIL" if software_only else "PASS",
-            "G4": "NOT_ASSESSED",
+            "G4": _g4_status_from_subgates(subgates),
             "G5": "PASS" if g5_passed else "FAIL",
         }
     )
@@ -2450,6 +2666,8 @@ def _preliminary_factorial_gate(
         "qualification_gate_sha256": qualification_gate_sha256,
         "gate_vector": gate_vector,
         "g4_subgates": subgates,
+        "g4_assessed_subgates": g4_assessed_subgates,
+        "g4_unassessed_subgates": g4_unassessed_subgates,
         "g5_subgates": g5_subgates,
         "city_budget_checks": city_checks,
         "g4_familywise_control": {
@@ -2458,9 +2676,15 @@ def _preliminary_factorial_gate(
             "city_budget_family_size": city_family_size,
             "familywise_alpha": familywise_alpha,
         },
+        "publication_rule": publication_rule,
+        "g5_cell_report": g5_cell_report,
         "localization_city_budget_checks": localization_checks,
         "target_cluster_coverage": cluster_coverage,
-        "claim_boundary": "G4 cannot PASS until all seven subgates are PASS; NOT_ASSESSED is never PASS.",
+        "claim_boundary": (
+            "G4 cannot PASS until all seven subgates are PASS; "
+            "NOT_ASSESSED is never PASS. Top-level FAIL from assessed "
+            "subgates is not a complete G4 evaluation."
+        ),
         "software_only_qualification_bypass": software_only,
         "config": public_formal_config(config),
     }

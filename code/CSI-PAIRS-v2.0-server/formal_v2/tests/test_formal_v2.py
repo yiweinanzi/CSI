@@ -19,12 +19,21 @@ import torch
 
 from formal_v2.formal_claims import (
     CLAIM_DEPENDENCIES,
+    DESCRIPTIVE_PUBLISHABLE,
+    NON_CLAIM,
+    _claim_package_status,
     _claim_state,
+    _gate_state,
+    _nonclaim_reasons,
+    _primary_table_complete,
     _semantic_status,
+    _sota_readiness_report,
+    _sota_ready,
     _validate_critical_chain_binding,
     _validate_external_manifest_binding,
     _validate_stage_bound_input,
     assemble_claim_evidence,
+    assemble_claims_exit_code,
 )
 from formal_v2.formal_cli import (
     COMMAND_OUTPUT_PATHS,
@@ -32,11 +41,13 @@ from formal_v2.formal_cli import (
     DEFAULT_RETENTION_MANIFEST,
     DEFAULT_SCENE_ID_MANIFEST,
     DEFAULT_SHUFFLED_PAIR_MANIFEST,
+    RESUME_SAFE_DIRECTORY_COMMANDS,
     SELF_RESERVING_DIRECTORY_COMMANDS,
     _acquire_output_lock,
     _reserve_command_output,
     _reserve_full_run_output,
     _result_exit_code,
+    _stage_exit_code,
     _sionna_export_lock_root,
     build_parser,
     main as formal_cli_main,
@@ -83,7 +94,7 @@ from formal_v2.external_adapters.controlled_map_adapter import (
     _training_task,
     load_controlled_map_config,
 )
-from formal_v2.external_adapters.representation_models import CSIMAE, build_representation_model
+from formal_v2.external_adapters.representation_models import CSIMAE, WWMJEPA, build_representation_model
 from formal_v2.external_adapters.controlled_map_models import (
     deterministic_prefix_product,
 )
@@ -349,6 +360,11 @@ class ConfigTests(unittest.TestCase):
                         target.write_text("existing evidence\n", encoding="utf-8")
                     else:
                         target.mkdir()
+                    if command in RESUME_SAFE_DIRECTORY_COMMANDS:
+                        reserved = _reserve_command_output(command, output)
+                        self.assertEqual(reserved, target)
+                        self.assertTrue(target.is_dir())
+                        continue
                     with self.assertRaisesRegex(FileExistsError, "refusing to overwrite"):
                         _reserve_command_output(command, output)
                     if target.is_dir():
@@ -381,6 +397,136 @@ class ConfigTests(unittest.TestCase):
                 results = list(executor.map(reserve, range(2)))
             self.assertEqual(sum(result is not None for result in results), 1)
             self.assertEqual(sum(result is None for result in results), 1)
+
+    def test_frozen_legacy_commit_binds_receipt_before_default(self):
+        from formal_v2.formal_evaluation_subset_compare import (
+            FROZEN_LEGACY_COMMIT,
+            resolve_frozen_legacy_commit,
+        )
+
+        with tempfile.TemporaryDirectory() as directory:
+            receipt = Path(directory) / "frozen-commit-receipt.json"
+            write_json(
+                receipt,
+                {
+                    "schema_version": "csi-pairs-frozen-legacy-commit-receipt-v1",
+                    "frozen_legacy_commit": "a" * 40,
+                },
+            )
+            with patch.dict(
+                os.environ,
+                {
+                    "CSI_PAIRS_FROZEN_LEGACY_COMMIT": "",
+                    "CSI_PAIRS_FROZEN_LEGACY_COMMIT_RECEIPT": "",
+                },
+            ):
+                self.assertEqual(
+                    resolve_frozen_legacy_commit(receipt_path=receipt),
+                    "a" * 40,
+                )
+                self.assertEqual(
+                    resolve_frozen_legacy_commit("b" * 40, receipt_path=receipt),
+                    "b" * 40,
+                )
+                self.assertEqual(resolve_frozen_legacy_commit(), FROZEN_LEGACY_COMMIT)
+
+    def test_approval_and_accepted_migration_are_mutually_exclusive(self):
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory)
+            (output / "migration").mkdir()
+            (output / "migration" / "accepted.json").write_text("{}", encoding="ascii")
+            self.assertEqual(
+                formal_cli_main(
+                    [
+                        "all",
+                        "--config",
+                        "config.json",
+                        "--output",
+                        str(output),
+                        "--adapter-manifest",
+                        "adapters.json",
+                        "--approval-manifest",
+                        "approval.json",
+                    ]
+                ),
+                2,
+            )
+
+    def test_legacy_evaluator_requires_explicit_env(self):
+        with patch.dict(os.environ, {"CSI_PAIRS_ALLOW_LEGACY_EVALUATOR": ""}, clear=False):
+            self.assertEqual(
+                formal_cli_main(
+                    [
+                        "run-evaluation",
+                        "--config",
+                        "config.json",
+                        "--output",
+                        "output",
+                        "--legacy-evaluator",
+                    ]
+                ),
+                2,
+            )
+
+    def test_approval_and_engineering_flags_are_mutually_exclusive(self):
+        self.assertEqual(
+            formal_cli_main(
+                [
+                    "all",
+                    "--config",
+                    "config.json",
+                    "--output",
+                    "output",
+                    "--adapter-manifest",
+                    "adapters.json",
+                    "--approval-manifest",
+                    "approval.json",
+                    "--engineering-run",
+                ]
+            ),
+            2,
+        )
+
+    def test_streaming_hot_path_imports_without_fcntl_name(self):
+        from formal_v2 import formal_evaluation_resume
+        from formal_v2 import formal_evaluation_streaming
+
+        for module in (formal_evaluation_resume, formal_evaluation_streaming):
+            with self.subTest(module=module.__name__):
+                self.assertNotIn("fcntl", vars(module))
+                source = Path(module.__file__).read_text(encoding="utf-8")
+                self.assertNotIn("import fcntl", source)
+                self.assertNotIn("from fcntl", source)
+        postexit = Path(formal_evaluation_resume.__file__).with_name(
+            "formal_migration_postexit_runner.py"
+        )
+        postexit_source = postexit.read_text(encoding="utf-8")
+        self.assertNotIn("import fcntl", postexit_source)
+        self.assertNotIn("from fcntl", postexit_source)
+
+    def test_subset_compare_imports_without_posix_resource(self):
+        import formal_v2.formal_evaluation_subset_compare as subset
+
+        self.assertTrue(subset.SUBSET_COMPARE_IS_INDEPENDENT_AUDIT)
+        source = Path(subset.__file__).read_text(encoding="utf-8")
+        self.assertIn("except ImportError:", source)
+        self.assertIn("import resource as _resource", source)
+
+    def test_acquire_output_lock_works_without_fcntl_name(self):
+        import formal_v2.formal_cli as cli
+        from formal_v2 import formal_locks
+
+        self.assertNotIn("fcntl", vars(cli))
+        self.assertFalse(hasattr(cli, "fcntl"))
+        self.assertNotIn("fcntl", Path(cli.__file__).read_text(encoding="utf-8"))
+        formal_locks._local_locks.clear()
+        with tempfile.TemporaryDirectory() as temporary:
+            lock = _acquire_output_lock(Path(temporary) / "run")
+            try:
+                self.assertTrue(lock.is_file())
+            finally:
+                lock.release()
+                formal_locks._local_locks.clear()
 
     def test_output_root_operation_lock_is_exclusive(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -1605,6 +1751,23 @@ class EvidenceAndPathTests(unittest.TestCase):
     def tearDown(self):
         self.temporary.cleanup()
 
+    def _publication_evidence(self, config, dataset, scientific_use):
+        ceiling = "FORBIDDEN" if dataset.is_fixture else scientific_use
+        return {
+            "artifact_label": config["artifact_label"],
+            "dataset_sha256": "a" * 64,
+            "config_sha256": "b" * 64,
+            "fixture": dataset.is_fixture,
+            "scientific_use": ceiling,
+            "source_tree_sha256": "c" * 64,
+            "requirements_lock_sha256": "d" * 64,
+            "runtime_provenance_sha256": "e" * 64,
+            "runtime_provenance": {
+                "source_tree_sha256": "c" * 64,
+                "requirements_lock_sha256": "d" * 64,
+            },
+        }
+
     def _rt_unit(
         self,
         unit_id,
@@ -1877,12 +2040,52 @@ class EvidenceAndPathTests(unittest.TestCase):
         self.assertEqual(_claim_state("C13", ["PASS"], False), "SUPPORTED")
         self.assertEqual(_claim_state("C13", ["PASS"], True), "SOFTWARE_ONLY")
         self.assertEqual(_claim_state("C12", ["PASS"], False), "SUPPORTED")
+        self.assertEqual(
+            _claim_state("C7", ["PASS", "PASS", "PASS", "FAIL"], False),
+            "FAILED",
+        )
+        self.assertEqual(
+            _claim_state("C8", ["PASS", "PASS", "PASS", "FAIL"], True),
+            "FAILED",
+        )
+        self.assertEqual(_claim_state("C7", ["PASS", "INVALID", "PASS", "FAIL"], False), "INVALID")
+        self.assertEqual(_claim_state("C7", ["PASS", "NOT_ASSESSED", "PASS", "PASS"], False), "BLOCKED")
+        self.assertEqual(_gate_state("FAIL"), "FAIL")
+        self.assertEqual(_gate_state("INVALID"), "BLOCKED")
+        self.assertEqual(_gate_state("NOT_ASSESSED"), "NOT_ASSESSED")
+        self.assertEqual(
+            assemble_claims_exit_code(
+                {
+                    "status": "COMPLETE",
+                    "gate_vector": {"G5": "FAIL"},
+                    "evidence_errors": {},
+                    "descriptive_results": {"g5_four_cells": {"status": "PRESENT"}},
+                }
+            ),
+            0,
+        )
+        self.assertEqual(
+            assemble_claims_exit_code({"status": "INCOMPLETE_FAIL_CLOSED"}),
+            1,
+        )
+        self.assertEqual(
+            _stage_exit_code(
+                "assemble-claims",
+                {
+                    "status": "COMPLETE",
+                    "gate_vector": {"G5": "FAIL"},
+                    "evidence_errors": {},
+                    "descriptive_results": {"g5_four_cells": {"status": "PRESENT"}},
+                },
+            ),
+            0,
+        )
 
     def test_not_assessed_from_later_stage_cannot_erase_upstream_gate(self):
         (self.root / "qualification").mkdir()
         (self.root / "evaluation").mkdir()
         (self.root / "controls").mkdir()
-        context = evidence_context(self.config, self.dataset, "FORBIDDEN")
+        context = self._publication_evidence(self.config, self.dataset, "FORBIDDEN")
         checkpoint = self.root / "qualification" / "teacher.pt"
         checkpoint.write_bytes(b"teacher")
         write_json(
@@ -1921,13 +2124,357 @@ class EvidenceAndPathTests(unittest.TestCase):
             self.root / "controls" / "gate.json",
             {**context, "gate_vector": complete_gate_vector({"G4": "PASS"})},
         )
-        result = assemble_claim_evidence(self.config, self.dataset, self.root)
+        with (
+            patch(
+                "formal_v2.formal_claims.evidence_context",
+                side_effect=self._publication_evidence,
+            ),
+            patch(
+                "formal_v2.formal_evidence.evidence_context",
+                side_effect=self._publication_evidence,
+            ),
+        ):
+            result = assemble_claim_evidence(self.config, self.dataset, self.root)
         self.assertEqual(result["gate_vector"]["G1"], "PASS")
         self.assertEqual(result["gate_vector"]["G2"], "PASS")
         self.assertEqual(result["gate_vector"]["G3"], "BLOCKED")
         self.assertEqual(result["gate_vector"]["G4"], "BLOCKED")
         self.assertIn("G3", result["evidence_errors"])
         self.assertIn("G4", result["evidence_errors"])
+        self.assertEqual(result["scientific_use"], "FORBIDDEN")
+        self.assertEqual(
+            result["descriptive_results"]["localization_cells"]["status"],
+            "NOT_ASSESSED",
+        )
+        self.assertEqual(result["descriptive_results"]["localization_cells"]["rows"], [])
+        self.assertEqual(result["descriptive_results"]["g5_four_cells"]["status"], "NOT_ASSESSED")
+        self.assertEqual(assemble_claims_exit_code(result), 1)
+
+    def test_g5_fail_still_exports_descriptive_numbers_and_does_not_invalidate_claims(self):
+        factorial = self.root / "factorial"
+        factorial.mkdir()
+        evaluation = self.root / "evaluation"
+        evaluation.mkdir()
+        write_csv(
+            factorial / "localization_summary.csv",
+            [
+                {
+                    "arm": "full",
+                    "city_id": "seattle",
+                    "budget": 0,
+                    "mean_bank_median_error_m": 12.5,
+                },
+                {
+                    "arm": "endpoint",
+                    "city_id": "seattle",
+                    "budget": 0,
+                    "mean_bank_median_error_m": 18.0,
+                },
+            ],
+        )
+        write_json(
+            factorial / "factorial_statistics.json",
+            {
+                "hierarchical_bootstrap": {
+                    "full_vs_endpoint": {
+                        "familywise_ci95_low": 0.02,
+                        "familywise_ci95_high": 0.08,
+                    }
+                }
+            },
+        )
+        write_json(
+            factorial / "gate.json",
+            {
+                "status": "FAIL",
+                "passed": False,
+                "g5_subgates": {
+                    "1_two_target_cities_and_independent_clusters": "PASS",
+                    "2_strict_primary_k0_k8_complete": "PASS",
+                    "3_every_city_k0_full_vs_endpoint_ci_holm": "FAIL",
+                    "4_every_city_k8_full_vs_endpoint_ci_holm": "FAIL",
+                },
+                "localization_city_budget_checks": [
+                    {
+                        "city_id": "seattle",
+                        "budget": 0,
+                        "ci95_low": 0.01,
+                        "passed": False,
+                    }
+                ],
+            },
+        )
+        write_json(
+            evaluation / "gate.json",
+            {"g3_intervals": {"alignment_superiority": {"ci95_low": 0.04}}},
+        )
+
+        def fake_assess(path, schema, name, *args, **kwargs):
+            if name in {"G1_G2", "G3", "G3_C3", "G3_C5", "G4", "G6", "G7"}:
+                return "PASS", None
+            if name == "G5":
+                return "FAIL", None
+            return "NOT_ASSESSED", None
+
+        with (
+            patch(
+                "formal_v2.formal_claims.evidence_context",
+                side_effect=self._publication_evidence,
+            ),
+            patch("formal_v2.formal_claims._assess_stage", side_effect=fake_assess),
+        ):
+            result = assemble_claim_evidence(self.config, self.dataset, self.root)
+
+        self.assertEqual(result["gate_vector"]["G5"], "FAIL")
+        self.assertEqual(result["claim_vector"]["C7"], "FAILED")
+        self.assertEqual(result["claim_vector"]["C8"], "FAILED")
+        self.assertNotEqual(result["claim_vector"]["C7"], "INVALID")
+        self.assertNotEqual(result["claim_vector"]["C8"], "INVALID")
+        descriptive = result["descriptive_results"]
+        self.assertEqual(descriptive["localization_cells"]["status"], "PRESENT")
+        self.assertEqual(descriptive["localization_cells"]["row_count"], 2)
+        medians = {
+            (row["arm"], row["city_id"], row["budget"]): row["mean_bank_median_error_m"]
+            for row in descriptive["localization_cells"]["rows"]
+        }
+        self.assertEqual(medians[("full", "seattle", 0)], 12.5)
+        self.assertEqual(medians[("endpoint", "seattle", 0)], 18.0)
+        self.assertEqual(
+            descriptive["g5_four_cells"]["subgates"][
+                "3_every_city_k0_full_vs_endpoint_ci_holm"
+            ],
+            "FAIL",
+        )
+        self.assertEqual(
+            descriptive["confidence_intervals"]["factorial_statistics"][
+                "hierarchical_bootstrap"
+            ]["full_vs_endpoint"]["familywise_ci95_low"],
+            0.02,
+        )
+        self.assertEqual(descriptive["gate_vector"]["G5"], "FAIL")
+        self.assertTrue(descriptive["artifacts"]["localization_summary"]["sha256"])
+        self.assertEqual(result["success_claim_upgrade"], "NOT_PERMITTED")
+        self.assertEqual(result["status"], "COMPLETE")
+        self.assertEqual(assemble_claims_exit_code(result), 0)
+        self.assertEqual(result["assemble_claims_exit_code"], 0)
+        self.assertFalse(result["primary_table_complete"])
+        self.assertFalse(result["sota_ready"])
+        self.assertEqual(result["sota_publication_status"], "SOTA_BLOCKED")
+        written = read_strict_json(self.root / "claims" / "claim_evidence.json")
+        self.assertEqual(written["claim_vector"]["C7"], "FAILED")
+        self.assertEqual(written["descriptive_results"]["localization_cells"]["row_count"], 2)
+        self.assertFalse(written["sota_ready"])
+        master = descriptive["comparison_master_table"]
+        self.assertEqual(master["status"], "PARTIAL")
+        self.assertFalse(_primary_table_complete(master))
+        self.assertFalse(
+            _sota_ready(
+                package_status="COMPLETE",
+                nonclaim=False,
+                master=master,
+                fixture=False,
+            )
+        )
+        self.assertEqual(master["slice_key"], "city × k × method")
+        present = {
+            (row["method"], row["city"], row["k"]): row["median_error_m"]
+            for row in master["rows"]
+            if row["status"] == "PRESENT"
+        }
+        self.assertEqual(present[("full", "seattle", 0)], 12.5)
+        self.assertEqual(present[("endpoint", "seattle", 0)], 18.0)
+        missing = {
+            row["method"]
+            for row in master["rows"]
+            if row["status"] == "NOT_ASSESSED"
+        }
+        self.assertIn("Wi-GATr", missing)
+        self.assertIn("PMNet", missing)
+        self.assertEqual(master["sota_grid_status"], "PARTIAL")
+        self.assertTrue((self.root / "claims" / "comparison_master_table.csv").is_file())
+
+    def test_sota_ready_requires_full_grid_and_strict_rank(self):
+        cities = ("boston", "seattle")
+        budgets = (0, 8, 32, 128)
+        methods = (
+            "full",
+            "alignment",
+            "response",
+            "endpoint",
+            "Wi-GATr",
+            "PMNet",
+        )
+
+        def rows(full_error, other_error, cities_used=cities, budgets_used=budgets):
+            table = []
+            for city in cities_used:
+                for budget in budgets_used:
+                    for method in methods:
+                        table.append(
+                            {
+                                "method": method,
+                                "family": (
+                                    "factorial_arm"
+                                    if method in {"full", "alignment", "response", "endpoint"}
+                                    else "c1_external"
+                                ),
+                                "city": city,
+                                "k": budget,
+                                "median_error_m": (
+                                    full_error if method == "full" else other_error
+                                ),
+                                "status": "PRESENT",
+                                "join_ready": True,
+                            }
+                        )
+            return table
+
+        one_cell = _sota_readiness_report(
+            package_status="COMPLETE",
+            nonclaim=False,
+            master={"rows": rows(100.0, 1.0, cities_used=("boston",), budgets_used=(0,))},
+            fixture=False,
+        )
+        self.assertFalse(one_cell["sota_ready"])
+        self.assertFalse(one_cell["primary_table_complete"])
+        self.assertIn("insufficient_target_cities", one_cell["block_reasons"])
+        self.assertFalse(_sota_ready(
+            package_status="COMPLETE",
+            nonclaim=False,
+            master={"rows": rows(100.0, 1.0, cities_used=("boston",), budgets_used=(0,))},
+        ))
+        worse = _sota_readiness_report(
+            package_status="COMPLETE",
+            nonclaim=False,
+            master={"rows": rows(100.0, 1.0)},
+            fixture=False,
+        )
+        self.assertTrue(worse["primary_table_complete"])
+        self.assertFalse(worse["sota_ready"])
+        self.assertIn("full_not_strictly_first_on_every_cell", worse["block_reasons"])
+        winner_rows = rows(1.0, 2.0)
+        winner = _sota_readiness_report(
+            package_status="COMPLETE",
+            nonclaim=False,
+            master={"rows": winner_rows},
+            fixture=False,
+        )
+        self.assertTrue(winner["primary_table_complete"])
+        self.assertTrue(winner["sota_ready"])
+        polluted = _sota_readiness_report(
+            package_status="COMPLETE",
+            nonclaim=False,
+            master={
+                "rows": winner_rows
+                + [
+                    {
+                        "method": "full",
+                        "family": "resource_control",
+                        "city": "boston",
+                        "k": 0,
+                        "median_error_m": 99.0,
+                        "status": "PRESENT",
+                        "join_ready": True,
+                    }
+                ]
+            },
+            fixture=False,
+        )
+        self.assertTrue(polluted["sota_ready"])
+        protocol = _sota_readiness_report(
+            package_status="COMPLETE",
+            nonclaim=False,
+            master={"rows": rows(1.0, 2.0, budgets_used=(0, 8))},
+            fixture=False,
+            required_cities=cities,
+            required_budgets=budgets,
+        )
+        self.assertFalse(protocol["sota_ready"])
+        self.assertFalse(protocol["primary_table_complete"])
+        migrated = _sota_readiness_report(
+            package_status="COMPLETE",
+            nonclaim=False,
+            master={"rows": winner_rows},
+            fixture=False,
+            legacy_factorial_reused=True,
+        )
+        self.assertFalse(migrated["sota_ready"])
+        self.assertIn("migrated_legacy_factorial_reused", migrated["block_reasons"])
+        self.assertEqual(
+            _claim_package_status(
+                {gate_id: "PASS" for gate_id in ("G1", "G2", "G3", "G4", "G5", "G6", "G7")},
+                {},
+                stage_failures=[{"stage": "formal evaluation", "error": "boom"}],
+            ),
+            "INCOMPLETE_FAIL_CLOSED",
+        )
+
+    def test_engineering_marker_and_incomplete_external_fail_closed(self):
+        from formal_v2.formal_io import write_json
+
+        write_json(
+            self.root / "ENGINEERING_UNAPPROVED.json",
+            {
+                "schema_version": "csi-pairs-engineering-unapproved-v1",
+                "status": "ENGINEERING_UNAPPROVED",
+                "scientific_use": "FORBIDDEN",
+                "claim_status": "NON_CLAIM",
+            },
+        )
+        self.assertIn("ENGINEERING_UNAPPROVED", _nonclaim_reasons(self.root, self.dataset))
+        self.assertEqual(
+            _semantic_status(
+                "external_baselines",
+                {
+                    "status": "INCOMPLETE_FAIL_CLOSED",
+                    "passed": False,
+                    "engineering_complete": False,
+                },
+            ),
+            "INCOMPLETE",
+        )
+        self.assertEqual(
+            _claim_package_status(
+                {gate_id: "PASS" for gate_id in ("G1", "G2", "G3", "G4", "G5", "G6", "G7")},
+                {},
+                assessments={"external_baselines": "INCOMPLETE"},
+            ),
+            "INCOMPLETE_FAIL_CLOSED",
+        )
+        self.assertEqual(
+            _claim_package_status(
+                {gate_id: "PASS" for gate_id in ("G1", "G2", "G3", "G4", "G5", "G6", "G7")},
+                {},
+                nonclaim=True,
+            ),
+            NON_CLAIM,
+        )
+        self.assertEqual(assemble_claims_exit_code({"descriptive_results": {}, "evidence_errors": {}, "status": NON_CLAIM}), 1)
+
+    def test_nonfixture_assemble_claims_is_descriptive_publishable_not_candidate_block(self):
+        def fake_assess(path, schema, name, *args, **kwargs):
+            return "NOT_ASSESSED", None
+
+        with (
+            patch.object(type(self.dataset), "is_fixture", False),
+            patch(
+                "formal_v2.formal_claims.evidence_context",
+                side_effect=self._publication_evidence,
+            ),
+            patch("formal_v2.formal_claims._assess_stage", side_effect=fake_assess),
+        ):
+            result = assemble_claim_evidence(self.config, self.dataset, self.root)
+        self.assertEqual(result["scientific_use"], DESCRIPTIVE_PUBLISHABLE)
+        self.assertNotEqual(result["scientific_use"], "CANDIDATE_NOT_CLAIM")
+        self.assertEqual(
+            result["descriptive_results"]["scientific_use"],
+            DESCRIPTIVE_PUBLISHABLE,
+        )
+        self.assertEqual(result["success_claim_upgrade"], "NOT_PERMITTED")
+        self.assertEqual(
+            result["descriptive_results"]["localization_cells"]["status"],
+            "NOT_ASSESSED",
+        )
 
     def test_evidence_context_propagates_fixture_forbidden(self):
         evidence = evidence_context(self.config, self.dataset, "FORMAL_EXPERIMENT_ALLOWED")
@@ -2491,6 +3038,25 @@ class EvidenceAndPathTests(unittest.TestCase):
         write_json(training, {"source_roles": ["target"]})
         with self.assertRaisesRegex(RuntimeError, "training record"):
             validate_scene_id_training_provenance(adapter, provenance, evidence)
+
+    def test_builtin_scene_id_skip_blocks_c2_without_failing_the_chain(self):
+        from formal_v2.formal_cli import _check_full_stage
+        from formal_v2.formal_scene_id import _write_builtin_scene_id_skip
+
+        with tempfile.TemporaryDirectory() as temporary:
+            gate = _write_builtin_scene_id_skip(
+                Path(temporary),
+                {
+                    "scientific_use": "CANDIDATE_NOT_CLAIM",
+                    "fixture": False,
+                },
+                skip_reason="built-in scene-ID audit requires the frozen SigMap adapter",
+            )
+        self.assertEqual(gate["status"], "BLOCKED")
+        self.assertIs(gate["passed"], False)
+        self.assertIs(gate["engineering_complete"], True)
+        self.assertEqual(_semantic_status("scene_id_mechanism", gate), "BLOCKED")
+        _check_full_stage(gate, "scene-ID mechanism", SimpleNamespace(is_fixture=False))
 
     def test_scene_id_gate_uses_cluster_macro_confidence_intervals(self):
         rows = []
@@ -3148,11 +3714,18 @@ class EvidenceAndPathTests(unittest.TestCase):
         ]
         with patch("builtins.print") as denied_message:
             self.assertEqual(formal_cli_main(full_argv), 2)
-        self.assertIn("--approval-manifest", denied_message.call_args.args[0])
-        full_args = parser.parse_args(
-            [*full_argv, "--approve-full-experiment"]
-        )
-        self.assertTrue(full_args.approve_full_experiment)
+        denied = denied_message.call_args.args[0]
+        self.assertIn("--approval-manifest", denied)
+        self.assertIn("--engineering-run", denied)
+        full_args = parser.parse_args([*full_argv, "--engineering-run"])
+        self.assertTrue(full_args.engineering_run)
+        self.assertFalse(hasattr(full_args, "approve_full_experiment"))
+        all_help = parser._subparsers._group_actions[0].choices["all"].format_help()
+        self.assertIn("--engineering-run", all_help)
+        self.assertIn("ENGINEERING_UNAPPROVED", all_help)
+        self.assertIn("migration/accepted.json", all_help)
+        continued = parser.parse_args([*full_argv, "--continue-on-stage-fail", "--engineering-run"])
+        self.assertTrue(continued.continue_on_stage_fail)
         qualification = parser.parse_args(
             [
                 "qualify",
@@ -3770,6 +4343,12 @@ class WaibuIntegrationTests(unittest.TestCase):
         )
         self.assertEqual(config["source_roles"]["pretrain"], "source_encoder_train")
         self.assertEqual(config["source_roles"]["selection"], "source_method_selection")
+        wwm = next(row for row in config["models"] if row["model_name"] == "WWM")
+        self.assertEqual(wwm["implementation_status"], "style-controlled-implementation")
+        self.assertIn("inspired", wwm["paper_label"])
+        self.assertFalse(WWMJEPA.claim_eligible)
+        self.assertTrue(WWMJEPA.restricted)
+        self.assertFalse(WWMJEPA.c1_eligible)
 
     def test_csi_mae_controlled_model_runs_masked_backward(self):
         config = load_representation_config(
@@ -4073,6 +4652,17 @@ class WaibuIntegrationTests(unittest.TestCase):
         self.assertEqual(
             [row["model_name"] for row in eligible], ["Wi-GATr", "PMNet"]
         )
+        locally_unevidenced = {"SigMap", "Wi-GATr", "PMNet", "WiSER", "RFIR"}
+        for row in manifest["literature_registry"]:
+            if row["baseline_name"] in locally_unevidenced:
+                self.assertEqual(row["status"], "not_executed")
+                self.assertEqual(row["adapter_id"], "")
+            if row["baseline_name"] in {"SigMap", "WiSER", "RFIR"}:
+                self.assertIn("C1-ineligible", row["reason"])
+            if row["baseline_name"] == "WWM":
+                self.assertEqual(row["status"], "not_applicable")
+                self.assertIn("include_position=True", row["reason"])
+                self.assertIn("claim_eligible=false", row["reason"])
         changed = json.loads(json.dumps(manifest))
         changed["adapters"][0]["c1_eligible"] = True
         with self.assertRaisesRegex(ValueError, "style-controlled"):

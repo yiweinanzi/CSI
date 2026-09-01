@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+# Portable formal prepare/run entry. Frozen Autodl 8cafdf4 scripts under
+# artifacts/formal_runs/ are archives and must not be used as the operator entry.
+# Engineering evaluation after P0 (no 10-receipt / second-judge barrier):
+#   formal_v2/scripts/launch_engineering_evaluation.sh
 set -euo pipefail
 
 export PYTHONDONTWRITEBYTECODE=1

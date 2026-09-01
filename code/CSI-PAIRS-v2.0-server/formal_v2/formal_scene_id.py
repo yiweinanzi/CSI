@@ -16,6 +16,7 @@ from .formal_statistics import paired_cluster_interval
 
 CONDITIONS = ("map", "scene_id", "map_swap", "id_swap")
 BUILTIN_SCENE_ID_MANIFEST = "builtin:sigmap-scene-id-v1"
+SCENE_ID_SKIP_SCHEMA = "csi-pairs-v6-scene-id-skip-v1"
 
 
 def run_scene_id_audit(config, dataset, manifest_path, output_root):
@@ -28,17 +29,22 @@ def run_scene_id_audit(config, dataset, manifest_path, output_root):
     )
     output_dir = Path(output_root) / "scene_id"
     output_dir.mkdir(parents=True, exist_ok=True)
+    evidence = evidence_context(
+        config, dataset, "FORBIDDEN" if dataset.is_fixture else "CANDIDATE_NOT_CLAIM"
+    )
     if manifest_path in {None, BUILTIN_SCENE_ID_MANIFEST}:
-        manifest_file = _materialize_builtin_manifest(
-            config, dataset, output_root, output_dir
-        )
+        try:
+            manifest_file = _materialize_builtin_manifest(
+                config, dataset, output_root, output_dir
+            )
+        except RuntimeError as error:
+            return _write_builtin_scene_id_skip(
+                output_dir, evidence, skip_reason=str(error)
+            )
     else:
         manifest_file = Path(manifest_path).resolve()
     manifest = read_strict_json(manifest_file)
     _validate_manifest(manifest)
-    evidence = evidence_context(
-        config, dataset, "FORBIDDEN" if dataset.is_fixture else "CANDIDATE_NOT_CLAIM"
-    )
     verified = []
     bound_payload = {**manifest, "adapters": [dict(value) for value in manifest["adapters"]]}
     for adapter, bound_adapter in zip(manifest["adapters"], bound_payload["adapters"]):
@@ -110,6 +116,52 @@ def run_scene_id_audit(config, dataset, manifest_path, output_root):
         "input_manifest_path": bound_manifest.name,
         "input_manifest_sha256": sha256_file(bound_manifest),
         "scope": "held-out source positions only",
+    }
+    write_json(output_dir / "gate.json", gate)
+    write_json(
+        output_dir / "manifest.json",
+        {
+            "schema_version": "csi-pairs-formal-stage-manifest-v2.1-v6",
+            **evidence,
+            "files": artifact_manifest(output_dir, evidence=evidence),
+        },
+    )
+    return gate
+
+
+def _write_builtin_scene_id_skip(output_dir, evidence, *, skip_reason):
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    receipt_path = output_dir / "skip_receipt.json"
+    write_json(
+        receipt_path,
+        {
+            "schema_version": SCENE_ID_SKIP_SCHEMA,
+            "status": "SKIPPED",
+            "reason": str(skip_reason),
+            "diagnostic_only": True,
+            "c1_required": False,
+        },
+    )
+    write_csv(output_dir / "per_unit.csv", [])
+    write_csv(output_dir / "per_model.csv", [])
+    gate = {
+        "schema_version": "csi-pairs-v6-scene-id-gate-v3",
+        "status": "BLOCKED",
+        "passed": False,
+        "engineering_complete": True,
+        "skip_reason": str(skip_reason),
+        **evidence,
+        "claim": "C2",
+        "models_assessed": 0,
+        "model_assessments": [],
+        "input_manifest_path": receipt_path.name,
+        "input_manifest_sha256": sha256_file(receipt_path),
+        "scope": "held-out source positions only",
+        "scientific_note": (
+            "Builtin scene-ID is a SigMap diagnostic and is not required for C1. "
+            "Missing SigMap execution blocks C2 only."
+        ),
     }
     write_json(output_dir / "gate.json", gate)
     write_json(

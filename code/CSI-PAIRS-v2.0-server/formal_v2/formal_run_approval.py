@@ -6,7 +6,9 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
+import warnings
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Mapping
@@ -135,6 +137,7 @@ def preflight_full_run(
     resource_registry: str | Path,
     waibu_root: str | Path,
     resume: bool = False,
+    enforce_compute_plan: bool = False,
 ) -> dict:
     """Validate every static full-chain dependency before creating run artifacts."""
     dataset.validate_target_support_capacity(
@@ -165,6 +168,7 @@ def preflight_full_run(
         dataset,
         output,
         required_licenses,
+        enforce=bool(enforce_compute_plan),
     )
     evidence = evidence_context(
         config,
@@ -605,7 +609,9 @@ def _validate_llm_judge_approval(
         raise RuntimeError("llm-judge approval lifetime exceeds the 24-hour maximum")
 
 
-def _resolve_compute_plan(compute_plan_path, dataset, output, required_licenses):
+def _resolve_compute_plan(
+    compute_plan_path, dataset, output, required_licenses, *, enforce=False
+):
     path_text = None if compute_plan_path is None else str(compute_plan_path).strip()
     if not path_text:
         plan = _advisory_default_compute_plan(dataset)
@@ -620,10 +626,20 @@ def _resolve_compute_plan(compute_plan_path, dataset, output, required_licenses)
         return _synthesized_compute_binding(plan), _advisory_compute_report(
             plan, dataset, output
         )
-    try:
-        report = _validate_compute_plan(plan, dataset, output, required_licenses)
-    except (ValueError, RuntimeError):
+    if not enforce:
         report = _advisory_compute_report(plan, dataset, output)
+        try:
+            _validate_compute_plan(plan, dataset, output, required_licenses)
+        except (ValueError, RuntimeError) as error:
+            report = dict(report)
+            report["compute_plan_enforcement"] = "advisory"
+            report["compute_plan_advisory_reason"] = str(error)
+        else:
+            report = dict(report)
+            report["compute_plan_enforcement"] = "advisory"
+        return _file_binding(path), report
+    report = _validate_compute_plan(plan, dataset, output, required_licenses)
+    report["compute_plan_enforcement"] = "enforced"
     return _file_binding(path), report
 
 
@@ -798,11 +814,11 @@ def _validate_compute_plan(plan, dataset, output, required_licenses):
         ):
             raise ValueError("nonscientific fixture compute plans must not require GPU resources")
     elif (
-        plan["required_gpu_count"] != 2
+        plan["required_gpu_count"] not in {1, 2}
         or plan["minimum_gpu_memory_bytes"] <= 0
         or plan["estimated_gpu_hours"] <= 0
     ):
-        raise ValueError("formal compute plans must bind exactly two CUDA GPUs")
+        raise ValueError("formal compute plans must bind 1 or 2 CUDA GPUs")
 
     env_names = plan["required_environment_variables"]
     if (
@@ -1512,11 +1528,23 @@ def _gpu_inventory():
     return output
 
 
-def _require_exclusive_gpus(gpus) -> None:
+def _require_exclusive_gpus(gpus, *, fail_on_smi_error: bool = False) -> None:
     if not gpus:
         return
-    process_map = _nvidia_compute_processes()
+    try:
+        process_map = _nvidia_compute_processes()
+    except RuntimeError as error:
+        message = (
+            "cannot prove GPU exclusivity because nvidia-smi process inventory failed: "
+            f"{error}"
+        )
+        if fail_on_smi_error:
+            raise RuntimeError(message) from error
+        warnings.warn(message, RuntimeWarning, stacklevel=2)
+        print(f"warning: {message}", file=sys.stderr)
+        process_map = {}
     occupied = []
+    leftover = []
     for gpu in gpus:
         total = gpu.get("total_memory_bytes")
         free = gpu.get("free_memory_bytes")
@@ -1536,7 +1564,7 @@ def _require_exclusive_gpus(gpus) -> None:
             raise RuntimeError("CUDA exclusivity requires stable GPU UUIDs")
         processes = process_map.get(uuid, [])
         idle_memory_ceiling = min(512 * 1024**2, total // 50)
-        if processes or used > idle_memory_ceiling:
+        if processes:
             occupied.append(
                 {
                     "index": gpu.get("index"),
@@ -1545,44 +1573,67 @@ def _require_exclusive_gpus(gpus) -> None:
                     "compute_processes": processes,
                 }
             )
+        elif used > idle_memory_ceiling:
+            leftover.append(
+                {
+                    "index": gpu.get("index"),
+                    "uuid": uuid,
+                    "used_memory_bytes": used,
+                }
+            )
+    if leftover:
+        message = (
+            "GPU reserved/leftover memory is present but no compute process "
+            f"was reported; treating as warning: {leftover}"
+        )
+        warnings.warn(message, RuntimeWarning, stacklevel=2)
+        print(f"warning: {message}", file=sys.stderr)
     if occupied:
         raise RuntimeError(
-            "formal GPUs are not exclusive; active compute or non-idle memory was detected: "
+            "formal GPUs are not exclusive; another compute process is using the GPU: "
             f"{occupied}"
         )
 
 
 def _nvidia_compute_processes() -> dict[str, list[dict[str, int]]]:
-    completed = subprocess.run(
-        [
-            "nvidia-smi",
-            "--query-compute-apps=gpu_uuid,pid,used_memory",
-            "--format=csv,noheader,nounits",
-        ],
-        check=False,
-        capture_output=True,
-        text=True,
-        timeout=30,
-    )
-    if completed.returncode != 0:
-        raise RuntimeError(
-            "cannot prove GPU exclusivity because nvidia-smi process inventory failed: "
-            f"{completed.stderr.strip()}"
+    try:
+        completed = subprocess.run(
+            [
+                "nvidia-smi",
+                "--query-compute-apps=gpu_uuid,pid,used_memory",
+                "--format=csv,noheader,nounits",
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=30,
         )
+    except (OSError, subprocess.TimeoutExpired) as error:
+        raise RuntimeError(str(error)) from error
+    if completed.returncode != 0:
+        raise RuntimeError(completed.stderr.strip() or "nvidia-smi exited nonzero")
     output: dict[str, list[dict[str, int]]] = {}
     for line in completed.stdout.splitlines():
         if not line.strip():
             continue
         parts = [value.strip() for value in line.split(",")]
         if len(parts) != 3:
-            raise RuntimeError("nvidia-smi compute-process inventory is malformed")
+            warnings.warn(
+                "skipping malformed nvidia-smi compute-process line",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+            continue
         uuid, pid_value, memory_value = parts
         try:
             row = {"pid": int(pid_value), "used_memory_mib": int(memory_value)}
-        except ValueError as error:
-            raise RuntimeError(
-                "nvidia-smi compute-process inventory contains nonnumeric values"
-            ) from error
+        except ValueError:
+            warnings.warn(
+                "skipping nonnumeric nvidia-smi compute-process line",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+            continue
         output.setdefault(uuid, []).append(row)
     return output
 
@@ -1592,7 +1643,9 @@ def _bind_execution_devices(value, cuda_visible_devices, gpu_inventory, required
     if len(visible) != int(required_count) or any(not item for item in visible) or len(
         set(visible)
     ) != len(visible):
-        raise RuntimeError("CUDA_VISIBLE_DEVICES must expose exactly two unique devices")
+        raise RuntimeError(
+            f"CUDA_VISIBLE_DEVICES must expose exactly {int(required_count)} unique devices"
+        )
     specs = [item.strip() for item in str(value).split(",")]
     expected_specs = [f"cuda:{index}" for index in range(int(required_count))]
     if specs != expected_specs:

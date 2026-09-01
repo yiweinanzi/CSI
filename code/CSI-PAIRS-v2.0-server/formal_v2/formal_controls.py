@@ -17,7 +17,14 @@ from .formal_evidence import (
     evidence_context,
     require_stage_manifested_gate,
 )
-from .formal_io import artifact_manifest, read_strict_json, sha256_file, write_csv, write_json
+from .formal_io import (
+    artifact_manifest,
+    read_strict_json,
+    sha256_file,
+    sha256_text_lf,
+    write_csv,
+    write_json,
+)
 from .formal_statistics import (
     holm_adjust,
     interval_decision,
@@ -344,7 +351,7 @@ def _validate_manifest(manifest, manifest_root=None):
                 path = (Path(manifest_root) / item[f"{prefix}_path"]).resolve()
                 if Path(manifest_root).resolve() not in path.parents or not path.is_file():
                     raise ValueError(f"resource-control {prefix} is missing or escapes its manifest root")
-                if sha256_file(path) != item[f"{prefix}_sha256"]:
+                if sha256_text_lf(path) != item[f"{prefix}_sha256"]:
                     raise ValueError(f"resource-control {prefix} hash mismatch")
             _validate_architecture_spec(
                 item["control_id"],

@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-import fcntl
 import os
 import tempfile
 import unittest
 from pathlib import Path
 
 from formal_v2 import formal_migration_postexit_runner as runner
+from formal_v2.formal_locks import LOCK_EX, LOCK_NB, LOCK_UN, flock
 from formal_v2.formal_io import read_strict_json, sha256_file, write_json
 from formal_v2.tests.test_formal_migration import FormalMigrationFixture
 
@@ -211,14 +211,14 @@ class PostExitMigrationRunnerTests(unittest.TestCase):
     def test_rejects_an_occupied_guard_without_touching_lock(self) -> None:
         descriptor = os.open(self.guard, os.O_RDWR)
         try:
-            fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            flock(descriptor, LOCK_EX | LOCK_NB)
             with self.assertRaisesRegex(
                 runner.PostExitMigrationError, "active operation-lock guard holder"
             ):
                 runner.run_post_exit_migration(**self._arguments())
             self._assert_untouched_precondition_failure()
         finally:
-            fcntl.flock(descriptor, fcntl.LOCK_UN)
+            flock(descriptor, LOCK_UN)
             os.close(descriptor)
 
     def test_rejects_raw_config_sha_identity_before_touching_lock(self) -> None:

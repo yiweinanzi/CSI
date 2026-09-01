@@ -12,8 +12,11 @@ Current status:
 - package/software: verified on the audited code commit, with final bundle verification recorded in the traceability audit;
 - protocol implementation: V2.1 frozen-V6 path;
 - formal experiment readiness: `CODE_READY_FOR_FORMAL_INPUT`;
-- scientific claims: blocked until all required non-fixture gates and independent adapters pass;
+- factorial localization (commit `9850fff`): executed historical negative / ablation; the 32 bank-macro cells may be shown; G5 FAIL stands;
+- SOTA or success claims: require same-data baseline meters (in-repo C1 adapters are wired, not yet run);
 - fixture outputs: permanently `scientific_use=FORBIDDEN`.
+
+Do not write that no results exist. Descriptive factorial meters are documented in [`docs/results/实验数据.md`](docs/results/实验数据.md). This Windows clone has no `runs/` and no `.npz`.
 
 Start with the [server README](code/CSI-PAIRS-v2.0-server/README.md) and verify the package before use:
 

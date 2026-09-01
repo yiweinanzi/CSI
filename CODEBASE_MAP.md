@@ -1,6 +1,6 @@
 # CSI-PAIRS 当前代码位置图
 
-路径一律相对仓库根目录（本机根为 `C:\Users\22688\Desktop\CSI`）。不要使用过时的 Autodl `/root/autodl-tmp/...` 绝对路径。
+路径一律相对仓库根目录（本机根为 `C:\Users\22688\Desktop\ftr\CSI`）。不要使用过时的 Autodl `/root/autodl-tmp/...` 绝对路径，也不要写成少了 `ftr` 的 `Desktop\CSI`。
 
 另见操作手册：`code/CSI-PAIRS-v2.0-server/formal_v2/A100_RUNBOOK.md`。
 数据到位后的盘点清单：`code/CSI-PAIRS-v2.0-server/formal_v2/EXPERIMENT_DAY_ONE.md`。
@@ -15,8 +15,8 @@
 | 当前 Python 包 | `code/CSI-PAIRS-v2.0-server/formal_v2` | V2.1/V6 可执行实现 |
 | 当前配置 | `code/CSI-PAIRS-v2.0-server/formal_v2/configs/formal_v2.json` | 正式 schema 与冻结阈值 |
 | 数据合同 | `code/CSI-PAIRS-v2.0-server/formal_v2/DATA_CONTRACT.md` | NPZ 字段、权限和验证边界 |
-| 当前测试 | `code/CSI-PAIRS-v2.0-server/formal_v2/tests/` | **32** 个 `test_*.py`，**600** 个 `def test_` 方法 |
-| 当前论文草稿 | `code/CSI-PAIRS-v2.0-server/paper_v2/main.tex` | 必须反向核对 V6；不得写入未挣得的数字 |
+| 当前测试 | `code/CSI-PAIRS-v2.0-server/formal_v2/tests/` | **52** 个 `test_*.py`，**937** 个 `def test_` 方法（2026-09-01 实数） |
+| 当前论文草稿 | `code/CSI-PAIRS-v2.0-server/paper_v2/main.tex` | 必须反向核对 V6；32 格可作负结果/消融；对比列写 wired, not run；不得编对比米 |
 | 操作手册 | `code/CSI-PAIRS-v2.0-server/formal_v2/A100_RUNBOOK.md` | 两阶段正式编排与主机要求 |
 | 启动阻断 | `code/CSI-PAIRS-v2.0-server/artifacts/formal_experiment_blockers.md` | 历史清单；G0/C11/G8/数据认证/实测 compute plan 已不再硬阻断启动 |
 | C13 LLM-as-judge | `LLM_JUDGE_C13.md` | Codex / Claude Code / Cursor 裁决入口；不接受人类签字 |
@@ -24,7 +24,9 @@
 目录名仍保留 `CSI-PAIRS-v2.0-server`，包内 schema 和 README 已是 V2.1/V6。为保持
 `SHA256SUMS`、ZIP 和脚本路径可复现，当前源码不重命名、不移动。
 
-**600 个 unittest 方法是软件单元测试，不是已执行的 C1–C13 / G0–G8 科学证据。** 本文不声称任何科学 PASS。
+**937 个 unittest 方法是软件单元测试，不是已执行的 C1–C13 / G0–G8 科学证据。** 其中不少覆盖 migration / evaluation 仪式。本文不把测试绿写成科学 PASS。
+
+正式四臂定位已经在 GPU 主机上执行（commit `9850fffe0b34f16b45066973308f18b10555ca5d`）。32 格可作为描述性负结果 / 消融见 `docs/results/实验数据.md`。G5=FAIL 成立，不得改口。evaluation 与同场基线尚未跑。本 Windows clone **没有** `runs/` 和 `.npz`；不要写成“没有任何结果”。SOTA / 成功主张仍要同场对比米。
 
 ## 2. 当前运行模块
 
@@ -56,7 +58,8 @@ code/CSI-PAIRS-v2.0-server/
 │   ├── formal_response_probe.py        # Response probe 实现
 │   ├── formal_action_inverse_response.py
 │   ├── formal_physics_response.py
-│   ├── formal_evaluation.py            # CGS、response、部分子门
+│   ├── formal_evaluation.py            # 旧单体评价器；不是现场路径
+│   ├── formal_evaluation_streaming.py  # 现场 evaluation 路径（resume / fragments）
 │   ├── formal_risk.py                  # q_comp、p_fail、support、G6
 │   ├── formal_path.py                  # A_path、matching、G7
 │   ├── formal_wrong_map.py             # 本地 ridge 诊断；禁止作外部模型主张
@@ -82,7 +85,7 @@ code/CSI-PAIRS-v2.0-server/
 │   ├── data/                           # 只有 README；没有正式 NPZ
 │   ├── scripts/
 │   ├── EXPERIMENT_DAY_ONE.md           # 数据到位后的盘点与命令，不是科学证据
-│   └── tests/                          # 31 个测试文件
+│   └── tests/                          # 52 个 test_*.py；937 个 def test_
 ├── paper_v2/                           # LaTeX 草稿，不是科学证据
 ├── artifacts/                          # 合同和验证说明，不是实验结果
 ├── output/                             # 草稿产物，不是科学证据
@@ -127,7 +130,7 @@ LLM-as-judge：create-run-approval --request ... --output ... --judge family:id 
 
 all --approval-manifest ...
     只认证已准备门与精确批准；不重跑可选 G0 / RT / data verification / G8
-    -> run-wrong-map -> 四臂 run-factorial -> run-evaluation
+    -> run-wrong-map -> 四臂 run-factorial -> streaming evaluation
     -> run-risk -> run-path
     -> external-baselines -> representation-baselines
     -> resource-controls -> scene-ID
@@ -149,10 +152,11 @@ all --approval-manifest ...
 ## 5. 当前可验证边界
 
 - 打包树存在 `code/CSI-PAIRS-v2.0-server/SHA256SUMS`；本文未复跑 `sha256sum --check`，因此不沿用过时的“117 个文件”计数。
-- `formal_v2/tests/`：32 个文件、600 个 unittest 方法。**只证明软件单元测试，不证明 C1–C13 或 G0–G8 已科学通过。**
-- 本 clone **没有正式 NPZ**（全树无 `.npz`；`formal_v2/data/` 只有合同 README）。
+- `formal_v2/tests/`：52 个文件、937 个 unittest 方法。**只证明软件单元测试，不证明 C1–C13 或 G0–G8 已科学通过。**
+- 现场 evaluation 路径是 `formal_evaluation_streaming.py`。单体 `formal_evaluation.py` 不是继续跑评价的入口。
+- 本 Windows clone **没有正式 NPZ、没有 `runs/`**（全树无 `.npz`；`formal_v2/data/` 只有合同 README）。GPU 主机上的正式 run 是 `runs/formal-v6-gpu-9850fff-20260825T071800Z`（commit `9850fff`）。权威数字在 `docs/results/实验数据.md`，不要写成“没有任何结果”。
 - `waibu/` 即使有本地 PDF/ZIP，也不能当作已认证正式输入或 G0 PASS；`RESOURCE-001` / `FORMAL_INPUT_READY` 仍按阻断登记。
 - 工程状态：`CODE_READY_FOR_FORMAL_INPUT`。G0 回执/PDF 哈希、独立数据认证、C11、G8、实测 compute plan 不再把启动写成 `FORMAL_GO=NO-GO`。缺这些门时对应 claim 仍是 `NOT_ASSESSED`，不是科学 PASS。
-- **Windows 不能运行正式证据命令**（平台锁、CUDA 预检与 `fcntl` 运行时均不支持）。
+- **Windows 不能运行正式证据命令**（平台锁、CUDA 预检与 `fcntl` 运行时均不支持）。正式训练与评价在 Linux GPU 主机。
 - fixture 永远是 `scientific_use=FORBIDDEN`。
-- 上述软件边界不证明 V6 协议已在正式数据上执行，更不证明任何科学 claim。
+- 软件边界不把测试绿写成科学 PASS。已执行的四臂定位是历史负结果（G5 FAIL）；evaluation / 同场基线尚未跑。SOTA 主张仍要同场对比米。

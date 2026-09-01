@@ -81,7 +81,10 @@
     "effect_margin_cap": 2.0,
     "alignment_primary_margin": "fixed",
     "response_delta_physical_weight": 1.0,
-    "response_null_physical_weight": 1.0
+    "response_null_physical_weight": 1.0,
+    "full_joint_loss": "uncertainty_weighting",
+    "task_log_variance_init": 0.0,
+    "encoder_grad_cosine_interval": 1
   },
   "localization": {
     "label_budgets": [0, 2, 4],
@@ -91,11 +94,14 @@
     "maximum_city_regression": 10.0,
     "minimum_city_improvement": 1e-09,
     "head_steps": 2,
+    "head_steps_per_labeled_point": 50,
+    "early_stop_patience": 50,
     "learning_rate": 0.003,
     "failure_threshold_m": 2.0,
     "sigma_min": 0.001
   },
   "evaluation": {
+    "batch_size": 8,
     "probe_steps": 2,
     "probe_learning_rate": 0.003,
     "probe_hidden_dim": 8,

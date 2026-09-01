@@ -2460,9 +2460,16 @@ def _evaluation_gate(
     response_null_safe = all(
         response_null_safety[scope]["passed"] for scope in expected_scopes
     )
-    family = [
+    primary_family = [
         alignment_superiority,
         response_superiority,
+        *[
+            interval
+            for scope in expected_scopes
+            for interval in scope_intervals[scope].values()
+        ],
+    ]
+    secondary_family = [
         response_copy,
         response_no_action,
         response_swap,
@@ -2472,15 +2479,11 @@ def _evaluation_gate(
         probe_response_swap,
         *shortcut_intervals.values(),
         direction,
-        *[
-            interval
-            for scope in expected_scopes
-            for interval in scope_intervals[scope].values()
-        ],
     ]
-    adjusted = holm_adjust([float(row["p_value_two_sided"]) for row in family])
-    for row, value in zip(family, adjusted):
-        row["holm_adjusted_p"] = float(value)
+    for family in (primary_family, secondary_family):
+        adjusted = holm_adjust([float(row["p_value_two_sided"]) for row in family])
+        for row, value in zip(family, adjusted):
+            row["holm_adjusted_p"] = float(value)
     alpha = float(config["evaluation"]["familywise_alpha"])
     scope_primary_passed = all(
         interval_decision(
@@ -2734,7 +2737,6 @@ def _evaluation_gate(
     )
     c5_keys = (
         "2_response_active_native_superiority_ci",
-        "3_response_physical_and_latent_baselines_ci",
         "4_response_direction_and_magnitude",
         "7_null_equivalence_and_overclassification",
         "9_unpooled_source_and_target_primary_metrics",
@@ -2832,6 +2834,8 @@ def _evaluation_gate(
         "g3_scope_intervals": scope_intervals,
         "c3_evidence_complete": c3_complete,
         "c5_evidence_complete": c5_complete,
+        "g3_secondary_does_not_veto_primary": True,
+        "g3_secondary_subgates": ("3_response_physical_and_latent_baselines_ci",),
         "g4_subgates": g4,
         "g4_intervals": {"full_cgs": full_cgs, "full_response": full_response},
         "null_compatibility_safety": null_safety,

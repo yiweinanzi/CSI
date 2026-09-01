@@ -70,6 +70,12 @@ def sha256_file(path: str | Path) -> str:
     return digest.hexdigest()
 
 
+def sha256_text_lf(path: str | Path) -> str:
+    """Hash text after normalizing CR/LF to LF so Windows and Linux match."""
+    data = Path(path).read_bytes().replace(b"\r\n", b"\n").replace(b"\r", b"\n")
+    return hashlib.sha256(data).hexdigest()
+
+
 def artifact_manifest(
     root: str | Path,
     *,

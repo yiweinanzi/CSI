@@ -15,11 +15,26 @@
       "map_conditioned": true,
       "c1_eligible": false,
       "command": [
-        "{python}", "{adapter_source}",
-        "--config", "{adapter_config}",
-        "--dataset", "{dataset}", "--output", "{output}", "--output-run-root", "{output_run_root}", "--upstream-root", "{upstream_root}",
-        "--command-sha256", "{adapter_command_sha256}", "--source-revision", "{source_revision}",
-        "--adapter-id", "{adapter_id}", "--model-name", "{model_name}"
+        "{python}",
+        "{adapter_source}",
+        "--config",
+        "{adapter_config}",
+        "--dataset",
+        "{dataset}",
+        "--output",
+        "{output}",
+        "--output-run-root",
+        "{output_run_root}",
+        "--upstream-root",
+        "{upstream_root}",
+        "--command-sha256",
+        "{adapter_command_sha256}",
+        "--source-revision",
+        "{source_revision}",
+        "--adapter-id",
+        "{adapter_id}",
+        "--model-name",
+        "{model_name}"
       ]
     },
     {
@@ -36,11 +51,26 @@
       "map_conditioned": true,
       "c1_eligible": true,
       "command": [
-        "{project_root}/formal_v2/external_adapters/.venv-wigatr/bin/python", "{adapter_source}",
-        "--config", "{adapter_config}",
-        "--dataset", "{dataset}", "--output", "{output}", "--output-run-root", "{output_run_root}", "--upstream-root", "{upstream_root}",
-        "--command-sha256", "{adapter_command_sha256}", "--source-revision", "{source_revision}",
-        "--adapter-id", "{adapter_id}", "--model-name", "{model_name}"
+        "{project_root}/formal_v2/external_adapters/.venv-wigatr/bin/python",
+        "{adapter_source}",
+        "--config",
+        "{adapter_config}",
+        "--dataset",
+        "{dataset}",
+        "--output",
+        "{output}",
+        "--output-run-root",
+        "{output_run_root}",
+        "--upstream-root",
+        "{upstream_root}",
+        "--command-sha256",
+        "{adapter_command_sha256}",
+        "--source-revision",
+        "{source_revision}",
+        "--adapter-id",
+        "{adapter_id}",
+        "--model-name",
+        "{model_name}"
       ]
     },
     {
@@ -57,11 +87,26 @@
       "map_conditioned": true,
       "c1_eligible": true,
       "command": [
-        "{python}", "{adapter_source}",
-        "--config", "{adapter_config}",
-        "--dataset", "{dataset}", "--output", "{output}", "--output-run-root", "{output_run_root}", "--upstream-root", "{upstream_root}",
-        "--command-sha256", "{adapter_command_sha256}", "--source-revision", "{source_revision}",
-        "--adapter-id", "{adapter_id}", "--model-name", "{model_name}"
+        "{python}",
+        "{adapter_source}",
+        "--config",
+        "{adapter_config}",
+        "--dataset",
+        "{dataset}",
+        "--output",
+        "{output}",
+        "--output-run-root",
+        "{output_run_root}",
+        "--upstream-root",
+        "{upstream_root}",
+        "--command-sha256",
+        "{adapter_command_sha256}",
+        "--source-revision",
+        "{source_revision}",
+        "--adapter-id",
+        "{adapter_id}",
+        "--model-name",
+        "{model_name}"
       ]
     },
     {
@@ -78,11 +123,26 @@
       "map_conditioned": true,
       "c1_eligible": false,
       "command": [
-        "{python}", "{adapter_source}",
-        "--config", "{adapter_config}",
-        "--dataset", "{dataset}", "--output", "{output}", "--output-run-root", "{output_run_root}", "--upstream-root", "{upstream_root}",
-        "--command-sha256", "{adapter_command_sha256}", "--source-revision", "{source_revision}",
-        "--adapter-id", "{adapter_id}", "--model-name", "{model_name}"
+        "{python}",
+        "{adapter_source}",
+        "--config",
+        "{adapter_config}",
+        "--dataset",
+        "{dataset}",
+        "--output",
+        "{output}",
+        "--output-run-root",
+        "{output_run_root}",
+        "--upstream-root",
+        "{upstream_root}",
+        "--command-sha256",
+        "{adapter_command_sha256}",
+        "--source-revision",
+        "{source_revision}",
+        "--adapter-id",
+        "{adapter_id}",
+        "--model-name",
+        "{model_name}"
       ]
     },
     {
@@ -99,26 +159,101 @@
       "map_conditioned": true,
       "c1_eligible": false,
       "command": [
-        "{python}", "{adapter_source}",
-        "--config", "{adapter_config}",
-        "--dataset", "{dataset}", "--output", "{output}", "--output-run-root", "{output_run_root}", "--upstream-root", "{upstream_root}",
-        "--command-sha256", "{adapter_command_sha256}", "--source-revision", "{source_revision}",
-        "--adapter-id", "{adapter_id}", "--model-name", "{model_name}"
+        "{python}",
+        "{adapter_source}",
+        "--config",
+        "{adapter_config}",
+        "--dataset",
+        "{dataset}",
+        "--output",
+        "{output}",
+        "--output-run-root",
+        "{output_run_root}",
+        "--upstream-root",
+        "{upstream_root}",
+        "--command-sha256",
+        "{adapter_command_sha256}",
+        "--source-revision",
+        "{source_revision}",
+        "--adapter-id",
+        "{adapter_id}",
+        "--model-name",
+        "{model_name}"
       ]
     }
   ],
   "literature_registry": [
-    {"baseline_name": "CSI-MAE", "status": "not_applicable", "adapter_id": "", "reason": "Executed by the separate representation-baseline stage; it is map-free and cannot count for C1."},
-    {"baseline_name": "CSI-CLIP", "status": "not_applicable", "adapter_id": "", "reason": "Executed by the separate representation-baseline stage; CIR-CSI consistency is not a six-map intervention."},
-    {"baseline_name": "CSI-CLIP++", "status": "not_applicable", "adapter_id": "", "reason": "Executed by the separate representation-baseline stage; it is not C1 map-conditioned evidence."},
-    {"baseline_name": "ContraWiMAE", "status": "not_applicable", "adapter_id": "", "reason": "Executed by the separate representation-baseline stage; it is map-free."},
-    {"baseline_name": "WWM", "status": "not_applicable", "adapter_id": "", "reason": "Executed as WWM-inspired same-world matched prediction, not as a faithful six-condition WWM reproduction."},
-    {"baseline_name": "SigMap", "status": "executed", "adapter_id": "sigmap-controlled-csi-pairs-v1", "reason": "Bespoke V6 style-controlled map-conditioned localization control."},
-    {"baseline_name": "Wi-GATr", "status": "executed", "adapter_id": "wigatr-official-csi-pairs-v1", "reason": "Official source adaptation with CSI-PAIRS inverse localization."},
-    {"baseline_name": "PMNet", "status": "executed", "adapter_id": "pmnet-official-csi-pairs-v1", "reason": "Official PMNet v3 source adaptation with source-only radiomap training and CSI-PAIRS inverse localization."},
-    {"baseline_name": "WiSER", "status": "executed", "adapter_id": "wiser-controlled-csi-pairs-v1", "reason": "Style-controlled 2D map/CSI diagnostic. It does not reproduce the paper's sparse 3D TRELLIS scene model, dense receiver-plane radiomap objective, unordered physical path targets, or checkpoint warm-start schedule, so it is C1-ineligible."},
-    {"baseline_name": "CSI-only", "status": "not_applicable", "adapter_id": "", "reason": "Map-free negative control belongs to the internal unified-probe evaluation."},
-    {"baseline_name": "oracle-x", "status": "oracle_only", "adapter_id": "", "reason": "Privileged true-position information upper bound; never counted as a strict no-x baseline."},
-    {"baseline_name": "RFIR", "status": "executed", "adapter_id": "rfir-controlled-csi-pairs-v1", "reason": "RFIR-inspired 2.5D visibility-aware RF-BSDF diagnostic; style-controlled and C1-ineligible."}
+    {
+      "baseline_name": "CSI-MAE",
+      "status": "not_applicable",
+      "adapter_id": "",
+      "reason": "Executed by the separate representation-baseline stage; it is map-free and cannot count for C1."
+    },
+    {
+      "baseline_name": "CSI-CLIP",
+      "status": "not_applicable",
+      "adapter_id": "",
+      "reason": "Executed by the separate representation-baseline stage; CIR-CSI consistency is not a six-map intervention."
+    },
+    {
+      "baseline_name": "CSI-CLIP++",
+      "status": "not_applicable",
+      "adapter_id": "",
+      "reason": "Executed by the separate representation-baseline stage; it is not C1 map-conditioned evidence."
+    },
+    {
+      "baseline_name": "ContraWiMAE",
+      "status": "not_applicable",
+      "adapter_id": "",
+      "reason": "Executed by the separate representation-baseline stage; it is map-free."
+    },
+    {
+      "baseline_name": "WWM",
+      "status": "not_applicable",
+      "adapter_id": "",
+      "reason": "Restricted WWM-inspired same-world matched prediction: teacher target uses include_position=True while the online encoder does not. Not a strict no-position C1 baseline and not a faithful six-condition WWM reproduction. claim_eligible=false."
+    },
+    {
+      "baseline_name": "SigMap",
+      "status": "not_executed",
+      "adapter_id": "",
+      "reason": "Registered style-controlled C1-ineligible control (sigmap-controlled-csi-pairs-v1). This workspace has no local adapter manifest+CSV+hash, so executed is forbidden."
+    },
+    {
+      "baseline_name": "Wi-GATr",
+      "status": "not_executed",
+      "adapter_id": "",
+      "reason": "Registered official-code C1-eligible adapter (wigatr-official-csi-pairs-v1). This workspace has no local adapter manifest+CSV+hash, so executed is forbidden."
+    },
+    {
+      "baseline_name": "PMNet",
+      "status": "not_executed",
+      "adapter_id": "",
+      "reason": "Registered official-code C1-eligible adapter (pmnet-official-csi-pairs-v1). This workspace has no local adapter manifest+CSV+hash, so executed is forbidden."
+    },
+    {
+      "baseline_name": "WiSER",
+      "status": "not_executed",
+      "adapter_id": "",
+      "reason": "Registered style-controlled 2D map/CSI diagnostic (wiser-controlled-csi-pairs-v1); C1-ineligible. This workspace has no local adapter manifest+CSV+hash, so executed is forbidden. It does not reproduce the paper's sparse 3D TRELLIS scene model, dense receiver-plane radiomap objective, unordered physical path targets, or checkpoint warm-start schedule."
+    },
+    {
+      "baseline_name": "CSI-only",
+      "status": "not_applicable",
+      "adapter_id": "",
+      "reason": "Map-free negative control belongs to the internal unified-probe evaluation."
+    },
+    {
+      "baseline_name": "oracle-x",
+      "status": "oracle_only",
+      "adapter_id": "",
+      "reason": "Privileged true-position information upper bound; never counted as a strict no-x baseline."
+    },
+    {
+      "baseline_name": "RFIR",
+      "status": "not_executed",
+      "adapter_id": "",
+      "reason": "Registered RFIR-inspired 2.5D visibility-aware RF-BSDF diagnostic (rfir-controlled-csi-pairs-v1); style-controlled and C1-ineligible. This workspace has no local adapter manifest+CSV+hash, so executed is forbidden."
+    }
   ]
 }

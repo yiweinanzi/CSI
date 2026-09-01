@@ -36,6 +36,7 @@ from formal_v2.formal_run_approval import (
     _gpu_inventory,
     _merge_external_runtimes,
     _require_exclusive_gpus,
+    _resolve_compute_plan,
     _validate_prepared_record,
     _validate_request_against_current_run,
     _validate_compute_plan,
@@ -210,6 +211,57 @@ class FullRunApprovalTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "insufficient CUDA GPUs"):
                 _validate_compute_plan(plan, dataset, self.root / "run", {"fixture-license"})
 
+    def test_formal_compute_plan_accepts_one_cuda_gpu(self):
+        dataset = SimpleNamespace(is_fixture=False, source_path=self.dataset_path)
+        plan = self._fixture_plan()
+        plan.update(
+            {
+                "profile": "formal",
+                "required_gpu_count": 1,
+                "minimum_gpu_memory_bytes": 1024,
+                "estimated_gpu_hours": 2.0,
+                "authorized_gpu_hours": 2.0,
+                "component_estimates": self._formal_components(),
+                "required_environment_variables": [
+                    "CSI_PAIRS_DEVICES",
+                    "CUDA_VISIBLE_DEVICES",
+                ],
+            }
+        )
+        inventory = [
+            {
+                "index": 0,
+                "uuid": "GPU-uuid-0",
+                "name": "A100",
+                "total_memory_bytes": 4096,
+                "free_memory_bytes": 4096,
+                "used_memory_bytes": 0,
+                "cuda_runtime": "12.1",
+            }
+        ]
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    "CSI_PAIRS_DEVICES": "cuda:0",
+                    "CUDA_VISIBLE_DEVICES": "0",
+                },
+            ),
+            patch(
+                "formal_v2.formal_run_approval._gpu_inventory",
+                return_value=inventory,
+            ),
+            patch(
+                "formal_v2.formal_run_approval._nvidia_compute_processes",
+                return_value={},
+            ),
+        ):
+            result = _validate_compute_plan(
+                plan, dataset, self.root / "run", {"fixture-license"}
+            )
+        self.assertEqual(result["required_gpu_count"], 1)
+        self.assertEqual(result["execution_devices"][0]["uuid"], "GPU-uuid-0")
+
     def test_formal_compute_plan_binds_exact_device_specs_and_uuids(self):
         dataset = SimpleNamespace(is_fixture=False, source_path=self.dataset_path)
         plan = self._fixture_plan()
@@ -269,7 +321,25 @@ class FullRunApprovalTests(unittest.TestCase):
             "cuda:0,cuda:1",
         )
 
-    def test_formal_gpu_exclusivity_rejects_memory_or_compute_processes(self):
+    def test_compute_plan_file_is_advisory_unless_enforced(self):
+        dataset = SimpleNamespace(is_fixture=False, source_path=self.dataset_path)
+        plan_path = self.root / "weak-plan.json"
+        write_json(plan_path, self._fixture_plan() | {"profile": "formal"})
+        binding, report = _resolve_compute_plan(
+            plan_path, dataset, self.root / "run", {"fixture-license"}
+        )
+        self.assertEqual(binding["kind"], "file")
+        self.assertEqual(report.get("compute_plan_enforcement"), "advisory")
+        with self.assertRaises((ValueError, RuntimeError)):
+            _resolve_compute_plan(
+                plan_path,
+                dataset,
+                self.root / "run",
+                {"fixture-license"},
+                enforce=True,
+            )
+
+    def test_formal_gpu_exclusivity_rejects_compute_processes_not_idle_memory(self):
         idle = {
             "index": 0,
             "uuid": "GPU-idle",
@@ -283,26 +353,45 @@ class FullRunApprovalTests(unittest.TestCase):
         ):
             _require_exclusive_gpus([idle])
 
-        occupied = dict(idle)
-        occupied["free_memory_bytes"] -= 2 * 1024**3
-        occupied["used_memory_bytes"] += 2 * 1024**3
-        with (
-            patch(
-                "formal_v2.formal_run_approval._nvidia_compute_processes",
-                return_value={},
-            ),
-            self.assertRaisesRegex(RuntimeError, "not exclusive"),
+        leftover = dict(idle)
+        leftover["free_memory_bytes"] -= 2 * 1024**3
+        leftover["used_memory_bytes"] += 2 * 1024**3
+        with patch(
+            "formal_v2.formal_run_approval._nvidia_compute_processes",
+            return_value={},
         ):
-            _require_exclusive_gpus([occupied])
+            _require_exclusive_gpus([leftover])
 
         with (
             patch(
                 "formal_v2.formal_run_approval._nvidia_compute_processes",
                 return_value={"GPU-idle": [{"pid": 123, "used_memory_mib": 1}]},
             ),
-            self.assertRaisesRegex(RuntimeError, "not exclusive"),
+            self.assertRaisesRegex(RuntimeError, "compute process"),
         ):
             _require_exclusive_gpus([idle])
+
+    def test_nvidia_smi_failure_is_a_warning_by_default(self):
+        idle = {
+            "index": 0,
+            "uuid": "GPU-idle",
+            "total_memory_bytes": 40 * 1024**3,
+            "free_memory_bytes": 40 * 1024**3,
+            "used_memory_bytes": 0,
+        }
+        with patch(
+            "formal_v2.formal_run_approval._nvidia_compute_processes",
+            side_effect=RuntimeError("nvidia-smi missing"),
+        ):
+            _require_exclusive_gpus([idle])
+        with (
+            patch(
+                "formal_v2.formal_run_approval._nvidia_compute_processes",
+                side_effect=RuntimeError("nvidia-smi missing"),
+            ),
+            self.assertRaisesRegex(RuntimeError, "nvidia-smi"),
+        ):
+            _require_exclusive_gpus([idle], fail_on_smi_error=True)
 
     def test_consumed_approval_marker_is_idempotent_only_for_exact_resume(self):
         approval_dir = self.root / "run" / "approval"
@@ -507,7 +596,6 @@ class FullRunApprovalTests(unittest.TestCase):
                 "config.json",
                 "--output",
                 "output",
-                "--approve-full-experiment",
                 "--verifier-manifest",
                 "verifier.json",
                 "--adapter-manifest",
@@ -703,7 +791,10 @@ class FullRunApprovalTests(unittest.TestCase):
                 ),
                 patch("formal_v2.formal_wrong_map.run_formal_wrong_map", side_effect=stage("wrong_map")),
                 patch("formal_v2.formal_factorial.run_formal_factorial", side_effect=stage("factorial")),
-                patch("formal_v2.formal_evaluation.run_formal_evaluation", side_effect=stage("evaluation")),
+                patch(
+                    "formal_v2.formal_cli._run_evaluation_for_upstream",
+                    side_effect=stage("evaluation"),
+                ),
                 patch("formal_v2.formal_risk.run_risk_contract", side_effect=stage("risk")),
                 patch("formal_v2.formal_path.run_path_audit", side_effect=stage("path")),
                 patch("formal_v2.formal_external.run_external_baselines", side_effect=stage("external")),

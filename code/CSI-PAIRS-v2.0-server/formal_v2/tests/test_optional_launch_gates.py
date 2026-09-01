@@ -124,12 +124,20 @@ class OptionalLaunchGateTests(unittest.TestCase):
         self.assertEqual(report["required_gpu_count"], 0)
         self.assertTrue(report["environment_variables_present"])
 
-    def test_missing_data_verification_is_not_a_hard_stop(self):
+    def test_missing_data_verification_is_a_hard_stop_for_non_fixture(self):
         dataset = SimpleNamespace(is_fixture=False, source_path=self.dataset_path)
+        with self.assertRaisesRegex(RuntimeError, "live independent data-verification"):
+            require_verified_roles_from_root(
+                self.root / "empty-run",
+                {},
+                dataset,
+                ("target",),
+            )
+        fixture = SimpleNamespace(is_fixture=True, source_path=self.dataset_path)
         gate = require_verified_roles_from_root(
             self.root / "empty-run",
             {},
-            dataset,
+            fixture,
             ("target",),
         )
         self.assertTrue(gate.get("skipped"))
@@ -152,6 +160,42 @@ class OptionalLaunchGateTests(unittest.TestCase):
             _claim_package_status(gates, {"G3": "broken"}),
             "INCOMPLETE_FAIL_CLOSED",
         )
+        self.assertEqual(
+            _claim_package_status(
+                gates,
+                {"wrong_map": "missing"},
+                assessments={"wrong_map": "INCOMPLETE"},
+            ),
+            "COMPLETE",
+        )
+        self.assertEqual(
+            _claim_package_status(
+                gates,
+                {},
+                stage_failures=[{"stage": "formal evaluation", "error": "boom"}],
+            ),
+            "INCOMPLETE_FAIL_CLOSED",
+        )
+
+    def test_streaming_evaluation_requires_live_verification(self):
+        from formal_v2.formal_evaluation_streaming import (
+            run_streaming_formal_evaluation,
+        )
+
+        with self.assertRaisesRegex(RuntimeError, "live independent data-verification"):
+            run_streaming_formal_evaluation(
+                {},
+                SimpleNamespace(is_fixture=False),
+                self.root / "eval-run",
+                upstream_root=self.root / "eval-run",
+                qualification_gate_path=self.root / "q.json",
+                factorial_gate_path=self.root / "f.json",
+                checkpoint_index_path=self.root / "c.json",
+                checkpoint_inventory_sha256="0" * 64,
+                run_identity=object(),
+                execution_devices=("cpu",),
+                batch_size=1,
+            )
 
 
 if __name__ == "__main__":

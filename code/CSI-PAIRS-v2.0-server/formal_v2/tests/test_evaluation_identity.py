@@ -2,15 +2,30 @@ from __future__ import annotations
 
 import hashlib
 import json
+import sys
 import tempfile
+import types
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
 
+if "fcntl" not in sys.modules:
+    try:
+        import fcntl as _fcntl
+    except ImportError:
+        _fcntl = types.ModuleType("fcntl")
+        _fcntl.LOCK_EX = 2
+        _fcntl.LOCK_SH = 1
+        _fcntl.LOCK_UN = 8
+        _fcntl.LOCK_NB = 4
+        _fcntl.flock = lambda *_args, **_kwargs: None
+        sys.modules["fcntl"] = _fcntl
+
 from formal_v2.formal_evaluation_identity import (
     build_fixture_evaluation_execution,
     build_migrated_evaluation_execution,
+    resolve_production_batch_size,
     run_fixture_streaming_evaluation,
 )
 from formal_v2.formal_evaluation_resume import (
@@ -94,14 +109,53 @@ class EvaluationIdentityTests(unittest.TestCase):
             execution.identity.legacy_checkpoint_inventory_sha256, "8" * 64
         )
 
-    def test_nonexact_batch_size_is_rejected(self) -> None:
+    def test_production_plan_batch_size_256_is_accepted(self) -> None:
         self.migration.new_compute_plan["batch_size"] = 256
-        with self.assertRaisesRegex(RuntimeError, "batch_size=1"):
-            self._build()
+        execution = self._build()
+        self.assertEqual(execution.batch_size, 256)
+
+    def test_production_config_batch_size_overrides_plan(self) -> None:
+        self.migration.new_compute_plan["batch_size"] = 1
+        with (
+            mock.patch(
+                "formal_v2.formal_evaluation_identity.evidence_context",
+                return_value=dict(self.evidence),
+            ),
+            mock.patch(
+                "formal_v2.formal_evaluation_identity.resolve_execution_devices",
+                return_value=("cuda:0", "cuda:1"),
+            ),
+        ):
+            execution = build_migrated_evaluation_execution(
+                {"artifact_label": "test", "evaluation": {"batch_size": 256}},
+                self.dataset,
+                self.upstream,
+            )
+        self.assertEqual(execution.batch_size, 256)
+        self.assertEqual(resolve_production_batch_size({}), 256)
+
+    def test_production_accepts_one_gpu(self) -> None:
+        self.migration.new_compute_plan["gpu_mapping"] = [
+            {"logical_device": "cuda:0"}
+        ]
+        with (
+            mock.patch(
+                "formal_v2.formal_evaluation_identity.evidence_context",
+                return_value=dict(self.evidence),
+            ),
+            mock.patch(
+                "formal_v2.formal_evaluation_identity.resolve_execution_devices",
+                return_value=("cuda:0",),
+            ),
+        ):
+            execution = build_migrated_evaluation_execution(
+                {"artifact_label": "test"}, self.dataset, self.upstream
+            )
+        self.assertEqual(execution.devices, ("cuda:0",))
 
     def test_wrong_device_order_is_rejected(self) -> None:
         self.migration.new_compute_plan["gpu_mapping"].reverse()
-        with self.assertRaisesRegex(RuntimeError, "GPU order"):
+        with self.assertRaisesRegex(RuntimeError, "GPU mapping"):
             self._build()
 
     def test_changed_source_tree_is_rejected(self) -> None:

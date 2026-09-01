@@ -13,7 +13,14 @@ import numpy as np
 
 from .formal_evidence import bind_rows, evidence_context
 from .formal_dataset import _array_sha256
-from .formal_io import artifact_manifest, read_strict_json, sha256_file, write_csv, write_json
+from .formal_io import (
+    artifact_manifest,
+    read_strict_json,
+    sha256_file,
+    sha256_text_lf,
+    write_csv,
+    write_json,
+)
 from .formal_statistics import interval_decision, paired_cluster_interval
 from .formal_resources import validate_resource_registry
 from .external_adapters.wigatr_protocol import SIX_CONDITIONS as CONDITIONS
@@ -45,10 +52,13 @@ C1_ELIGIBLE_STATUSES = {
 }
 
 
-def _external_gate_state(passed, engineering_failures):
+def _external_gate_state(passed, engineering_failures, *, blocking_failures=None):
     if type(passed) is not bool or not isinstance(engineering_failures, list):
         raise TypeError("external gate completion inputs are invalid")
-    engineering_complete = not engineering_failures
+    blockers = engineering_failures if blocking_failures is None else blocking_failures
+    if not isinstance(blockers, list):
+        raise TypeError("external gate completion inputs are invalid")
+    engineering_complete = not blockers
     return {
         "status": (
             "INCOMPLETE_FAIL_CLOSED"
@@ -271,11 +281,31 @@ def run_external_baselines(config, dataset, manifest_path, output_root):
         and assessment_by_model[row["model_name"]]["passed"] is True
     }
     passed = len(c1_eligible_models) >= 2
-    gate_state = _external_gate_state(passed, engineering_failures)
+    c1_engineering_failures = [
+        row
+        for row in engineering_failures
+        if any(
+            status["adapter_id"] == row["adapter_id"] and status.get("c1_eligible") is True
+            for status in status_rows
+        )
+    ]
+    diagnostic_engineering_failures = [
+        row
+        for row in engineering_failures
+        if row["adapter_id"] not in {item["adapter_id"] for item in c1_engineering_failures}
+    ]
+    gate_state = _external_gate_state(
+        passed,
+        engineering_failures,
+        blocking_failures=c1_engineering_failures,
+    )
     gate = {
         "schema_version": "csi-pairs-v6-external-baseline-gate-v3",
         **gate_state,
         "engineering_failures": engineering_failures,
+        "c1_engineering_failures": c1_engineering_failures,
+        "diagnostic_engineering_failures": diagnostic_engineering_failures,
+        "c1_claim_blocked_by_non_c1_diagnostics": False,
         **evidence,
         "gate_scope": "C1 six-condition domain evidence",
         "passing_map_conditioned_models": len(passed_models),
@@ -457,7 +487,7 @@ def _verified_project_file(relative_path, expected_sha256, label):
     if (
         project_root not in resolved.parents
         or not candidate.is_file()
-        or sha256_file(candidate) != expected_sha256
+        or sha256_text_lf(candidate) != expected_sha256
     ):
         raise ValueError(
             f"external adapter {label} path/hash is missing or mismatched"

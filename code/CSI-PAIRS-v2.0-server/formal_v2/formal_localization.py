@@ -7,6 +7,10 @@ import torch
 from torch import Tensor, nn
 import torch.nn.functional as functional
 
+HEAD_STEP_FLOOR = 50
+DEFAULT_HEAD_STEPS_PER_LABELED_POINT = 50
+DEFAULT_EARLY_STOP_PATIENCE = 50
+
 
 class HeteroscedasticPositionHead(nn.Module):
     def __init__(self, representation_dim: int, hidden_dim: int):
@@ -25,6 +29,37 @@ class HeteroscedasticPositionHead(nn.Module):
         return self.mean(hidden), self.raw_scale(hidden)
 
 
+def scheduled_head_steps(config: dict, labeled_count: int) -> int:
+    labeled = int(labeled_count)
+    if labeled <= 0:
+        return 0
+    localization = config["localization"]
+    head_steps = int(localization["head_steps"])
+    per_point = int(
+        localization.get("head_steps_per_labeled_point", DEFAULT_HEAD_STEPS_PER_LABELED_POINT)
+    )
+    return min(int(head_steps), max(HEAD_STEP_FLOOR, labeled * max(1, per_point)))
+
+
+def _head_early_stop_patience(config: dict, scheduled_steps: int) -> int:
+    localization = config["localization"]
+    if int(scheduled_steps) >= int(localization["head_steps"]):
+        return 0
+    return int(localization.get("early_stop_patience", DEFAULT_EARLY_STOP_PATIENCE))
+
+
+def _head_train_kwargs(config: dict, labeled_count: int) -> dict:
+    localization = config["localization"]
+    steps = scheduled_head_steps(config, labeled_count)
+    return {
+        "steps": steps,
+        "learning_rate": float(localization["learning_rate"]),
+        "sigma_min": float(localization["sigma_min"]),
+        "ridge": float(localization["ridge"]),
+        "early_stop_patience": _head_early_stop_patience(config, steps),
+    }
+
+
 def fit_source_position_head(
     representations: np.ndarray,
     positions: np.ndarray,
@@ -35,13 +70,12 @@ def fit_source_position_head(
     torch.manual_seed(int(seed))
     hidden = max(8, int(config["model"]["hidden_dim"]) // 2)
     head = HeteroscedasticPositionHead(representations.shape[1], hidden)
+    features = np.asarray(representations, dtype=np.float32)
     _optimize_head(
         head,
-        np.asarray(representations, dtype=np.float32),
+        features,
         np.asarray(positions, dtype=np.float32),
-        steps=int(config["localization"]["head_steps"]),
-        learning_rate=float(config["localization"]["learning_rate"]),
-        sigma_min=float(config["localization"]["sigma_min"]),
+        **_head_train_kwargs(config, features.shape[0]),
     )
     return head
 
@@ -54,13 +88,12 @@ def adapt_position_head(
 ) -> HeteroscedasticPositionHead:
     head = copy.deepcopy(source_head)
     if support_representations.size:
+        features = np.asarray(support_representations, dtype=np.float32)
         _optimize_head(
             head,
-            np.asarray(support_representations, dtype=np.float32),
+            features,
             np.asarray(support_positions, dtype=np.float32),
-            steps=int(config["localization"]["head_steps"]),
-            learning_rate=float(config["localization"]["learning_rate"]),
-            sigma_min=float(config["localization"]["sigma_min"]),
+            **_head_train_kwargs(config, features.shape[0]),
         )
     return head
 
@@ -87,11 +120,22 @@ def _optimize_head(
     steps: int,
     learning_rate: float,
     sigma_min: float,
-) -> None:
+    ridge: float,
+    early_stop_patience: int = 0,
+) -> int:
     head.train()
     x = torch.as_tensor(representations, dtype=torch.float32)
     y = torch.as_tensor(positions, dtype=torch.float32)
-    optimizer = torch.optim.AdamW(head.parameters(), lr=float(learning_rate))
+    optimizer = torch.optim.AdamW(
+        head.parameters(),
+        lr=float(learning_rate),
+        weight_decay=float(ridge),
+    )
+    taken = 0
+    best = float("inf")
+    stale = 0
+    patience = int(early_stop_patience)
+    best_state = None
     for _ in range(int(steps)):
         mean, raw_scale = head(x)
         scale = functional.softplus(raw_scale) + float(sigma_min)
@@ -101,4 +145,20 @@ def _optimize_head(
         optimizer.zero_grad(set_to_none=True)
         loss.backward()
         optimizer.step()
+        taken += 1
+        current = float(loss.detach())
+        if current < best - 1e-8:
+            best = current
+            best_state = {
+                name: tensor.detach().clone()
+                for name, tensor in head.state_dict().items()
+            }
+            stale = 0
+        elif patience > 0:
+            stale += 1
+            if stale >= patience:
+                break
+    if best_state is not None:
+        head.load_state_dict(best_state)
     head.eval()
+    return taken

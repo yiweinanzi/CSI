@@ -408,13 +408,13 @@ TRACE_FAMILIES = {
     "results": _family(
         "Main-paper result cells require authenticated non-fixture rows, denominators, intervals, and gate states.",
         "paper build after formal evidence",
-        (("paper_v2/main.tex", r"\planned"),),
+        (("paper_v2/main.tex", r"tab:localization"),),
         _CLAIMS_CONFIG,
         (("paper_v2/build_reproducible.sh", "latexmk"),),
-        "paper_v2/build_reproducible.sh plus non-fixture evidence import",
-        status="MISSING",
+        "paper_v2/build_reproducible.sh plus docs/results/实验数据.md factorial meters",
+        status="PARTIAL/PROXY",
         blocker="EXTERNAL_DATA_REQUIRED",
-        repair="Populate result cells only after authenticated formal execution; planned placeholders must remain explicit until then.",
+        repair="Keep the executed 32-cell factorial as a descriptive negative; fill C1 comparison cells only after same-data adapters run.",
     ),
     "claim_gates": _family(
         "C1-C13 remain BLOCKED until every authenticated dependency and claim-specific discriminator is present.",

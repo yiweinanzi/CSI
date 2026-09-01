@@ -669,16 +669,26 @@ class SionnaFormalRendererContractTests(unittest.TestCase):
             is_fixture=False,
             metadata={"scientific_use": "CANDIDATE"},
         )
-        self.assertEqual(_qualification_scientific_use(candidate, False), "FORBIDDEN")
+        live = {
+            "schema_version": "csi-pairs-v6-data-verification-gate-v1",
+            "verification_mode": "live_independent_regeneration",
+            "passed": True,
+            "blocking_passed": True,
+        }
+        self.assertEqual(_qualification_scientific_use(candidate, False, live), "FORBIDDEN")
         self.assertEqual(
-            _qualification_scientific_use(candidate, True),
+            _qualification_scientific_use(candidate, True, None),
+            "FORBIDDEN",
+        )
+        self.assertEqual(
+            _qualification_scientific_use(candidate, True, live),
             "FORMAL_EXPERIMENT_ALLOWED",
         )
         candidate.metadata["scientific_use"] = "FORBIDDEN"
-        self.assertEqual(_qualification_scientific_use(candidate, True), "FORBIDDEN")
+        self.assertEqual(_qualification_scientific_use(candidate, True, live), "FORBIDDEN")
         candidate.metadata["scientific_use"] = "CANDIDATE"
         candidate.is_fixture = True
-        self.assertEqual(_qualification_scientific_use(candidate, True), "FORBIDDEN")
+        self.assertEqual(_qualification_scientific_use(candidate, True, live), "FORBIDDEN")
 
     def test_precomputed_independent_rt_archive_is_diagnostic_only(self):
         manifest = {

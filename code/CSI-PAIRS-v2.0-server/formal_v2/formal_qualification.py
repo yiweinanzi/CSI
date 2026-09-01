@@ -72,8 +72,26 @@ QUALIFICATION_RESUME_REQUIRED_FILES = (
 TEACHER_RESUME_RECEIPT_SCHEMA = "csi-pairs-stage0-resume-receipt-v1-v6"
 
 
-def _qualification_scientific_use(dataset: FormalDataset, passed: bool) -> str:
+LIVE_DATA_VERIFICATION_SCHEMA = "csi-pairs-v6-data-verification-gate-v1"
+LIVE_DATA_VERIFICATION_MODE = "live_independent_regeneration"
+
+
+def _is_live_data_verification(gate: dict | None) -> bool:
+    return (
+        isinstance(gate, dict)
+        and gate.get("schema_version") == LIVE_DATA_VERIFICATION_SCHEMA
+        and gate.get("verification_mode") == LIVE_DATA_VERIFICATION_MODE
+        and gate.get("passed") is True
+        and gate.get("blocking_passed") is True
+    )
+
+
+def _qualification_scientific_use(
+    dataset: FormalDataset, passed: bool, data_verification_gate: dict | None
+) -> str:
     if not passed or dataset.is_fixture:
+        return "FORBIDDEN"
+    if not _is_live_data_verification(data_verification_gate):
         return "FORBIDDEN"
     if dataset.metadata["scientific_use"] not in {"CANDIDATE", "QUALIFIED"}:
         return "FORBIDDEN"
@@ -396,7 +414,9 @@ def run_formal_qualification(
     g1_passed = bool(repeat_passed and route_noise_floor_passed and coverage_passed)
     g2_passed = bool(teacher_passed and response_passed and randomization_passed)
     passed = bool(g1_passed and g2_passed)
-    scientific_use = _qualification_scientific_use(dataset, passed)
+    scientific_use = _qualification_scientific_use(
+        dataset, passed, data_verification_gate
+    )
     evidence = evidence_context(config, dataset, scientific_use)
     final_paths = _qualification_final_paths(output_dir)
     if any(path.exists() or path.is_symlink() for path in final_paths):
@@ -451,6 +471,15 @@ def run_formal_qualification(
         },
         "data_verification_gate_schema": data_verification_gate["schema_version"],
         "data_verification_blocking_roles": data_verification_gate["blocking_roles"],
+        "data_verification_mode": data_verification_gate.get("verification_mode"),
+        "data_verification_passed": data_verification_gate.get("passed"),
+        "data_verification_gate_sha256": (
+            sha256_file(data_verification_gate_path)
+            if data_verification_gate_path
+            and Path(data_verification_gate_path).is_file()
+            and _is_live_data_verification(data_verification_gate)
+            else None
+        ),
         "g1_components": {
             "repeat_noise": "PASS" if repeat_passed else "FAIL",
             "native_route_noise_floor": "PASS" if route_noise_floor_passed else "FAIL",

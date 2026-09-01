@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import errno
-import fcntl
 import hashlib
 import json
 import math
@@ -18,6 +17,7 @@ from pathlib import Path
 from typing import BinaryIO, Callable, Iterable, Iterator
 
 from .formal_io import StrictJsonError, parse_strict_json, read_strict_json, sha256_file
+from .formal_locks import LOCK_EX, LOCK_NB, LOCK_UN, flock
 
 
 RUN_IDENTITY_SCHEMA = "csi-pairs-v6-evaluation-run-identity-v3"
@@ -684,7 +684,7 @@ class EvaluationResumeStore:
                         f"cannot open evaluation writer lock: {self.lock_path}"
                     ) from error
                 try:
-                    fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    flock(descriptor, LOCK_EX | LOCK_NB)
                 except OSError as error:
                     os.close(descriptor)
                     if error.errno in {errno.EACCES, errno.EAGAIN}:
@@ -715,7 +715,7 @@ class EvaluationResumeStore:
                     os.fsync(descriptor)
                 except BaseException:
                     try:
-                        fcntl.flock(descriptor, fcntl.LOCK_UN)
+                        flock(descriptor, LOCK_UN)
                     finally:
                         os.close(descriptor)
                     raise
@@ -737,7 +737,7 @@ class EvaluationResumeStore:
                     self._lock_owner_thread = None
                     self._lock_owner_pid = None
                     try:
-                        fcntl.flock(descriptor, fcntl.LOCK_UN)
+                        flock(descriptor, LOCK_UN)
                     finally:
                         os.close(descriptor)
 

@@ -6,16 +6,24 @@ import hashlib
 import json
 import math
 import os
-import resource
 import subprocess
 import struct
 import sys
 import tempfile
 import time
+
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable, Mapping
+
+try:
+    import resource as _resource
+except ImportError:
+    _resource = None
+
+# Independent audit. Not invoked by `formal_cli all`.
+SUBSET_COMPARE_IS_INDEPENDENT_AUDIT = True
 
 import numpy as np
 
@@ -63,6 +71,57 @@ REPORT_SCHEMA = "csi-pairs-v6-real-evaluation-subset-equivalence-report-v2"
 WORKER_FRAGMENT_SCHEMA = "csi-pairs-v6-real-evaluation-subset-worker-fragment-v2"
 WORKER_REQUEST_SCHEMA = "csi-pairs-v6-real-evaluation-subset-worker-request-v2"
 FROZEN_LEGACY_COMMIT = "9850fffe0b34f16b45066973308f18b10555ca5d"
+FROZEN_LEGACY_COMMIT_ENV = "CSI_PAIRS_FROZEN_LEGACY_COMMIT"
+FROZEN_LEGACY_COMMIT_RECEIPT_ENV = "CSI_PAIRS_FROZEN_LEGACY_COMMIT_RECEIPT"
+_FROZEN_COMMIT_RECEIPT_KEYS = (
+    "frozen_legacy_commit",
+    "git_commit",
+    "legacy_commit",
+)
+
+
+def _commit_from_receipt(path: str | Path) -> str:
+    payload = read_strict_json(path)
+    if not isinstance(payload, dict):
+        raise RuntimeError("frozen-legacy-commit receipt is not an object")
+    for key in _FROZEN_COMMIT_RECEIPT_KEYS:
+        value = payload.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    for nested_key in ("identity", "frozen_source", "legacy_source"):
+        nested = payload.get(nested_key)
+        if not isinstance(nested, dict):
+            continue
+        for key in _FROZEN_COMMIT_RECEIPT_KEYS:
+            value = nested.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+    raise RuntimeError("frozen-legacy-commit receipt does not bind a commit")
+
+
+def resolve_frozen_legacy_commit(
+    explicit: str | None = None,
+    receipt_path: str | Path | None = None,
+) -> str:
+    if explicit:
+        value = str(explicit).strip()
+        if value:
+            return value
+    receipt = str(receipt_path).strip() if receipt_path else ""
+    if not receipt:
+        receipt = os.environ.get(FROZEN_LEGACY_COMMIT_RECEIPT_ENV, "").strip()
+    if receipt:
+        return _commit_from_receipt(receipt)
+    env = os.environ.get(FROZEN_LEGACY_COMMIT_ENV, "").strip()
+    return env or FROZEN_LEGACY_COMMIT
+
+
+def _maximum_resident_set_bytes() -> int | None:
+    if _resource is None:
+        return None
+    return int(_resource.getrusage(_resource.RUSAGE_SELF).ru_maxrss * 1024)
+
+
 FROZEN_LEGACY_EVALUATION_SHA256 = (
     "259478e4acf6285cb1b00c2d3d02510f88e48caaf6ed26705fe2abf5d4eeddbb"
 )
@@ -2198,9 +2257,7 @@ def run_worker_request(request_path: str | Path) -> dict[str, object]:
         },
         "resources": {
             "elapsed_seconds": time.monotonic() - started,
-            "maximum_resident_set_bytes": int(
-                resource.getrusage(resource.RUSAGE_SELF).ru_maxrss * 1024
-            ),
+            "maximum_resident_set_bytes": _maximum_resident_set_bytes(),
             "maximum_cuda_allocated_bytes": (
                 int(torch.cuda.max_memory_allocated(execution_device))
                 if execution_device.type == "cuda"
@@ -3027,9 +3084,7 @@ def run_same_source_decomposition_comparison(
             "device": str(execution_device),
             "batch_size": batch_size,
             "elapsed_seconds": elapsed,
-            "maximum_resident_set_bytes": int(
-                resource.getrusage(resource.RUSAGE_SELF).ru_maxrss * 1024
-            ),
+            "maximum_resident_set_bytes": _maximum_resident_set_bytes(),
             "maximum_cuda_allocated_bytes": maximum_gpu_bytes,
             "python_dont_write_bytecode": bool(os.environ.get("PYTHONDONTWRITEBYTECODE")),
             "report_path": str(target),
@@ -3053,9 +3108,8 @@ def build_parser() -> argparse.ArgumentParser:
     compare.add_argument("--legacy-run", required=True)
     compare.add_argument("--report", required=True)
     compare.add_argument("--frozen-source-root", required=True)
-    compare.add_argument(
-        "--frozen-commit", default=FROZEN_LEGACY_COMMIT
-    )
+    compare.add_argument("--frozen-commit", default=None)
+    compare.add_argument("--frozen-commit-receipt", default=None)
     compare.add_argument(
         "--frozen-evaluation-sha256",
         default=FROZEN_LEGACY_EVALUATION_SHA256,
@@ -3099,7 +3153,10 @@ def main(argv: list[str] | None = None) -> int:
         report_path=args.report,
         frozen_source_root=args.frozen_source_root,
         candidate_source_root=args.candidate_source_root,
-        frozen_commit=args.frozen_commit,
+        frozen_commit=resolve_frozen_legacy_commit(
+            args.frozen_commit,
+            receipt_path=args.frozen_commit_receipt,
+        ),
         frozen_evaluation_sha256=args.frozen_evaluation_sha256,
         device=args.device,
         batch_size=args.batch_size,

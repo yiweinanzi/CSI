@@ -17,7 +17,7 @@ Implemented code surfaces:
 - active CGS plus gray/null distributions, unified response probes, q_comp/p_fail calibration, path matching/equivalence, external/scene-ID/resource/claim controls, independent RT calibration and external-validity adapters, literature/resource G0, and C1-C13/G0-G8 assembly;
 - authenticated `waibu/` resource inventory, five source-only representation baselines, five map-conditioned six-condition adapters (two C1-eligible), and Sionna RT/large-radio-map facilities.
 
-Unavailable data, external models, independent RT calibration, or unrun controls produce `NOT_ASSESSED/BLOCKED`. Code presence is not scientific evidence.
+Unavailable data, external models, independent RT calibration, or unrun controls produce `NOT_ASSESSED/BLOCKED`. Code presence is not scientific evidence. The executed factorial localization table (commit `9850fff`) may be shown as a descriptive negative or ablation; that is not “no results exist.” A SOTA or success claim still requires same-data comparison meters. Those in-repo adapters are wired and not yet run.
 
 CLI stages are visible with:
 
@@ -67,8 +67,10 @@ adapters with authenticated default manifests. Shuffled Alignment and Response m
 independently from deranged pair registries; retention probes are source-only and bind the frozen
 Full checkpoint; scene-ID reuses the source-trained SigMap checkpoint and evaluates unseen source
 banks; resource controls emit one checkpoint, log, loss trace, profiler summary, and replay record
-per seed. Aggregate or self-reported substitutes remain rejected. Formal results are still absent,
-so the controls are executable protocol surfaces rather than scientific evidence.
+per seed. Aggregate or self-reported substitutes remain rejected. Factorial
+localization exists as a historical negative / ablation. Evaluation, C1
+baselines, and the remaining controls are still unrun, so those surfaces
+are executable protocol rather than comparison evidence.
 
 External evidence contracts are fail-closed. Scene-ID adapters must bind their implementation source
 and trained checkpoint, cover each held-out position with one exact four-condition unit, and pass

@@ -866,47 +866,38 @@ def _checkpoint_probe_prediction(
     binary: bool = False,
     label: str,
 ) -> tuple[np.ndarray, ...]:
-    """Run one legacy-shaped probe batch, then split it back into scenes."""
+    """Run one probe per scene. Do not concatenate a checkpoint-global matrix."""
 
     if not scenes:
         return ()
     source = "compatibility" if binary else "response"
-    payloads = [getattr(scene, source) for scene in scenes]
-    features = [np.asarray(payload[feature_name]) for payload in payloads]
-    row_counts = tuple(int(values.shape[0]) for values in features)
-    if any(values.ndim != 2 or values.shape[0] == 0 for values in features):
-        raise RuntimeError(f"checkpoint-global {label} features are invalid")
-    merged_features = np.concatenate(features, axis=0)
-    if binary:
-        prediction = predict_binary_probe(probe, merged_features)
-    else:
-        merged_zero = (
-            np.concatenate(
-                [np.asarray(payload[zero_feature_name]) for payload in payloads],
-                axis=0,
+    predictions = []
+    for scene in scenes:
+        payload = getattr(scene, source)
+        features = np.asarray(payload[feature_name])
+        if features.ndim != 2 or features.shape[0] == 0:
+            raise RuntimeError(f"checkpoint-global {label} features are invalid")
+        if binary:
+            predicted = np.asarray(predict_binary_probe(probe, features))
+            expected_shape = (int(features.shape[0]),)
+        else:
+            zero = (
+                np.asarray(payload[zero_feature_name])
+                if zero_feature_name is not None
+                else None
             )
-            if zero_feature_name is not None
-            else None
-        )
-        prediction = predict_response_probe(probe, merged_features, merged_zero)
-    observed = np.asarray(prediction)
-    if binary:
-        expected_shape = (sum(row_counts),)
-    else:
-        target_shapes = tuple(
-            np.asarray(payload["source_targets"]).shape[1:] for payload in payloads
-        )
-        if len(set(target_shapes)) != 1:
+            predicted = np.asarray(
+                predict_response_probe(probe, features, zero)
+            )
+            target_width = np.asarray(payload["source_targets"]).shape[1:]
+            expected_shape = (int(features.shape[0]), *target_width)
+        if predicted.shape != expected_shape:
             raise RuntimeError(
-                f"checkpoint-global {label} target widths are inconsistent"
+                f"checkpoint-global {label} shape is invalid: "
+                f"expected {expected_shape}, observed {predicted.shape}"
             )
-        expected_shape = (sum(row_counts), *target_shapes[0])
-    if observed.shape != expected_shape:
-        raise RuntimeError(
-            f"checkpoint-global {label} shape is invalid: "
-            f"expected {expected_shape}, observed {observed.shape}"
-        )
-    return _split_checkpoint_prediction(prediction, row_counts, label=label)
+        predictions.append(predicted)
+    return tuple(predictions)
 
 
 def _predict_checkpoint_scenes(
@@ -3156,6 +3147,38 @@ def _load_or_fit_probes(
     return probes, False
 
 
+PUBLIC_EVALUATION_STATUS_SCHEMA = "csi-pairs-evaluation-status-v1"
+
+
+def _write_public_evaluation_status(store: EvaluationResumeStore) -> None:
+    """Write operator progress to evaluation/status.json. Not a scientific gate."""
+
+    progress = store.read_status()
+    if progress is None:
+        return
+    output_dir = Path(store.root).resolve().parent / "evaluation"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    total = int(progress["total_units"])
+    completed = int(progress["completed_units"])
+    fraction = (completed / total) if total > 0 else 0.0
+    write_atomic_json(
+        output_dir / "status.json",
+        {
+            "schema_version": PUBLIC_EVALUATION_STATUS_SCHEMA,
+            "status": progress.get("status"),
+            "fraction_complete": fraction,
+            "completed_units": completed,
+            "total_units": total,
+            "last_shard": progress.get("current_shard"),
+            "current_seed": progress.get("current_seed"),
+            "current_arm": progress.get("current_arm"),
+            "current_substage": progress.get("current_substage"),
+            "authoritative_gate": None,
+            "note": "progress only; authoritative PASS/FAIL is evaluation/gate.json at 100% merge",
+        },
+    )
+
+
 def _progress_update_if_reached(
     store: EvaluationResumeStore,
     completed_units: int,
@@ -3178,6 +3201,7 @@ def _progress_update_if_reached(
                 current_substage=substage,
                 current_shard=shard,
             )
+            _write_public_evaluation_status(store)
             return
         except ValueError:
             refreshed = store.read_status()
@@ -3973,6 +3997,20 @@ def run_streaming_formal_evaluation(
 ) -> dict:
     """Run one identity-bound evaluation with bank-level atomic resume."""
 
+    from .formal_data_verification import require_verified_roles_from_root
+
+    require_verified_roles_from_root(
+        output_root,
+        config,
+        dataset,
+        (
+            "source_encoder_train",
+            "source_probe_train",
+            "source_probe_selection",
+            "source_final_unseen_bank",
+            "target",
+        ),
+    )
     if type(batch_size) is not int or batch_size < 1:
         raise ValueError("streaming evaluation batch_size must be positive")
     worker_devices = _validated_worker_devices(execution_devices)
@@ -4074,6 +4112,7 @@ def run_streaming_formal_evaluation(
     }
     with store.writer_lock():
         store.initialize_progress(total_units)
+        _write_public_evaluation_status(store)
         completed_gate = _load_authenticated_finalization(
             store,
             run_identity,

@@ -279,14 +279,53 @@ class RuntimeIntegrityTests(unittest.TestCase):
         self.assertIn("pip uninstall --yes pip", setup)
         self.assertIn("-name '*.pyc'", setup)
         scripts = Path(__file__).resolve().parents[1] / "scripts"
-        for name in ("run_formal_v2.sh", "run_formal_v2_dry_run.sh"):
+        for name in (
+            "run_formal_v2.sh",
+            "run_formal_v2_dry_run.sh",
+            "launch_engineering_evaluation.sh",
+        ):
             source = (scripts / name).read_text()
             self.assertIn("export PYTHONDONTWRITEBYTECODE=1", source)
             for line in source.splitlines():
-                if '"${PYTHON_BIN}"' in line:
-                    self.assertIn(
-                        " -B ", line, f"unguarded Python startup in {name}: {line}"
-                    )
+                if '"${PYTHON_BIN}"' in line or '"${CSI_PAIRS_PYTHON}"' in line:
+                    if " -m " in line or "exec " in line:
+                        self.assertIn(
+                            " -B ", line, f"unguarded Python startup in {name}: {line}"
+                        )
+        entry = (scripts / "run_formal_v2.sh").read_text()
+        self.assertIn("Portable formal prepare/run entry", entry)
+        self.assertIn("launch_engineering_evaluation.sh", entry)
+        portable = (scripts / "launch_engineering_evaluation.sh").read_text()
+        self.assertIn("CSI_PAIRS_LAUNCH_TIER", portable)
+        self.assertNotIn("REFUSED_AFTER_DOWNSTREAM_START", portable)
+        self.assertNotIn("/root/xunlian/", portable)
+        archive_candidates = (
+            Path(__file__).resolve().parents[4]
+            / "artifacts"
+            / "formal_runs"
+            / "evaluation_migration_bounded_8cafdf4_20260901",
+            Path(__file__).resolve().parents[2]
+            / "artifacts"
+            / "formal_runs"
+            / "evaluation_migration_bounded_8cafdf4_20260901",
+        )
+        archive_root = next((path for path in archive_candidates if path.is_dir()), None)
+        if archive_root is None:
+            self.skipTest("archived Autodl launch scripts are not in this checkout")
+        for name in (
+            "create_migration_request_after_gates_8cafdf4.sh",
+            "accept_and_launch_after_judge_8cafdf4.sh",
+            "supervise_all_streaming_8cafdf4.sh",
+            "run_all_streaming_8cafdf4.sh",
+        ):
+            archived = (archive_root / name).read_text(encoding="utf-8")
+            self.assertIn("ARCHIVED Autodl snapshot", archived)
+            self.assertIn("formal_v2/scripts/run_formal_v2.sh", archived)
+        supervisor = (archive_root / "supervise_all_streaming_8cafdf4.sh").read_text(
+            encoding="utf-8"
+        )
+        self.assertNotIn("AUTO_RESUME=REFUSED_AFTER_DOWNSTREAM_START", supervisor)
+        self.assertIn("DOWNSTREAM_PRESENT_IDEMPOTENT_RERUN", supervisor)
 
     def test_documented_python_commands_disable_bytecode(self):
         formal_root = Path(__file__).resolve().parents[1]

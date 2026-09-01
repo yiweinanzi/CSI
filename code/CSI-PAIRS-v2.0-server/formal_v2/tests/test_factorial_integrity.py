@@ -9,19 +9,22 @@ from types import SimpleNamespace
 import numpy as np
 import torch
 
-from formal_v2.formal_config import load_formal_config
+from formal_v2.formal_config import load_formal_config, validate_formal_config
 from formal_v2.formal_dataset import FormalDataset
 from formal_v2.formal_factorial import (
     ARM_FACTORS,
     _build_corpus,
     _deterministic_adaptive_avg_pool2d,
+    _g4_status_from_subgates,
     _identity_batch,
+    _joint_supervised_total,
     _loss_components,
     _loss_weights,
     _make_plan,
     _measure_execution,
     _new_model,
     _noop_score_gaps,
+    _preliminary_factorial_gate,
     _response_batch,
     _normalized_action,
     _normalized_map,
@@ -349,6 +352,61 @@ class ArmExecutionMutationTests(unittest.TestCase):
             ).numpy()
             np.testing.assert_allclose(actual, expected, rtol=0.0, atol=1e-5)
 
+    def test_full_loss_path_returns_a_scalar_total(self):
+        self.assertEqual(ARM_FACTORS["full"], (1.0, 1.0))
+        self.assertEqual(ARM_FACTORS["endpoint"], (0.0, 0.0))
+        self.assertEqual(ARM_FACTORS["alignment"], (1.0, 0.0))
+        self.assertEqual(ARM_FACTORS["response"], (0.0, 1.0))
+        model = _new_model(self.config, self.corpus, 43)
+        weights = _loss_weights(self.config, 1.0, 1.0, 1.0, 1.0, 1.0)
+        static = _loss_components(model, self.corpus, self.plan, weights)
+        self.assertEqual(tuple(static["total"].shape), ())
+        self.assertTrue(static["total"].requires_grad)
+        log_vars = (
+            torch.nn.Parameter(torch.zeros(())),
+            torch.nn.Parameter(torch.tensor(0.5)),
+        )
+        weighted = _loss_components(
+            model,
+            self.corpus,
+            self.plan,
+            weights,
+            task_log_variances=log_vars,
+        )
+        self.assertEqual(tuple(weighted["total"].shape), ())
+        self.assertTrue(weighted["total"].requires_grad)
+        reconstructed = _joint_supervised_total(
+            static["endpoint"],
+            static["alignment"],
+            static["response"],
+            weights,
+            task_log_variances=log_vars,
+        )
+        self.assertEqual(tuple(reconstructed.shape), ())
+
+    def test_full_uncertainty_train_step_stays_scalar_and_logs_cosine(self):
+        config = copy.deepcopy(self.config)
+        config["factorial"]["steps"] = 2
+        model, row = _train_arm(
+            config,
+            self.corpus,
+            44,
+            "full",
+            {
+                "alignment_scale": 1.0,
+                "response_scale": 1.0,
+                "alignment_null_tolerance": 1.0,
+            },
+            device="cpu",
+        )
+        self.assertEqual(row["full_joint_loss"], "uncertainty_weighting")
+        self.assertIsInstance(row["task_log_variance_alignment"], float)
+        self.assertIsInstance(row["task_log_variance_response"], float)
+        self.assertGreaterEqual(row["encoder_alignment_response_grad_cosine_count"], 1)
+        self.assertTrue(np.isfinite(row["final_total_loss"]))
+        self.assertEqual(row["arm"], "full")
+        del model
+
     def test_disabled_branches_are_not_forwarded_or_profiled_by_proxy(self):
         expected = {
             "endpoint": (2, 2),
@@ -635,6 +693,180 @@ class FactorialStatisticsMutationTests(unittest.TestCase):
                 ValueError, "assigned to multiple independent units or cities"
             ):
                 statistic()
+
+
+def _gate_rows(budgets=(0, 2), full_offset=0.8):
+    offsets = {"endpoint": 0.0, "alignment": 0.2, "response": 0.3, "full": full_offset}
+    rows = []
+    for budget in budgets:
+        for city in ("city-a", "city-b"):
+            for cluster_index in range(2):
+                cluster = f"{city}-cluster-{cluster_index}"
+                for bank_index, bank_value in enumerate((0.0, 1.0)):
+                    for seed in (1, 2):
+                        for arm, offset in offsets.items():
+                            rows.append(
+                                {
+                                    "arm": arm,
+                                    "city_id": city,
+                                    "budget": budget,
+                                    "base_map_cluster_id": cluster,
+                                    "canonical_base_map_digest": cluster,
+                                    "bank_id": f"{cluster}-bank-{bank_index}",
+                                    "canonical_bank_digest": f"digest-{cluster}-{bank_index}",
+                                    "seed": seed,
+                                    "draw": 0,
+                                    "utility_neg_log_median": bank_value + offset,
+                                }
+                            )
+    return rows
+
+
+def _hierarchical(full_vs_alignment=0.2, full_vs_response=0.2, interaction=0.2):
+    return {
+        "familywise_method": "synchronized_bootstrap_max_absolute_deviation",
+        "full_vs_alignment": {"familywise_ci95_low": full_vs_alignment},
+        "full_vs_response": {"familywise_ci95_low": full_vs_response},
+        "interaction": {"familywise_ci95_low": interaction},
+    }
+
+
+class G4HonestyTests(unittest.TestCase):
+    def test_g4_fails_when_subgate_1_4_or_5_fails(self):
+        passing = {
+            "1_full_beats_both_single_branches": "PASS",
+            "2_cgs_noninferior_to_alignment": "PASS",
+            "3_native_response_noninferior_to_response": "PASS",
+            "4_hierarchical_interaction_ci_exceeds_minimum": "PASS",
+            "5_no_city_k_reverse_regression": "PASS",
+            "6_equal_flop_single_branch_superiority": "PASS",
+            "7_parameter_and_flop_matched_concat_superiority": "PASS",
+        }
+        self.assertEqual(_g4_status_from_subgates(passing), "PASS")
+        for key in (
+            "1_full_beats_both_single_branches",
+            "4_hierarchical_interaction_ci_exceeds_minimum",
+            "5_no_city_k_reverse_regression",
+        ):
+            failed = dict(passing)
+            failed[key] = "FAIL"
+            self.assertEqual(_g4_status_from_subgates(failed), "FAIL", key)
+        mixed = dict(passing)
+        mixed["2_cgs_noninferior_to_alignment"] = "NOT_ASSESSED"
+        mixed["6_equal_flop_single_branch_superiority"] = "NOT_ASSESSED"
+        self.assertEqual(_g4_status_from_subgates(mixed), "NOT_ASSESSED")
+        mixed["1_full_beats_both_single_branches"] = "FAIL"
+        self.assertEqual(_g4_status_from_subgates(mixed), "FAIL")
+
+    def test_preliminary_gate_promotes_assessed_g4_failures(self):
+        config = load_formal_config(SMOKE_CONFIG)
+        config["evaluation"]["bootstrap_resamples"] = 20
+        config["localization"]["maximum_city_regression"] = 0.01
+        dataset = SimpleNamespace(is_fixture=False)
+        evidence = {}
+        digest = "a" * 64
+        rows = _gate_rows()
+        failing_branch = _preliminary_factorial_gate(
+            config,
+            dataset,
+            rows,
+            {"hierarchical_bootstrap": _hierarchical(full_vs_alignment=-0.1)},
+            evidence,
+            qualification_gate_sha256=digest,
+        )
+        self.assertEqual(
+            failing_branch["g4_subgates"]["1_full_beats_both_single_branches"],
+            "FAIL",
+        )
+        self.assertEqual(failing_branch["gate_vector"]["G4"], "FAIL")
+        self.assertIn("NOT_ASSESSED is never PASS", failing_branch["claim_boundary"])
+
+        failing_interaction = _preliminary_factorial_gate(
+            config,
+            dataset,
+            rows,
+            {"hierarchical_bootstrap": _hierarchical(interaction=-0.5)},
+            evidence,
+            qualification_gate_sha256=digest,
+        )
+        self.assertEqual(
+            failing_interaction["g4_subgates"][
+                "4_hierarchical_interaction_ci_exceeds_minimum"
+            ],
+            "FAIL",
+        )
+        self.assertEqual(failing_interaction["gate_vector"]["G4"], "FAIL")
+
+        failing_city = _preliminary_factorial_gate(
+            config,
+            dataset,
+            _gate_rows(full_offset=-5.0),
+            {"hierarchical_bootstrap": _hierarchical()},
+            evidence,
+            qualification_gate_sha256=digest,
+        )
+        self.assertEqual(
+            failing_city["g4_subgates"]["5_no_city_k_reverse_regression"],
+            "FAIL",
+        )
+        self.assertEqual(failing_city["gate_vector"]["G4"], "FAIL")
+
+        honest = _preliminary_factorial_gate(
+            config,
+            dataset,
+            rows,
+            {"hierarchical_bootstrap": _hierarchical()},
+            evidence,
+            qualification_gate_sha256=digest,
+        )
+        self.assertEqual(
+            honest["g4_subgates"]["1_full_beats_both_single_branches"], "PASS"
+        )
+        self.assertEqual(
+            honest["g4_subgates"]["4_hierarchical_interaction_ci_exceeds_minimum"],
+            "PASS",
+        )
+        self.assertEqual(
+            honest["g4_subgates"]["5_no_city_k_reverse_regression"], "PASS"
+        )
+        self.assertEqual(honest["g4_subgates"]["2_cgs_noninferior_to_alignment"], "NOT_ASSESSED")
+        self.assertEqual(
+            set(honest["g4_unassessed_subgates"]),
+            {
+                "2_cgs_noninferior_to_alignment",
+                "3_native_response_noninferior_to_response",
+                "6_equal_flop_single_branch_superiority",
+                "7_parameter_and_flop_matched_concat_superiority",
+            },
+        )
+        self.assertIn(
+            "1_full_beats_both_single_branches",
+            honest["g4_assessed_subgates"],
+        )
+        self.assertEqual(honest["gate_vector"]["G4"], "NOT_ASSESSED")
+        self.assertEqual(honest["gate_vector"]["G5"], "FAIL")
+        self.assertEqual(honest["g5_cell_report"]["g5_and_label"], "FAIL")
+        self.assertEqual(
+            honest["g5_cell_report"]["publication_rule"],
+            honest["publication_rule"],
+        )
+        self.assertIn("per-cell meters", honest["publication_rule"])
+        self.assertEqual(
+            honest["g5_cell_report"]["cells"],
+            honest["localization_city_budget_checks"],
+        )
+        self.assertTrue(honest["localization_city_budget_checks"])
+
+    def test_old_config_without_new_keys_still_loads_defaults(self):
+        config = load_formal_config(SMOKE_CONFIG)
+        del config["factorial"]["full_joint_loss"]
+        del config["factorial"]["task_log_variance_init"]
+        del config["factorial"]["encoder_grad_cosine_interval"]
+        del config["localization"]["head_steps_per_labeled_point"]
+        del config["localization"]["early_stop_patience"]
+        validate_formal_config(config)
+        self.assertEqual(config["factorial"]["full_joint_loss"], "uncertainty_weighting")
+        self.assertEqual(config["localization"]["head_steps_per_labeled_point"], 50)
 
 
 if __name__ == "__main__":

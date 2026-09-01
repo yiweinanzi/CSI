@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import contextlib
-import fcntl
 import io
 import os
 import tempfile
@@ -10,8 +9,11 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
+from formal_v2.formal_locks import LOCK_EX, LOCK_NB, LOCK_UN, flock
+
 from formal_v2.formal_cli import (
     _acquire_legacy_read_lock,
+    _acquire_output_lock,
     _reject_unsafe_mutating_output_argument,
     _require_full_stage,
     _reserve_command_output,
@@ -102,10 +104,18 @@ class CliMigrationControlTests(unittest.TestCase):
 
             _reject_unsafe_mutating_output_argument("run-evaluation", output)
 
-    def test_legacy_evaluation_reservation_still_rejects_existing_output(self) -> None:
+    def test_evaluation_reservation_allows_existing_resume_directory(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            (root / "evaluation").mkdir()
+            existing = root / "evaluation"
+            existing.mkdir()
+            reserved = _reserve_command_output("run-evaluation", root)
+            self.assertEqual(reserved, existing)
+
+    def test_evaluation_reservation_still_rejects_existing_file(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "evaluation").write_text("not a resume store\n", encoding="utf-8")
             with self.assertRaisesRegex(FileExistsError, "refusing to overwrite"):
                 _reserve_command_output("run-evaluation", root)
 
@@ -137,15 +147,15 @@ class CliMigrationControlTests(unittest.TestCase):
         descriptor = os.open(guard, os.O_RDONLY)
         try:
             with self.assertRaises(BlockingIOError):
-                fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                flock(descriptor, LOCK_EX | LOCK_NB)
         finally:
             os.close(descriptor)
 
     def _assert_exclusive_guard_is_available(self, guard: Path) -> None:
         descriptor = os.open(guard, os.O_RDONLY)
         try:
-            fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            fcntl.flock(descriptor, fcntl.LOCK_UN)
+            flock(descriptor, LOCK_EX | LOCK_NB)
+            flock(descriptor, LOCK_UN)
         finally:
             os.close(descriptor)
 
@@ -234,7 +244,7 @@ class CliMigrationControlTests(unittest.TestCase):
             descriptor = os.open(guard, os.O_RDONLY)
             try:
                 with self.assertRaises(BlockingIOError):
-                    fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    flock(descriptor, LOCK_EX | LOCK_NB)
             finally:
                 os.close(descriptor)
                 shared.release()
@@ -243,8 +253,8 @@ class CliMigrationControlTests(unittest.TestCase):
 
             descriptor = os.open(guard, os.O_RDONLY)
             try:
-                fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
-                fcntl.flock(descriptor, fcntl.LOCK_UN)
+                flock(descriptor, LOCK_EX | LOCK_NB)
+                flock(descriptor, LOCK_UN)
             finally:
                 os.close(descriptor)
 
@@ -309,15 +319,55 @@ class CliMigrationControlTests(unittest.TestCase):
             batch_size=execution.batch_size,
         )
 
-    def test_non_migrated_evaluation_keeps_legacy_evaluator(self) -> None:
+    def test_non_migrated_evaluation_defaults_to_streaming(self) -> None:
+        config = {"config": "sentinel"}
+        dataset = object()
+        output = Path("/new-run")
+        upstream = SimpleNamespace(
+            migrated=False,
+            migration=None,
+            qualification_gate=Path("/new-run/qualification/gate.json"),
+            factorial_gate=Path("/new-run/factorial/gate.json"),
+            checkpoint_index=Path("/new-run/factorial/checkpoint_index.json"),
+        )
+        identity = object()
+        execution = SimpleNamespace(
+            identity=SimpleNamespace(legacy_checkpoint_inventory_sha256="0" * 64),
+            devices=("cuda:0",),
+            batch_size=256,
+        )
+        expected = {"status": "PASS", "passed": True}
+
+        with patch(
+            "formal_v2.formal_evaluation_identity.build_local_evaluation_execution",
+            return_value=execution,
+        ) as build_local, patch(
+            "formal_v2.formal_evaluation_streaming.run_streaming_formal_evaluation",
+            return_value=expected,
+        ) as run_streaming, patch(
+            "formal_v2.formal_evaluation.run_formal_evaluation",
+        ) as run_legacy:
+            actual = _run_evaluation_for_upstream(
+                config,
+                dataset,
+                output,
+                upstream,
+                {"stage": "qualification"},
+                {"stage": "factorial"},
+            )
+
+        self.assertIs(actual, expected)
+        run_legacy.assert_not_called()
+        build_local.assert_called_once_with(config, dataset, output, upstream)
+        run_streaming.assert_called_once()
+        self.assertEqual(run_streaming.call_args.kwargs["batch_size"], 256)
+
+    def test_legacy_evaluator_flag_keeps_importable_legacy_module(self) -> None:
         config = {"config": "sentinel"}
         dataset = object()
         output = Path("/new-run")
         upstream = SimpleNamespace(migrated=False, migration=None)
-        qualification = {"stage": "qualification"}
-        factorial = {"stage": "factorial"}
         expected = {"status": "PASS", "passed": True}
-
         with patch(
             "formal_v2.formal_evaluation.run_formal_evaluation",
             return_value=expected,
@@ -327,18 +377,59 @@ class CliMigrationControlTests(unittest.TestCase):
                 dataset,
                 output,
                 upstream,
-                qualification,
-                factorial,
+                {"stage": "qualification"},
+                {"stage": "factorial"},
+                legacy_evaluator=True,
             )
-
         self.assertIs(actual, expected)
-        run_legacy.assert_called_once_with(
-            config,
-            dataset,
-            output,
-            qualification,
-            factorial,
+        run_legacy.assert_called_once()
+
+    def test_acquire_output_lock_works_without_fcntl_name(self) -> None:
+        import formal_v2.formal_cli as cli
+
+        self.assertNotIn("fcntl", vars(cli))
+        self.assertFalse(hasattr(cli, "fcntl"))
+        with tempfile.TemporaryDirectory() as directory:
+            lock = _acquire_output_lock(Path(directory) / "run")
+            try:
+                self.assertTrue(lock.is_file())
+            finally:
+                lock.release()
+
+    def test_continue_on_stage_fail_records_and_continues(self) -> None:
+        failures: list[dict[str, object]] = []
+        _require_full_stage(
+            {"status": "INVALID"},
+            "engineering stage",
+            SimpleNamespace(is_fixture=False),
+            continue_on_fail=True,
+            failures=failures,
         )
+        self.assertEqual(len(failures), 1)
+        self.assertEqual(failures[0]["stage"], "engineering stage")
+
+    def test_all_parser_exposes_engineering_run_and_continue_flag(self) -> None:
+        parser = build_parser()
+        parsed = parser.parse_args(
+            [
+                "all",
+                "--config",
+                "config.json",
+                "--output",
+                "output",
+                "--adapter-manifest",
+                "adapters.json",
+                "--engineering-run",
+                "--continue-on-stage-fail",
+            ]
+        )
+        self.assertTrue(parsed.engineering_run)
+        self.assertTrue(parsed.continue_on_stage_fail)
+        all_help = parser._subparsers._group_actions[0].choices["all"].format_help()
+        self.assertIn("--engineering-run", all_help)
+        self.assertIn("ENGINEERING_UNAPPROVED", all_help)
+        self.assertIn("--approval-manifest", all_help)
+        self.assertIn("migration/accepted.json", all_help)
 
     def test_run_evaluation_reauthenticates_after_window_writer_under_lock(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -358,9 +449,9 @@ class CliMigrationControlTests(unittest.TestCase):
                 if resolutions == 1:
                     descriptor = os.open(guard, os.O_RDONLY)
                     try:
-                        fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                        flock(descriptor, LOCK_EX | LOCK_NB)
                         mutation.write_bytes(b"changed-after-first-authentication")
-                        fcntl.flock(descriptor, fcntl.LOCK_UN)
+                        flock(descriptor, LOCK_UN)
                     finally:
                         os.close(descriptor)
                     return located_upstream
@@ -371,7 +462,7 @@ class CliMigrationControlTests(unittest.TestCase):
                 self._assert_exclusive_guard_is_blocked(guard)
                 return authenticated_upstream
 
-            def run_stage(*call_args):
+            def run_stage(*call_args, **_kwargs):
                 self.assertEqual(
                     call_args[3:], (authenticated_upstream, None, None)
                 )
@@ -433,6 +524,7 @@ class CliMigrationControlTests(unittest.TestCase):
             upstream,
             qualification,
             factorial,
+            legacy_evaluator=False,
         )
 
     def test_failed_upstream_location_never_acquires_legacy_lock(self) -> None:
@@ -454,7 +546,7 @@ class CliMigrationControlTests(unittest.TestCase):
             upstream = self._migrated_upstream(legacy_run)
             args = SimpleNamespace(qualification_gate=None, factorial_gate=None)
 
-            def fail_stage(*_args):
+            def fail_stage(*_args, **_kwargs):
                 self._assert_exclusive_guard_is_blocked(guard)
                 raise RuntimeError("evaluation stage failed")
 
@@ -537,7 +629,7 @@ class CliMigrationControlTests(unittest.TestCase):
             )
             calls = []
 
-            def evaluation(*call_args):
+            def evaluation(*call_args, **_kwargs):
                 calls.append("evaluation")
                 self.assertEqual(call_args[:3], (config, dataset, new_run))
                 self.assertIs(call_args[3], upstream)
@@ -545,6 +637,7 @@ class CliMigrationControlTests(unittest.TestCase):
                     call_args[4]["origin"], "legacy-qualification"
                 )
                 self.assertEqual(call_args[5]["origin"], "legacy-factorial")
+                self.assertFalse(_kwargs.get("legacy_evaluator", False))
                 return {"status": "FAIL", "passed": False}
 
             def path(*call_args):

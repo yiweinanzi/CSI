@@ -269,6 +269,18 @@ class EvidenceIntegrityTests(unittest.TestCase):
                 "engineering_complete": False,
             },
         )
+        self.assertEqual(
+            _external_gate_state(
+                True,
+                [{"adapter_id": "sigmap-controlled-csi-pairs-v1", "reason": "nonzero exit"}],
+                blocking_failures=[],
+            ),
+            {
+                "status": "PASS",
+                "passed": True,
+                "engineering_complete": True,
+            },
+        )
 
     def test_external_adapter_command_must_execute_hashed_source(self):
         manifest = json.loads(
