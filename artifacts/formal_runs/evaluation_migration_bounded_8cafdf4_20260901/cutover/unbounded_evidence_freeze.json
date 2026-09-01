@@ -1,0 +1,118 @@
+{
+  "schema_version": "csi-pairs-v6-obsolete-evidence-cutover-v1",
+  "status": "CUTOVER_TERMINATION_COMPLETE",
+  "created_local": "2026-09-01T09:05:54+08:00",
+  "reason": "The old evidence jobs retained complete formal tables, scaled checkpoint count rather than real row count, had no checkpoint, and produced no authenticated report after 20h22m / 10h58m. The N worker exited without nformal-subset.json and without an OOM event. A bounded real-position replacement passed the complete formal_v2 regression suite.",
+  "replacement": {
+    "commit": "8cafdf4a4c67d40c4fd41b7d71b6468df850cdd7",
+    "branch": "perf/evaluation-bounded-evidence-v1",
+    "tests": {
+      "passed": 886,
+      "skipped": 7,
+      "failed": 0,
+      "elapsed_seconds": 1999.94
+    },
+    "scale_axis": "selected_positions_per_formal_scene",
+    "scale_values": [4, 8, 16]
+  },
+  "running_at_freeze": [
+    {
+      "pid": 11014,
+      "start_ticks": 484483454,
+      "cmdline_sha256": "f01ba108eebbecb754462e717d6e1a0e417a79d64c9eeca5c1191e59df0ca923",
+      "role": "unbounded_cross_source_parent",
+      "elapsed": "20:22:51",
+      "report_present": false
+    },
+    {
+      "pid": 11107,
+      "start_ticks": 484483862,
+      "cmdline_sha256": "0f55ebb5e3a7cc3fbf7330ea1bb7b3e718afe15ce47dbe4a4d466fd37bef50ef",
+      "role": "unbounded_frozen_legacy_worker",
+      "elapsed": "20:22:47",
+      "rss_bytes": 65444638720
+    },
+    {
+      "pid": 228751,
+      "start_ticks": 487614131,
+      "cmdline_sha256": "5b6b9a864aa80775fd645a6f712ce471a89ad2c7244129504e899ee0c18c15f4",
+      "role": "obsolete_subset_refresh_waiter"
+    },
+    {
+      "pid": 232382,
+      "start_ticks": 487707743,
+      "cmdline_sha256": "cafb5050e5e5be7116b84e7f4bb61361b1c25b534a565d890dd726e8eb1f113b",
+      "role": "obsolete_post_gate_waiter"
+    },
+    {
+      "pid": 246242,
+      "start_ticks": 487905411,
+      "cmdline_sha256": "7741e41021d02f975524f35263c4547e1d830b74b55bb4b50e28cd8aac7dae00",
+      "role": "obsolete_judge_waiter"
+    },
+    {
+      "pid": 334092,
+      "start_ticks": 489652835,
+      "cmdline_sha256": "9aef65b350e40da76663df675f678c413677f00b84161c2c994322d3a80441a5",
+      "role": "obsolete_acceptance_coordinator"
+    }
+  ],
+  "not_present_at_freeze": [
+    {
+      "pid": 225202,
+      "start_ticks": 487473290,
+      "role": "unbounded_performance_parent",
+      "last_observed_elapsed": "11:24:51",
+      "authenticated_report_present": false
+    },
+    {
+      "pid": 229028,
+      "role": "unbounded_N_worker",
+      "last_observed_elapsed": "10:58:04",
+      "authenticated_report_present": false
+    },
+    {
+      "pid": 231490,
+      "role": "obsolete_controls_waiter"
+    },
+    {
+      "pid": 294294,
+      "role": "obsolete_gate_monitor"
+    }
+  ],
+  "resource_snapshot": {
+    "cgroup_memory_bytes": 70613118976,
+    "cgroup_memory_limit_bytes": 369367187456,
+    "memory_failcnt": 0,
+    "oom_kill_count": 0,
+    "memory_max_usage_bytes": 233339056128
+  },
+  "old_outputs": {
+    "cross_source_report_present": false,
+    "nformal_subset_report_present": false,
+    "performance_report_present": false,
+    "nworker_stdout_bytes": 0,
+    "nworker_stderr_bytes": 314
+  },
+  "termination_results": {
+    "completed_local": "2026-09-01T09:07:00+08:00",
+    "worker_11107": "SIGTERM_SENT_AFTER_IDENTITY_MATCH",
+    "parent_11014": "EXITED_AFTER_CHILD_TERMINATION",
+    "waiter_228751": "SIGTERM_SENT_AFTER_IDENTITY_MATCH",
+    "waiter_232382": "SIGTERM_SENT_AFTER_IDENTITY_MATCH",
+    "waiter_246242": "SIGTERM_SENT_AFTER_IDENTITY_MATCH",
+    "coordinator_334092": "SIGTERM_SENT_AFTER_IDENTITY_MATCH",
+    "all_obsolete_pids_absent": true,
+    "gpu0_memory_mib_after": 0,
+    "gpu1_memory_mib_after": 0,
+    "cgroup_memory_bytes_after": 5143011328,
+    "oom_kill_count_after": 0
+  },
+  "scope": {
+    "legacy_training_checkpoints_modified": false,
+    "legacy_run_root_modified": false,
+    "formal_dataset_modified": false,
+    "termination_signal": "SIGTERM",
+    "termination_targets_are_exact_pid_and_start_ticks": true
+  }
+}

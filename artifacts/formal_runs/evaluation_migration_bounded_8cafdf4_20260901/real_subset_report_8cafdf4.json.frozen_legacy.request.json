@@ -1,0 +1,17 @@
+{
+  "schema_version": "csi-pairs-v6-real-evaluation-subset-worker-request-v2",
+  "config_path": "/root/xunlian/Futaoran/CSI_EVALUATION_BOUNDED_EVIDENCE_20260901/code/CSI-PAIRS-v2.0-server/formal_v2/configs/formal_v2.json",
+  "dataset_path": "/root/xunlian/Futaoran/\u6b63\u5f0f\u5f00\u59cb\u8bad\u7ec3/CSI-PAIRS-V6-WIDEBAND-FORMAL-227-20260819T105509Z/dataset.npz",
+  "legacy_run_root": "/root/xunlian/Futaoran/CSI_FACTORIAL_PILOT_FIX_20260825/code/CSI-PAIRS-v2.0-server/runs/formal-v6-gpu-9850fff-20260825T071800Z",
+  "device": "cuda:0",
+  "batch_size": 1,
+  "source_scenes": 1,
+  "target_scenes_per_city": 1,
+  "positions_per_scene": 4,
+  "checkpoint_count": 1,
+  "checkpoint_arm": "endpoint",
+  "role": "frozen_legacy",
+  "fragment_path": "/root/xunlian/Futaoran/formal_external_inputs/evaluation_migration_bounded_8cafdf4_20260901/real_subset_report_8cafdf4.json.frozen_legacy.fragment.json",
+  "expected_git_commit": "9850fffe0b34f16b45066973308f18b10555ca5d",
+  "expected_evaluation_sha256": "259478e4acf6285cb1b00c2d3d02510f88e48caaf6ed26705fe2abf5d4eeddbb"
+}

@@ -1,0 +1,18 @@
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/root/xunlian/Futaoran/CSI_EVALUATION_BOUNDED_EVIDENCE_20260901/code/CSI-PAIRS-v2.0-server/formal_v2/formal_migration_evidence_runner.py", line 2491, in <module>
+    raise SystemExit(main())
+                     ^^^^^^
+  File "/root/xunlian/Futaoran/CSI_EVALUATION_BOUNDED_EVIDENCE_20260901/code/CSI-PAIRS-v2.0-server/formal_v2/formal_migration_evidence_runner.py", line 2464, in main
+    result = run_performance_evidence(args)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/xunlian/Futaoran/CSI_EVALUATION_BOUNDED_EVIDENCE_20260901/code/CSI-PAIRS-v2.0-server/formal_v2/formal_migration_evidence_runner.py", line 935, in run_performance_evidence
+    execution = _run_scale_worker(
+                ^^^^^^^^^^^^^^^^^^
+  File "/root/xunlian/Futaoran/CSI_EVALUATION_BOUNDED_EVIDENCE_20260901/code/CSI-PAIRS-v2.0-server/formal_v2/formal_migration_evidence_runner.py", line 560, in _run_scale_worker
+    sample = _sample_target_gpu(
+             ^^^^^^^^^^^^^^^^^^^
+  File "/root/xunlian/Futaoran/CSI_EVALUATION_BOUNDED_EVIDENCE_20260901/code/CSI-PAIRS-v2.0-server/formal_v2/formal_migration_evidence_runner.py", line 441, in _sample_target_gpu
+    raise RuntimeError(
+RuntimeError: target GPU is not exclusive to the evaluator during sampling
