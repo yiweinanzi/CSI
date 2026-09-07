@@ -1,0 +1,4 @@
+{"event":"formal_candidate_bank_started","scene_id":"osm-sionna-source-austin-bank-00","scene_index":16,"world_count":16}
+{"elapsed_seconds":30.087,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-source-austin-bank-00","scene_index":16,"world_count":16,"world_index":0,"worlds_complete":1}
+{"elapsed_seconds":56.132,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-source-austin-bank-00","scene_index":16,"world_count":16,"world_index":1,"worlds_complete":2}
+{"elapsed_seconds":81.981,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-source-austin-bank-00","scene_index":16,"world_count":16,"world_index":2,"worlds_complete":3}

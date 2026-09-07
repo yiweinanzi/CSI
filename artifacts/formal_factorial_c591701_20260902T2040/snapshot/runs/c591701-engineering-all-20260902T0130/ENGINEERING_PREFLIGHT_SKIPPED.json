@@ -1,0 +1,6 @@
+{
+  "reason": "--engineering-run skipped formal preflight_full_run (resource registry, C1 runtime, platform). This is not a formal start receipt.",
+  "schema_version": "csi-pairs-engineering-preflight-skip-v1",
+  "scientific_use": "FORBIDDEN",
+  "status": "SKIPPED"
+}

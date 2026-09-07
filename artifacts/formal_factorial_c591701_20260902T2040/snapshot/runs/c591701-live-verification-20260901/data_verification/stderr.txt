@@ -1,0 +1,15 @@
+Traceback (most recent call last):
+  File "/root/xunlian/Futaoran/CSI_MAIN_C591701_20260901/code/CSI-PAIRS-v2.0-server/formal_v2/formal_sionna_osm_verifier.py", line 296, in <module>
+    raise SystemExit(main())
+                     ^^^^^^
+  File "/root/xunlian/Futaoran/CSI_MAIN_C591701_20260901/code/CSI-PAIRS-v2.0-server/formal_v2/formal_sionna_osm_verifier.py", line 283, in main
+    ensure_sionna_runtime([__file__, *sys.argv[1:]])
+  File "/root/xunlian/Futaoran/CSI_MAIN_C591701_20260901/code/CSI-PAIRS-v2.0-server/formal_v2/sionna_osm_candidate.py", line 2899, in ensure_sionna_runtime
+    python, environment = _sionna_bootstrap_environment(project_root)
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/xunlian/Futaoran/CSI_MAIN_C591701_20260901/code/CSI-PAIRS-v2.0-server/formal_v2/sionna_osm_candidate.py", line 2872, in _sionna_bootstrap_environment
+    llvm_path, _record = require_runtime_record(root, runtime.parent)
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/xunlian/Futaoran/CSI_MAIN_C591701_20260901/code/CSI-PAIRS-v2.0-server/formal_v2/sionna_runtime_lock.py", line 125, in require_runtime_record
+    raise RuntimeError("libLLVM runtime record or approved registry changed")
+RuntimeError: libLLVM runtime record or approved registry changed

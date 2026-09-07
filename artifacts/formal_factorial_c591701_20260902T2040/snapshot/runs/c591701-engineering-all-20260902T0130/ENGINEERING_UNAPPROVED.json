@@ -1,0 +1,9 @@
+{
+  "claim_status": "NON_CLAIM",
+  "formal_evidence_host": false,
+  "platform": "linux",
+  "reason": "--engineering-run; dataset+config resolved without formal approval",
+  "schema_version": "csi-pairs-engineering-unapproved-v1",
+  "scientific_use": "FORBIDDEN",
+  "status": "ENGINEERING_UNAPPROVED"
+}

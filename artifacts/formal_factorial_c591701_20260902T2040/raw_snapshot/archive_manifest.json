@@ -1,0 +1,41 @@
+{
+  "schema_version": "csi-pairs-complete-run-archive-v1",
+  "storage": "Git LFS",
+  "scientific_use": "CANDIDATE_NOT_CLAIM",
+  "sota_ready": false,
+  "format": "zstd-compressed tar split into ordered 1 GiB parts; content-addressed files and original-path inventory",
+  "inventory_sha256": "9d1f622e90de3c6d2405ebdd2a6ee145cdcb55d552cf31ea6aa8ad57987a0591",
+  "original_file_count": 1981,
+  "unique_file_count": 836,
+  "original_logical_bytes": 16874184618,
+  "unique_bytes": 4862444630,
+  "compressed_bytes": 4368455276,
+  "combined_sha256": "8b93a8d4a91467de9cb4d760d5b4899a52ac2022552aa8706c7b89ebec23780e",
+  "parts": [
+    {
+      "path": "snapshot.tar.zst.part-000",
+      "bytes": 1073741824,
+      "sha256": "096ca6dc036666338de391c62f35584b44876781fa829c9b6853019318f7f1bd"
+    },
+    {
+      "path": "snapshot.tar.zst.part-001",
+      "bytes": 1073741824,
+      "sha256": "c3c63bd53d13dfa0afa4d2944663f68235e85d62f1125ec551ca3a074e5f24a2"
+    },
+    {
+      "path": "snapshot.tar.zst.part-002",
+      "bytes": 1073741824,
+      "sha256": "1f1bcd1584ea0aecdcea206f52fc9472c9984ecf8bd3aab8891dd7bdc9f81d54"
+    },
+    {
+      "path": "snapshot.tar.zst.part-003",
+      "bytes": 1073741824,
+      "sha256": "eb03f8685107cc47e34078742f161b1b773ca0fbef0a1771c78dbac48e54324f"
+    },
+    {
+      "path": "snapshot.tar.zst.part-004",
+      "bytes": 73487980,
+      "sha256": "1c39afd262cabefb5e6017364940675712d4b0912ab9681074231638b594d7ce"
+    }
+  ]
+}

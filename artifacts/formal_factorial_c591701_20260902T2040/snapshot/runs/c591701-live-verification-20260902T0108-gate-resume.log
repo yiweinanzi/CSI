@@ -1,0 +1,14 @@
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+  File "/root/xunlian/Futaoran/CSI_MAIN_C591701_20260901/code/CSI-PAIRS-v2.0-server/formal_v2/formal_data_verification.py", line 107, in run_data_verification
+    evidence = evidence_context(
+               ^^^^^^^^^^^^^^^^^
+  File "/root/xunlian/Futaoran/CSI_MAIN_C591701_20260901/code/CSI-PAIRS-v2.0-server/formal_v2/formal_evidence.py", line 732, in evidence_context
+    runtime = validate_runtime_provenance(runtime_provenance())
+                                          ^^^^^^^^^^^^^^^^^^^^
+  File "/root/xunlian/Futaoran/CSI_MAIN_C591701_20260901/code/CSI-PAIRS-v2.0-server/formal_v2/formal_evidence.py", line 403, in runtime_provenance
+    closure = validate_installed_wheel_closure(
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/xunlian/Futaoran/CSI_MAIN_C591701_20260901/code/CSI-PAIRS-v2.0-server/formal_v2/formal_runtime_integrity.py", line 396, in validate_installed_wheel_closure
+    raise RuntimeError(f"main runtime contains forbidden bytecode: {candidate}")
+RuntimeError: main runtime contains forbidden bytecode: /root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/lib/python3.12/site-packages/_distutils_hack/__pycache__/__init__.cpython-312.pyc

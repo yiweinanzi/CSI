@@ -1,0 +1,17 @@
+{"event":"formal_candidate_bank_started","scene_id":"osm-sionna-external-denver-bank-12","scene_index":207,"world_count":16}
+{"elapsed_seconds":32.977,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-external-denver-bank-12","scene_index":207,"world_count":16,"world_index":0,"worlds_complete":1}
+{"elapsed_seconds":60.877,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-external-denver-bank-12","scene_index":207,"world_count":16,"world_index":1,"worlds_complete":2}
+{"elapsed_seconds":89.45,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-external-denver-bank-12","scene_index":207,"world_count":16,"world_index":2,"worlds_complete":3}
+{"elapsed_seconds":117.65,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-external-denver-bank-12","scene_index":207,"world_count":16,"world_index":3,"worlds_complete":4}
+{"elapsed_seconds":145.663,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-external-denver-bank-12","scene_index":207,"world_count":16,"world_index":4,"worlds_complete":5}
+{"elapsed_seconds":173.738,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-external-denver-bank-12","scene_index":207,"world_count":16,"world_index":5,"worlds_complete":6}
+{"elapsed_seconds":201.609,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-external-denver-bank-12","scene_index":207,"world_count":16,"world_index":6,"worlds_complete":7}
+{"elapsed_seconds":229.456,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-external-denver-bank-12","scene_index":207,"world_count":16,"world_index":7,"worlds_complete":8}
+{"elapsed_seconds":257.323,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-external-denver-bank-12","scene_index":207,"world_count":16,"world_index":8,"worlds_complete":9}
+{"elapsed_seconds":285.295,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-external-denver-bank-12","scene_index":207,"world_count":16,"world_index":9,"worlds_complete":10}
+{"elapsed_seconds":313.471,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-external-denver-bank-12","scene_index":207,"world_count":16,"world_index":10,"worlds_complete":11}
+{"elapsed_seconds":341.767,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-external-denver-bank-12","scene_index":207,"world_count":16,"world_index":11,"worlds_complete":12}
+{"elapsed_seconds":370.008,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-external-denver-bank-12","scene_index":207,"world_count":16,"world_index":12,"worlds_complete":13}
+{"elapsed_seconds":397.935,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-external-denver-bank-12","scene_index":207,"world_count":16,"world_index":13,"worlds_complete":14}
+{"elapsed_seconds":426.269,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-external-denver-bank-12","scene_index":207,"world_count":16,"world_index":14,"worlds_complete":15}
+{"elapsed_seconds":454.497,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-external-denver-bank-12","scene_index":207,"world_count":16,"world_index":15,"worlds_complete":16}

@@ -1,0 +1,17 @@
+{"event":"formal_candidate_bank_started","scene_id":"osm-sionna-target-boston-bank-15","scene_index":169,"world_count":16}
+{"elapsed_seconds":32.206,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-target-boston-bank-15","scene_index":169,"world_count":16,"world_index":0,"worlds_complete":1}
+{"elapsed_seconds":59.207,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-target-boston-bank-15","scene_index":169,"world_count":16,"world_index":1,"worlds_complete":2}
+{"elapsed_seconds":86.051,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-target-boston-bank-15","scene_index":169,"world_count":16,"world_index":2,"worlds_complete":3}
+{"elapsed_seconds":112.803,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-target-boston-bank-15","scene_index":169,"world_count":16,"world_index":3,"worlds_complete":4}
+{"elapsed_seconds":139.927,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-target-boston-bank-15","scene_index":169,"world_count":16,"world_index":4,"worlds_complete":5}
+{"elapsed_seconds":167.273,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-target-boston-bank-15","scene_index":169,"world_count":16,"world_index":5,"worlds_complete":6}
+{"elapsed_seconds":194.324,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-target-boston-bank-15","scene_index":169,"world_count":16,"world_index":6,"worlds_complete":7}
+{"elapsed_seconds":221.478,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-target-boston-bank-15","scene_index":169,"world_count":16,"world_index":7,"worlds_complete":8}
+{"elapsed_seconds":248.847,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-target-boston-bank-15","scene_index":169,"world_count":16,"world_index":8,"worlds_complete":9}
+{"elapsed_seconds":276.097,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-target-boston-bank-15","scene_index":169,"world_count":16,"world_index":9,"worlds_complete":10}
+{"elapsed_seconds":303.175,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-target-boston-bank-15","scene_index":169,"world_count":16,"world_index":10,"worlds_complete":11}
+{"elapsed_seconds":330.697,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-target-boston-bank-15","scene_index":169,"world_count":16,"world_index":11,"worlds_complete":12}
+{"elapsed_seconds":358.378,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-target-boston-bank-15","scene_index":169,"world_count":16,"world_index":12,"worlds_complete":13}
+{"elapsed_seconds":385.446,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-target-boston-bank-15","scene_index":169,"world_count":16,"world_index":13,"worlds_complete":14}
+{"elapsed_seconds":413.331,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-target-boston-bank-15","scene_index":169,"world_count":16,"world_index":14,"worlds_complete":15}
+{"elapsed_seconds":439.924,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-target-boston-bank-15","scene_index":169,"world_count":16,"world_index":15,"worlds_complete":16}

@@ -1,0 +1,2 @@
+{"event":"formal_candidate_bank_started","scene_id":"osm-sionna-source-austin-bank-02","scene_index":18,"world_count":16}
+{"elapsed_seconds":37.93,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-source-austin-bank-02","scene_index":18,"world_count":16,"world_index":0,"worlds_complete":1}

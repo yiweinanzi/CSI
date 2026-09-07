@@ -1,0 +1,17 @@
+{"event":"formal_candidate_bank_started","scene_id":"osm-sionna-source-chicago-bank-23","scene_index":43,"world_count":16}
+{"elapsed_seconds":48.051,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-source-chicago-bank-23","scene_index":43,"world_count":16,"world_index":0,"worlds_complete":1}
+{"elapsed_seconds":91.603,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-source-chicago-bank-23","scene_index":43,"world_count":16,"world_index":1,"worlds_complete":2}
+{"elapsed_seconds":135.455,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-source-chicago-bank-23","scene_index":43,"world_count":16,"world_index":2,"worlds_complete":3}
+{"elapsed_seconds":179.052,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-source-chicago-bank-23","scene_index":43,"world_count":16,"world_index":3,"worlds_complete":4}
+{"elapsed_seconds":222.609,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-source-chicago-bank-23","scene_index":43,"world_count":16,"world_index":4,"worlds_complete":5}
+{"elapsed_seconds":266.387,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-source-chicago-bank-23","scene_index":43,"world_count":16,"world_index":5,"worlds_complete":6}
+{"elapsed_seconds":309.679,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-source-chicago-bank-23","scene_index":43,"world_count":16,"world_index":6,"worlds_complete":7}
+{"elapsed_seconds":353.376,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-source-chicago-bank-23","scene_index":43,"world_count":16,"world_index":7,"worlds_complete":8}
+{"elapsed_seconds":397.269,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-source-chicago-bank-23","scene_index":43,"world_count":16,"world_index":8,"worlds_complete":9}
+{"elapsed_seconds":440.918,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-source-chicago-bank-23","scene_index":43,"world_count":16,"world_index":9,"worlds_complete":10}
+{"elapsed_seconds":484.552,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-source-chicago-bank-23","scene_index":43,"world_count":16,"world_index":10,"worlds_complete":11}
+{"elapsed_seconds":528.501,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-source-chicago-bank-23","scene_index":43,"world_count":16,"world_index":11,"worlds_complete":12}
+{"elapsed_seconds":571.958,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-source-chicago-bank-23","scene_index":43,"world_count":16,"world_index":12,"worlds_complete":13}
+{"elapsed_seconds":615.77,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-source-chicago-bank-23","scene_index":43,"world_count":16,"world_index":13,"worlds_complete":14}
+{"elapsed_seconds":659.252,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-source-chicago-bank-23","scene_index":43,"world_count":16,"world_index":14,"worlds_complete":15}
+{"elapsed_seconds":702.397,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-source-chicago-bank-23","scene_index":43,"world_count":16,"world_index":15,"worlds_complete":16}

@@ -1,0 +1,13 @@
+/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/lib/python3.12/site-packages/torch/nn/modules/transformer.py:379: UserWarning: enable_nested_tensor is True, but self.use_nested_tensor is False because encoder_layer.norm_first was True
+  warnings.warn(
+{"fit_banks": 32, "fit_rows": 524288, "stage": "physical_response_fit_rows_ready"}
+{"fit_active_rows": 92272, "fit_null_rows": 416592, "gate_members": 3, "response_scale": 3.132510801137955, "stage": "physical_response_gate_fit_complete"}
+{"bank_id": "osm-sionna-source-chicago-bank-16", "rows": 262144, "scene": 32, "stage": "physical_response_selection_bank_complete"}
+{"bank_id": "osm-sionna-source-chicago-bank-17", "rows": 262144, "scene": 33, "stage": "physical_response_selection_bank_complete"}
+{"bank_id": "osm-sionna-source-chicago-bank-18", "rows": 262144, "scene": 34, "stage": "physical_response_selection_bank_complete"}
+{"bank_id": "osm-sionna-source-chicago-bank-19", "rows": 262144, "scene": 35, "stage": "physical_response_selection_bank_complete"}
+{"bank_id": "osm-sionna-source-austin-bank-16", "rows": 262144, "scene": 36, "stage": "physical_response_selection_bank_complete"}
+{"bank_id": "osm-sionna-source-austin-bank-17", "rows": 262144, "scene": 37, "stage": "physical_response_selection_bank_complete"}
+{"bank_id": "osm-sionna-source-austin-bank-18", "rows": 262144, "scene": 38, "stage": "physical_response_selection_bank_complete"}
+{"bank_id": "osm-sionna-source-austin-bank-19", "rows": 262144, "scene": 39, "stage": "physical_response_selection_bank_complete"}
+{"output": "/root/xunlian/Futaoran/CSI_MAIN_C591701_20260901/runs/c591701-formal-prepare-20260902T2040", "request": "/root/xunlian/Futaoran/CSI_MAIN_C591701_20260901/runs/c591701-formal-prepare-20260902T2040/approval/request.json", "request_sha256": "2f5ef9386ca7a69a4fe15cfe6c676b14d26b2b9ed57f7b39d8237c21502e1744", "status": "AWAITING_LLM_JUDGE"}

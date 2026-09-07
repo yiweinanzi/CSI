@@ -1,0 +1,9 @@
+{
+  "prepared_root": "/root/xunlian/Futaoran/CSI_MAIN_C591701_20260901/runs/c591701-formal-prepare-20260902T2040",
+  "request_path": "approval/request.json",
+  "request_sha256": "2f5ef9386ca7a69a4fe15cfe6c676b14d26b2b9ed57f7b39d8237c21502e1744",
+  "run_id": "csi-pairs-cbe62fae109902c7",
+  "run_nonce": "cbe62fae109902c72e29215414e9b5d8977141f65e197ba8fbf7ae826b3ba56c",
+  "schema_version": "csi-pairs-full-run-prepared-v2",
+  "status": "AWAITING_LLM_JUDGE"
+}

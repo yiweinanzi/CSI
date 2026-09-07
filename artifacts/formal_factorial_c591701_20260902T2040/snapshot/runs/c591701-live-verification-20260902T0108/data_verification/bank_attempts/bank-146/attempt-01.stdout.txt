@@ -1,0 +1,17 @@
+{"event":"formal_candidate_bank_started","scene_id":"osm-sionna-target-seattle-bank-33","scene_index":146,"world_count":16}
+{"elapsed_seconds":62.861,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-target-seattle-bank-33","scene_index":146,"world_count":16,"world_index":0,"worlds_complete":1}
+{"elapsed_seconds":121.629,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-target-seattle-bank-33","scene_index":146,"world_count":16,"world_index":1,"worlds_complete":2}
+{"elapsed_seconds":179.719,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-target-seattle-bank-33","scene_index":146,"world_count":16,"world_index":2,"worlds_complete":3}
+{"elapsed_seconds":238.806,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-target-seattle-bank-33","scene_index":146,"world_count":16,"world_index":3,"worlds_complete":4}
+{"elapsed_seconds":296.536,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-target-seattle-bank-33","scene_index":146,"world_count":16,"world_index":4,"worlds_complete":5}
+{"elapsed_seconds":354.326,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-target-seattle-bank-33","scene_index":146,"world_count":16,"world_index":5,"worlds_complete":6}
+{"elapsed_seconds":412.515,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-target-seattle-bank-33","scene_index":146,"world_count":16,"world_index":6,"worlds_complete":7}
+{"elapsed_seconds":470.419,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-target-seattle-bank-33","scene_index":146,"world_count":16,"world_index":7,"worlds_complete":8}
+{"elapsed_seconds":527.866,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-target-seattle-bank-33","scene_index":146,"world_count":16,"world_index":8,"worlds_complete":9}
+{"elapsed_seconds":585.896,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-target-seattle-bank-33","scene_index":146,"world_count":16,"world_index":9,"worlds_complete":10}
+{"elapsed_seconds":643.868,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-target-seattle-bank-33","scene_index":146,"world_count":16,"world_index":10,"worlds_complete":11}
+{"elapsed_seconds":701.765,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-target-seattle-bank-33","scene_index":146,"world_count":16,"world_index":11,"worlds_complete":12}
+{"elapsed_seconds":759.613,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-target-seattle-bank-33","scene_index":146,"world_count":16,"world_index":12,"worlds_complete":13}
+{"elapsed_seconds":817.675,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-target-seattle-bank-33","scene_index":146,"world_count":16,"world_index":13,"worlds_complete":14}
+{"elapsed_seconds":876.175,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-target-seattle-bank-33","scene_index":146,"world_count":16,"world_index":14,"worlds_complete":15}
+{"elapsed_seconds":934.635,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-target-seattle-bank-33","scene_index":146,"world_count":16,"world_index":15,"worlds_complete":16}

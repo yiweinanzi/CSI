@@ -1,0 +1,17 @@
+{"event":"formal_candidate_bank_started","scene_id":"osm-sionna-external-miami-bank-12","scene_index":223,"world_count":16}
+{"elapsed_seconds":46.979,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-external-miami-bank-12","scene_index":223,"world_count":16,"world_index":0,"worlds_complete":1}
+{"elapsed_seconds":89.233,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-external-miami-bank-12","scene_index":223,"world_count":16,"world_index":1,"worlds_complete":2}
+{"elapsed_seconds":132.008,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-external-miami-bank-12","scene_index":223,"world_count":16,"world_index":2,"worlds_complete":3}
+{"elapsed_seconds":174.581,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-external-miami-bank-12","scene_index":223,"world_count":16,"world_index":3,"worlds_complete":4}
+{"elapsed_seconds":217.412,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-external-miami-bank-12","scene_index":223,"world_count":16,"world_index":4,"worlds_complete":5}
+{"elapsed_seconds":259.408,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-external-miami-bank-12","scene_index":223,"world_count":16,"world_index":5,"worlds_complete":6}
+{"elapsed_seconds":301.709,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-external-miami-bank-12","scene_index":223,"world_count":16,"world_index":6,"worlds_complete":7}
+{"elapsed_seconds":343.501,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-external-miami-bank-12","scene_index":223,"world_count":16,"world_index":7,"worlds_complete":8}
+{"elapsed_seconds":385.52,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-external-miami-bank-12","scene_index":223,"world_count":16,"world_index":8,"worlds_complete":9}
+{"elapsed_seconds":428.213,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-external-miami-bank-12","scene_index":223,"world_count":16,"world_index":9,"worlds_complete":10}
+{"elapsed_seconds":470.277,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-external-miami-bank-12","scene_index":223,"world_count":16,"world_index":10,"worlds_complete":11}
+{"elapsed_seconds":512.799,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-external-miami-bank-12","scene_index":223,"world_count":16,"world_index":11,"worlds_complete":12}
+{"elapsed_seconds":556.516,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-external-miami-bank-12","scene_index":223,"world_count":16,"world_index":12,"worlds_complete":13}
+{"elapsed_seconds":598.951,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-external-miami-bank-12","scene_index":223,"world_count":16,"world_index":13,"worlds_complete":14}
+{"elapsed_seconds":641.454,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-external-miami-bank-12","scene_index":223,"world_count":16,"world_index":14,"worlds_complete":15}
+{"elapsed_seconds":683.438,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-external-miami-bank-12","scene_index":223,"world_count":16,"world_index":15,"worlds_complete":16}

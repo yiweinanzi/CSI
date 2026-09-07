@@ -1,0 +1,11 @@
+{
+  "accepted_utc": "2026-09-02T22:46:41Z",
+  "approval_manifest_path": "/root/xunlian/Futaoran/formal_external_inputs/run_approvals/c591701-formal-prepare-20260902T2040/LLM_JUDGE_APPROVAL.json",
+  "approval_manifest_sha256": "9f0c514864a2a75cbd1b2ebf1b73b8e6feb3bd8ae3c3c776c1dc413c659a5c00",
+  "compute_plan_sha256": "ab2933526872b4ce037d8c8dea64df7965611c96d9ccec5203f7061f590f9cc6",
+  "request_sha256": "2f5ef9386ca7a69a4fe15cfe6c676b14d26b2b9ed57f7b39d8237c21502e1744",
+  "run_id": "csi-pairs-cbe62fae109902c7",
+  "run_nonce": "cbe62fae109902c72e29215414e9b5d8977141f65e197ba8fbf7ae826b3ba56c",
+  "schema_version": "csi-pairs-full-run-approval-accepted-v2",
+  "status": "ACCEPTED"
+}

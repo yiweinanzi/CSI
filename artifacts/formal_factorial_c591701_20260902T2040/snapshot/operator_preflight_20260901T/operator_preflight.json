@@ -1,0 +1,81 @@
+{
+  "compute_plan": {
+    "measurement_validated": false,
+    "message": "compute-plan not supplied; not measurement-validated",
+    "ok": false,
+    "required_components": [
+      "data_qualification_and_g8",
+      "teacher",
+      "factorial",
+      "evaluation",
+      "baselines",
+      "controls",
+      "io_and_checkpoints",
+      "failure_budget"
+    ],
+    "schema_keys_present": false,
+    "schema_version": "csi-pairs-full-run-compute-plan-v2",
+    "supplied": false
+  },
+  "dataset": {
+    "exists": true,
+    "message": "regular file present size_bytes=2006664110 sha256=060d8671380acaf43bd0beb2c77ac5c6ec112e4ddc083451ab36a5916b7c9cac",
+    "ok": true,
+    "path": "/root/xunlian/Futaoran/\u6b63\u5f0f\u5f00\u59cb\u8bad\u7ec3/CSI-PAIRS-V6-WIDEBAND-FORMAL-227-20260819T105509Z/dataset.npz",
+    "regular_file": true,
+    "sha256": "060d8671380acaf43bd0beb2c77ac5c6ec112e4ddc083451ab36a5916b7c9cac",
+    "size_bytes": 2006664110
+  },
+  "dataset_load": {
+    "fixture": false,
+    "loaded": true,
+    "message": "FormalDataset loaded; load success is not scientific PASS",
+    "ok": true
+  },
+  "environment": {
+    "CSI_PAIRS_DEVICES_set": true,
+    "CUDA_VISIBLE_DEVICES_set": true,
+    "message": "CSI_PAIRS_DEVICES and CUDA_VISIBLE_DEVICES are set; presence is not a GPU-capacity validation",
+    "ok": true
+  },
+  "formal_host": true,
+  "formal_ready_to_prepare": true,
+  "platform": {
+    "formal_host": true,
+    "machine": "x86_64",
+    "message": "platform linux x86_64 matches a formal host tuple",
+    "ok": true,
+    "system": "linux"
+  },
+  "python": {
+    "formal_requires": "3.12",
+    "message": "interpreter is 3.12.13; formal execution requires CPython 3.12",
+    "ok": true,
+    "version": "3.12.13"
+  },
+  "required_prepare_full_run_manifest_flags": [
+    "--adapter-manifest",
+    "--control-manifest",
+    "--scene-id-manifest",
+    "--shuffled-pair-manifest",
+    "--retention-manifest",
+    "--representation-baseline-config"
+  ],
+  "schema_version": "csi-pairs-operator-preflight-v1",
+  "scientific_use": "NOT_ASSESSED",
+  "waibu": {
+    "empty": false,
+    "entries": [
+      "2406.14995v2.pdf",
+      "2603.25216v1.pdf",
+      "2606.04770v1.pdf",
+      "PMNet-a0e0c592.zip",
+      "Wi-GATr-main.zip",
+      "sionna-large-radio-maps-main.zip",
+      "sionna-main.zip"
+    ],
+    "message": "waibu directory is not empty (7 entries); this is not verify-waibu-resources authentication",
+    "ok": true,
+    "path": "/root/xunlian/Futaoran/CSI_MAIN_C591701_20260901/code/CSI-PAIRS-v2.0-server/waibu"
+  }
+}

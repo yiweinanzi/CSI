@@ -1,0 +1,2 @@
+jit_cuda_api_init(): could not find symbol "cuInit" -- disabling CUDA backend!
+Assertion failed in /project/ext/drjit-core/ext/nanothread/src/queue.cpp:357: remain == 1

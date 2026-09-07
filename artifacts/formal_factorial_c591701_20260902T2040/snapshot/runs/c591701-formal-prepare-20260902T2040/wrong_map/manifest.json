@@ -1,0 +1,1045 @@
+{
+  "artifact_label": "csi-pairs-formal-v2.1-v6",
+  "config_sha256": "3424a269a751f219f4897b969db7cc13d2236fc72e8e2ccb663dec8d7f8f477c",
+  "dataset_sha256": "060d8671380acaf43bd0beb2c77ac5c6ec112e4ddc083451ab36a5916b7c9cac",
+  "files": [
+    {
+      "artifact_label": "csi-pairs-formal-v2.1-v6",
+      "bytes": 8348,
+      "config_sha256": "3424a269a751f219f4897b969db7cc13d2236fc72e8e2ccb663dec8d7f8f477c",
+      "dataset_sha256": "060d8671380acaf43bd0beb2c77ac5c6ec112e4ddc083451ab36a5916b7c9cac",
+      "fixture": false,
+      "path": "checkpoints/controlled_relative_map_ridge.npz",
+      "requirements_lock_sha256": "9548a24a4faf5db17b5251df407b4402de033ae8648ec321c850fe6105002cf1",
+      "runtime_provenance": {
+        "cublas_workspace_config": ":4096:8",
+        "installed_distributions": {
+          "Jinja2": {
+            "record_sha256": "aea0a4bbe71769b8884b52cca4358e901f777f3e233c6726b728fd78b3b571e9",
+            "version": "3.1.6",
+            "wheel_sha256": "85ece4451f492d0c13c5dd7c13a64681a86afae63a5f347908daf103ce6d2f67"
+          },
+          "MarkupSafe": {
+            "record_sha256": "f07692abaeeeb03b62d10b7b5bb6d1a4da376ba66df41a2283183615bccbc8fe",
+            "version": "3.0.3",
+            "wheel_sha256": "d6dd0be5b5b189d31db7cda48b91d7e0a9795f31430b7f271219ab30f1d3ac9d"
+          },
+          "Pygments": {
+            "record_sha256": "b47ca19c32aa9efd11c357b28b6ab6063bd8b4dd9921a18a1a17e01f975d24de",
+            "version": "2.21.0",
+            "wheel_sha256": "2363c69b61c4a97c838da3b130dcd6468f4848992b21a82f2a63ec34377137d9"
+          },
+          "filelock": {
+            "record_sha256": "1ef83719724bfdb08a68067e728a9af38d77b28994877125184030688ae63561",
+            "version": "3.32.2",
+            "wheel_sha256": "87dd94cf281e586d135fa51132b8e3d9a598b316e90377a288663c9321036c82"
+          },
+          "fsspec": {
+            "record_sha256": "61ba9741a50801030d99983e2f288f4abe4c4991abc897db1515d9ac5e4a033b",
+            "version": "2026.7.0",
+            "wheel_sha256": "b57ddbafedfaef7018c1ecab32aa200a9d7ca26b77965f64e48b70061249d279"
+          },
+          "iniconfig": {
+            "record_sha256": "66787079877a254b4512fa2ce5f1bc399da444fd07965277f40738d4771c4d7f",
+            "version": "2.3.0",
+            "wheel_sha256": "f631c04d2c48c52b84d0d0549c99ff3859c98df65b3101406327ecc7d53fbf12"
+          },
+          "mpmath": {
+            "record_sha256": "bb674e4e32e10e0f48e905e746ae927c66e4ea23ee547c5d4c72f824f2d43e04",
+            "version": "1.3.0",
+            "wheel_sha256": "a0b2b9fe80bbcd81a6647ff13108738cfb482d481d826cc0e02f5b35e5c88d2c"
+          },
+          "networkx": {
+            "record_sha256": "34a15c53076ce29677d9400441d75c954681da00b229b571afbfea6de7668c5d",
+            "version": "3.6.1",
+            "wheel_sha256": "d47fbf302e7d9cbbb9e2555a0d267983d2aa476bac30e90dfbe5669bd57f3762"
+          },
+          "numpy": {
+            "record_sha256": "c38d1c08f8c6939ce32b73d751a75e47a1cb456e48c966b5a1ff13ebc880f1a3",
+            "version": "2.3.5",
+            "wheel_sha256": "0d8163f43acde9a73c2a33605353a4f1bc4798745a8b1d73183b28e5b435ae28"
+          },
+          "nvidia-cublas-cu12": {
+            "record_sha256": "82a69b9269bddcad908845c68cdf0a4c8f00a43ad321105cd3e704bd1ffda978",
+            "version": "12.1.3.1",
+            "wheel_sha256": "ee53ccca76a6fc08fb9701aa95b6ceb242cdaab118c3bb152af4e579af792728"
+          },
+          "nvidia-cuda-cupti-cu12": {
+            "record_sha256": "463c829a2e3bc24aa9d43a1739b2654dffc9f6234bb15b11e1784e954aafc467",
+            "version": "12.1.105",
+            "wheel_sha256": "e54fde3983165c624cb79254ae9818a456eb6e87a7fd4d56a2352c24ee542d7e"
+          },
+          "nvidia-cuda-nvrtc-cu12": {
+            "record_sha256": "aae08fc7891c9d1c93b615642bf2facb3a7d4707939eac01a677523f340aab8e",
+            "version": "12.1.105",
+            "wheel_sha256": "339b385f50c309763ca65456ec75e17bbefcbbf2893f462cb8b90584cd27a1c2"
+          },
+          "nvidia-cuda-runtime-cu12": {
+            "record_sha256": "febaf4e451bc30bb377d5128bbfea6e7784e9a5858bffe8cd6219a1b02438fb4",
+            "version": "12.1.105",
+            "wheel_sha256": "6e258468ddf5796e25f1dc591a31029fa317d97a0a94ed93468fc86301d61e40"
+          },
+          "nvidia-cudnn-cu12": {
+            "record_sha256": "9c8346559edfcc38282b96126dfe30fbb1531c0646e39de0cc3dd3362a03a555",
+            "version": "9.1.0.70",
+            "wheel_sha256": "165764f44ef8c61fcdfdfdbe769d687e06374059fbb388b6c89ecb0e28793a6f"
+          },
+          "nvidia-cufft-cu12": {
+            "record_sha256": "4ec4366d5524f84726b1dfbf2d7855b07b04c1c13ae5320dc09ce36e60db3a71",
+            "version": "11.0.2.54",
+            "wheel_sha256": "794e3948a1aa71fd817c3775866943936774d1c14e7628c74f6f7417224cdf56"
+          },
+          "nvidia-curand-cu12": {
+            "record_sha256": "8dc0759cd4f39fd36cd661688827eb35157b406ec8e2d8ecf7dbc6c995305d42",
+            "version": "10.3.2.106",
+            "wheel_sha256": "9d264c5036dde4e64f1de8c50ae753237c12e0b1348738169cd0f8a536c0e1e0"
+          },
+          "nvidia-cusolver-cu12": {
+            "record_sha256": "a63770827aeb1933be738e55f5a3a750c4a95f7c9f3c7fce7c1d55e48ce5969d",
+            "version": "11.4.5.107",
+            "wheel_sha256": "8a7ec542f0412294b15072fa7dab71d31334014a69f953004ea7a118206fe0dd"
+          },
+          "nvidia-cusparse-cu12": {
+            "record_sha256": "941a23b7ad429d029e9e1cd1d45850a116c1372dd9415beb9860c41eee2334da",
+            "version": "12.1.0.106",
+            "wheel_sha256": "f3b50f42cf363f86ab21f720998517a659a48131e8d538dc02f8768237bd884c"
+          },
+          "nvidia-nccl-cu12": {
+            "record_sha256": "81d5c536d0dbbec691c1d6822b55931af5392a0986948922e42573962da67abd",
+            "version": "2.21.5",
+            "wheel_sha256": "8579076d30a8c24988834445f8d633c697d42397e92ffc3f63fa26766d25e0a0"
+          },
+          "nvidia-nvjitlink-cu12": {
+            "record_sha256": "211016fc358a85ea5409b6848030f86514d9a548619cd7fddc15a3a85ac92b70",
+            "version": "12.9.86",
+            "wheel_sha256": "e3f1171dbdc83c5932a45f0f4c99180a70de9bd2718c1ab77d14104f6d7147f9"
+          },
+          "nvidia-nvtx-cu12": {
+            "record_sha256": "f52f9d1de478fc5bf533045fde9af9b7a8a88133cf345b5b7288537473c8b93a",
+            "version": "12.1.105",
+            "wheel_sha256": "dc21cf308ca5691e7c04d962e213f8a4aa9bbfa23d95412f452254c2caeb09e5"
+          },
+          "packaging": {
+            "record_sha256": "7074c2b63752a891e4032b7c2043f0d237bc170e33c85c7c1af0d99140469905",
+            "version": "26.3",
+            "wheel_sha256": "d7193f7c8e4e93f444fde0262bf90af30e16fa0ad0ad44cb553c87339b23cd1c"
+          },
+          "pluggy": {
+            "record_sha256": "916f99c41b52173d1f9c02dbf67aab4c137fb4cd57b559d9755a79acd52f7d1b",
+            "version": "1.6.0",
+            "wheel_sha256": "e920276dd6813095e9377c0bc5566d94c932c33b27a3e3945d8389c374dd4746"
+          },
+          "pytest": {
+            "record_sha256": "0b578440e1c21bd5b568460dcff9af756e41f7b0b0ce177e4ec1237ec3591200",
+            "version": "8.4.2",
+            "wheel_sha256": "872f880de3fc3a5bdc88a11b39c9710c3497a547cfa9320bc3c5e62fbf272e79"
+          },
+          "scipy": {
+            "record_sha256": "9dd8f9d59393daa15da22b6cd6d26ae287bfa9cb86d14a8e0528d61f43190035",
+            "version": "1.17.1",
+            "wheel_sha256": "02ae3b274fde71c5e92ac4d54bc06c42d80e399fec704383dcd99b301df37458"
+          },
+          "setuptools": {
+            "record_sha256": "2c66042043bcbe249b106f7b69b353528b5386ac93d6118f444e12b92e0908da",
+            "version": "83.0.0",
+            "wheel_sha256": "29b23c360f22f414dc7336bb39178cc7bcbf6021ed2733cde173f09dba19abb3"
+          },
+          "shapely": {
+            "record_sha256": "b2b35832504c1c921d4064ad2d05b6d6052dabf7bbd31b44e9cf1bbd29c433fc",
+            "version": "2.1.2",
+            "wheel_sha256": "1e7d4d7ad262a48bb44277ca12c7c78cb1b0f56b32c10734ec9a1d30c0b0c54b"
+          },
+          "sympy": {
+            "record_sha256": "bb63c5fa8a150f8554e00d41d66671714dcd0fea2ae9e9c45801cf13310abadf",
+            "version": "1.13.1",
+            "wheel_sha256": "db36cdc64bf61b9b24578b6f7bab1ecdd2452cf008f34faa33776680c26d66f8"
+          },
+          "torch": {
+            "record_sha256": "d97f4074cf7c05d8bebaad7ca00c1e4aa6ca122fd41eb06efd380b7205992ffd",
+            "version": "2.5.1+cu121",
+            "wheel_sha256": "222be02548c2e74a21a8fbc8e5b8d2eef9f9faee865d70385d2eb1b9aabcbc76"
+          },
+          "triton": {
+            "record_sha256": "c88e536a877a2f7cfc3a8426f1d76414c1a61767b0ed4e813f31f75cc7bee668",
+            "version": "3.1.0",
+            "wheel_sha256": "c8182f42fd8080a7d39d666814fa36c5e30cc00ea7eeeb1a2983dbb4c99a0fdc"
+          },
+          "typing_extensions": {
+            "record_sha256": "c9683637fd3591b7fc8fe5b5da0bc40c497cd6067d21407365f52663a3ea1446",
+            "version": "4.16.0",
+            "wheel_sha256": "481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8"
+          }
+        },
+        "installer_report_path": "/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/csi-pairs-install-report.json",
+        "installer_report_sha256": "eb21cff04bccdf0f523eeffba908c817c2edad8c312a65a575b958a35186fb95",
+        "platform_libc_name": "glibc",
+        "platform_libc_version": "2.31",
+        "platform_mac_version": null,
+        "platform_machine": "x86_64",
+        "platform_release": "4.18.0-348.23.1.2.g50e329dc22ea.el8.x86_64",
+        "platform_system": "Linux",
+        "python_dont_write_bytecode": true,
+        "python_executable": "/root/miniconda3/envs/csi-pairs-formal/bin/python3.12",
+        "python_executable_name": "python3.12",
+        "python_implementation": "CPython",
+        "python_prefix": "/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z",
+        "python_version": "3.12.13",
+        "requirements_lock_sha256": "9548a24a4faf5db17b5251df407b4402de033ae8648ec321c850fe6105002cf1",
+        "reviewed_wheel_manifest_path": "/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/csi-pairs-reviewed-wheel-manifest.json",
+        "reviewed_wheel_manifest_sha256": "669aa8938bf2390c4e117240e6f7021378e5f5ff280afa2c01c48d6452d29e9d",
+        "reviewed_wheelhouse_path": "/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/csi-pairs-reviewed-wheels",
+        "reviewed_wheelhouse_sha256": "fa31496ca575bf617e214c2d78a621a2150dcbb58cbca8101b18f93847507865",
+        "schema_version": "csi-pairs-runtime-provenance-v3",
+        "source_tree_sha256": "8e8eaf212578b3dc624e40d1d979f0c37787afa3e7e464eac52d5b68610dfe07",
+        "torch": {
+          "cuda_available": true,
+          "cuda_matmul_allow_tf32": false,
+          "cuda_version": "12.1",
+          "cudnn_allow_tf32": false,
+          "cudnn_benchmark": false,
+          "cudnn_deterministic": true,
+          "deterministic_algorithms": true,
+          "float32_matmul_precision": "highest",
+          "gpu_names": [
+            "NVIDIA A100-SXM4-40GB",
+            "NVIDIA A100-SXM4-40GB"
+          ],
+          "version": "2.5.1+cu121"
+        }
+      },
+      "runtime_provenance_sha256": "b932e19891ce63535cf1714a6b3adb0ade296d0a6a6326a4aebf3c1041117a30",
+      "scientific_use": "CANDIDATE_NOT_DOMAIN_EVIDENCE",
+      "sha256": "fd27d9f69279553b0fd5d5e00b1cc3b31152c412b05585605081b564b7d3f1de",
+      "source_tree_sha256": "8e8eaf212578b3dc624e40d1d979f0c37787afa3e7e464eac52d5b68610dfe07"
+    },
+    {
+      "artifact_label": "csi-pairs-formal-v2.1-v6",
+      "bytes": 269390185,
+      "config_sha256": "3424a269a751f219f4897b969db7cc13d2236fc72e8e2ccb663dec8d7f8f477c",
+      "dataset_sha256": "060d8671380acaf43bd0beb2c77ac5c6ec112e4ddc083451ab36a5916b7c9cac",
+      "fixture": false,
+      "path": "per_sample_results.csv",
+      "requirements_lock_sha256": "9548a24a4faf5db17b5251df407b4402de033ae8648ec321c850fe6105002cf1",
+      "runtime_provenance": {
+        "cublas_workspace_config": ":4096:8",
+        "installed_distributions": {
+          "Jinja2": {
+            "record_sha256": "aea0a4bbe71769b8884b52cca4358e901f777f3e233c6726b728fd78b3b571e9",
+            "version": "3.1.6",
+            "wheel_sha256": "85ece4451f492d0c13c5dd7c13a64681a86afae63a5f347908daf103ce6d2f67"
+          },
+          "MarkupSafe": {
+            "record_sha256": "f07692abaeeeb03b62d10b7b5bb6d1a4da376ba66df41a2283183615bccbc8fe",
+            "version": "3.0.3",
+            "wheel_sha256": "d6dd0be5b5b189d31db7cda48b91d7e0a9795f31430b7f271219ab30f1d3ac9d"
+          },
+          "Pygments": {
+            "record_sha256": "b47ca19c32aa9efd11c357b28b6ab6063bd8b4dd9921a18a1a17e01f975d24de",
+            "version": "2.21.0",
+            "wheel_sha256": "2363c69b61c4a97c838da3b130dcd6468f4848992b21a82f2a63ec34377137d9"
+          },
+          "filelock": {
+            "record_sha256": "1ef83719724bfdb08a68067e728a9af38d77b28994877125184030688ae63561",
+            "version": "3.32.2",
+            "wheel_sha256": "87dd94cf281e586d135fa51132b8e3d9a598b316e90377a288663c9321036c82"
+          },
+          "fsspec": {
+            "record_sha256": "61ba9741a50801030d99983e2f288f4abe4c4991abc897db1515d9ac5e4a033b",
+            "version": "2026.7.0",
+            "wheel_sha256": "b57ddbafedfaef7018c1ecab32aa200a9d7ca26b77965f64e48b70061249d279"
+          },
+          "iniconfig": {
+            "record_sha256": "66787079877a254b4512fa2ce5f1bc399da444fd07965277f40738d4771c4d7f",
+            "version": "2.3.0",
+            "wheel_sha256": "f631c04d2c48c52b84d0d0549c99ff3859c98df65b3101406327ecc7d53fbf12"
+          },
+          "mpmath": {
+            "record_sha256": "bb674e4e32e10e0f48e905e746ae927c66e4ea23ee547c5d4c72f824f2d43e04",
+            "version": "1.3.0",
+            "wheel_sha256": "a0b2b9fe80bbcd81a6647ff13108738cfb482d481d826cc0e02f5b35e5c88d2c"
+          },
+          "networkx": {
+            "record_sha256": "34a15c53076ce29677d9400441d75c954681da00b229b571afbfea6de7668c5d",
+            "version": "3.6.1",
+            "wheel_sha256": "d47fbf302e7d9cbbb9e2555a0d267983d2aa476bac30e90dfbe5669bd57f3762"
+          },
+          "numpy": {
+            "record_sha256": "c38d1c08f8c6939ce32b73d751a75e47a1cb456e48c966b5a1ff13ebc880f1a3",
+            "version": "2.3.5",
+            "wheel_sha256": "0d8163f43acde9a73c2a33605353a4f1bc4798745a8b1d73183b28e5b435ae28"
+          },
+          "nvidia-cublas-cu12": {
+            "record_sha256": "82a69b9269bddcad908845c68cdf0a4c8f00a43ad321105cd3e704bd1ffda978",
+            "version": "12.1.3.1",
+            "wheel_sha256": "ee53ccca76a6fc08fb9701aa95b6ceb242cdaab118c3bb152af4e579af792728"
+          },
+          "nvidia-cuda-cupti-cu12": {
+            "record_sha256": "463c829a2e3bc24aa9d43a1739b2654dffc9f6234bb15b11e1784e954aafc467",
+            "version": "12.1.105",
+            "wheel_sha256": "e54fde3983165c624cb79254ae9818a456eb6e87a7fd4d56a2352c24ee542d7e"
+          },
+          "nvidia-cuda-nvrtc-cu12": {
+            "record_sha256": "aae08fc7891c9d1c93b615642bf2facb3a7d4707939eac01a677523f340aab8e",
+            "version": "12.1.105",
+            "wheel_sha256": "339b385f50c309763ca65456ec75e17bbefcbbf2893f462cb8b90584cd27a1c2"
+          },
+          "nvidia-cuda-runtime-cu12": {
+            "record_sha256": "febaf4e451bc30bb377d5128bbfea6e7784e9a5858bffe8cd6219a1b02438fb4",
+            "version": "12.1.105",
+            "wheel_sha256": "6e258468ddf5796e25f1dc591a31029fa317d97a0a94ed93468fc86301d61e40"
+          },
+          "nvidia-cudnn-cu12": {
+            "record_sha256": "9c8346559edfcc38282b96126dfe30fbb1531c0646e39de0cc3dd3362a03a555",
+            "version": "9.1.0.70",
+            "wheel_sha256": "165764f44ef8c61fcdfdfdbe769d687e06374059fbb388b6c89ecb0e28793a6f"
+          },
+          "nvidia-cufft-cu12": {
+            "record_sha256": "4ec4366d5524f84726b1dfbf2d7855b07b04c1c13ae5320dc09ce36e60db3a71",
+            "version": "11.0.2.54",
+            "wheel_sha256": "794e3948a1aa71fd817c3775866943936774d1c14e7628c74f6f7417224cdf56"
+          },
+          "nvidia-curand-cu12": {
+            "record_sha256": "8dc0759cd4f39fd36cd661688827eb35157b406ec8e2d8ecf7dbc6c995305d42",
+            "version": "10.3.2.106",
+            "wheel_sha256": "9d264c5036dde4e64f1de8c50ae753237c12e0b1348738169cd0f8a536c0e1e0"
+          },
+          "nvidia-cusolver-cu12": {
+            "record_sha256": "a63770827aeb1933be738e55f5a3a750c4a95f7c9f3c7fce7c1d55e48ce5969d",
+            "version": "11.4.5.107",
+            "wheel_sha256": "8a7ec542f0412294b15072fa7dab71d31334014a69f953004ea7a118206fe0dd"
+          },
+          "nvidia-cusparse-cu12": {
+            "record_sha256": "941a23b7ad429d029e9e1cd1d45850a116c1372dd9415beb9860c41eee2334da",
+            "version": "12.1.0.106",
+            "wheel_sha256": "f3b50f42cf363f86ab21f720998517a659a48131e8d538dc02f8768237bd884c"
+          },
+          "nvidia-nccl-cu12": {
+            "record_sha256": "81d5c536d0dbbec691c1d6822b55931af5392a0986948922e42573962da67abd",
+            "version": "2.21.5",
+            "wheel_sha256": "8579076d30a8c24988834445f8d633c697d42397e92ffc3f63fa26766d25e0a0"
+          },
+          "nvidia-nvjitlink-cu12": {
+            "record_sha256": "211016fc358a85ea5409b6848030f86514d9a548619cd7fddc15a3a85ac92b70",
+            "version": "12.9.86",
+            "wheel_sha256": "e3f1171dbdc83c5932a45f0f4c99180a70de9bd2718c1ab77d14104f6d7147f9"
+          },
+          "nvidia-nvtx-cu12": {
+            "record_sha256": "f52f9d1de478fc5bf533045fde9af9b7a8a88133cf345b5b7288537473c8b93a",
+            "version": "12.1.105",
+            "wheel_sha256": "dc21cf308ca5691e7c04d962e213f8a4aa9bbfa23d95412f452254c2caeb09e5"
+          },
+          "packaging": {
+            "record_sha256": "7074c2b63752a891e4032b7c2043f0d237bc170e33c85c7c1af0d99140469905",
+            "version": "26.3",
+            "wheel_sha256": "d7193f7c8e4e93f444fde0262bf90af30e16fa0ad0ad44cb553c87339b23cd1c"
+          },
+          "pluggy": {
+            "record_sha256": "916f99c41b52173d1f9c02dbf67aab4c137fb4cd57b559d9755a79acd52f7d1b",
+            "version": "1.6.0",
+            "wheel_sha256": "e920276dd6813095e9377c0bc5566d94c932c33b27a3e3945d8389c374dd4746"
+          },
+          "pytest": {
+            "record_sha256": "0b578440e1c21bd5b568460dcff9af756e41f7b0b0ce177e4ec1237ec3591200",
+            "version": "8.4.2",
+            "wheel_sha256": "872f880de3fc3a5bdc88a11b39c9710c3497a547cfa9320bc3c5e62fbf272e79"
+          },
+          "scipy": {
+            "record_sha256": "9dd8f9d59393daa15da22b6cd6d26ae287bfa9cb86d14a8e0528d61f43190035",
+            "version": "1.17.1",
+            "wheel_sha256": "02ae3b274fde71c5e92ac4d54bc06c42d80e399fec704383dcd99b301df37458"
+          },
+          "setuptools": {
+            "record_sha256": "2c66042043bcbe249b106f7b69b353528b5386ac93d6118f444e12b92e0908da",
+            "version": "83.0.0",
+            "wheel_sha256": "29b23c360f22f414dc7336bb39178cc7bcbf6021ed2733cde173f09dba19abb3"
+          },
+          "shapely": {
+            "record_sha256": "b2b35832504c1c921d4064ad2d05b6d6052dabf7bbd31b44e9cf1bbd29c433fc",
+            "version": "2.1.2",
+            "wheel_sha256": "1e7d4d7ad262a48bb44277ca12c7c78cb1b0f56b32c10734ec9a1d30c0b0c54b"
+          },
+          "sympy": {
+            "record_sha256": "bb63c5fa8a150f8554e00d41d66671714dcd0fea2ae9e9c45801cf13310abadf",
+            "version": "1.13.1",
+            "wheel_sha256": "db36cdc64bf61b9b24578b6f7bab1ecdd2452cf008f34faa33776680c26d66f8"
+          },
+          "torch": {
+            "record_sha256": "d97f4074cf7c05d8bebaad7ca00c1e4aa6ca122fd41eb06efd380b7205992ffd",
+            "version": "2.5.1+cu121",
+            "wheel_sha256": "222be02548c2e74a21a8fbc8e5b8d2eef9f9faee865d70385d2eb1b9aabcbc76"
+          },
+          "triton": {
+            "record_sha256": "c88e536a877a2f7cfc3a8426f1d76414c1a61767b0ed4e813f31f75cc7bee668",
+            "version": "3.1.0",
+            "wheel_sha256": "c8182f42fd8080a7d39d666814fa36c5e30cc00ea7eeeb1a2983dbb4c99a0fdc"
+          },
+          "typing_extensions": {
+            "record_sha256": "c9683637fd3591b7fc8fe5b5da0bc40c497cd6067d21407365f52663a3ea1446",
+            "version": "4.16.0",
+            "wheel_sha256": "481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8"
+          }
+        },
+        "installer_report_path": "/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/csi-pairs-install-report.json",
+        "installer_report_sha256": "eb21cff04bccdf0f523eeffba908c817c2edad8c312a65a575b958a35186fb95",
+        "platform_libc_name": "glibc",
+        "platform_libc_version": "2.31",
+        "platform_mac_version": null,
+        "platform_machine": "x86_64",
+        "platform_release": "4.18.0-348.23.1.2.g50e329dc22ea.el8.x86_64",
+        "platform_system": "Linux",
+        "python_dont_write_bytecode": true,
+        "python_executable": "/root/miniconda3/envs/csi-pairs-formal/bin/python3.12",
+        "python_executable_name": "python3.12",
+        "python_implementation": "CPython",
+        "python_prefix": "/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z",
+        "python_version": "3.12.13",
+        "requirements_lock_sha256": "9548a24a4faf5db17b5251df407b4402de033ae8648ec321c850fe6105002cf1",
+        "reviewed_wheel_manifest_path": "/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/csi-pairs-reviewed-wheel-manifest.json",
+        "reviewed_wheel_manifest_sha256": "669aa8938bf2390c4e117240e6f7021378e5f5ff280afa2c01c48d6452d29e9d",
+        "reviewed_wheelhouse_path": "/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/csi-pairs-reviewed-wheels",
+        "reviewed_wheelhouse_sha256": "fa31496ca575bf617e214c2d78a621a2150dcbb58cbca8101b18f93847507865",
+        "schema_version": "csi-pairs-runtime-provenance-v3",
+        "source_tree_sha256": "8e8eaf212578b3dc624e40d1d979f0c37787afa3e7e464eac52d5b68610dfe07",
+        "torch": {
+          "cuda_available": true,
+          "cuda_matmul_allow_tf32": false,
+          "cuda_version": "12.1",
+          "cudnn_allow_tf32": false,
+          "cudnn_benchmark": false,
+          "cudnn_deterministic": true,
+          "deterministic_algorithms": true,
+          "float32_matmul_precision": "highest",
+          "gpu_names": [
+            "NVIDIA A100-SXM4-40GB",
+            "NVIDIA A100-SXM4-40GB"
+          ],
+          "version": "2.5.1+cu121"
+        }
+      },
+      "runtime_provenance_sha256": "b932e19891ce63535cf1714a6b3adb0ade296d0a6a6326a4aebf3c1041117a30",
+      "scientific_use": "CANDIDATE_NOT_DOMAIN_EVIDENCE",
+      "sha256": "24b20c49de23e7dc0bc06db2880848391a77367478446cf53e783af7ca3c30c5",
+      "source_tree_sha256": "8e8eaf212578b3dc624e40d1d979f0c37787afa3e7e464eac52d5b68610dfe07"
+    },
+    {
+      "artifact_label": "csi-pairs-formal-v2.1-v6",
+      "bytes": 11328,
+      "config_sha256": "3424a269a751f219f4897b969db7cc13d2236fc72e8e2ccb663dec8d7f8f477c",
+      "dataset_sha256": "060d8671380acaf43bd0beb2c77ac5c6ec112e4ddc083451ab36a5916b7c9cac",
+      "fixture": false,
+      "path": "status.json",
+      "requirements_lock_sha256": "9548a24a4faf5db17b5251df407b4402de033ae8648ec321c850fe6105002cf1",
+      "runtime_provenance": {
+        "cublas_workspace_config": ":4096:8",
+        "installed_distributions": {
+          "Jinja2": {
+            "record_sha256": "aea0a4bbe71769b8884b52cca4358e901f777f3e233c6726b728fd78b3b571e9",
+            "version": "3.1.6",
+            "wheel_sha256": "85ece4451f492d0c13c5dd7c13a64681a86afae63a5f347908daf103ce6d2f67"
+          },
+          "MarkupSafe": {
+            "record_sha256": "f07692abaeeeb03b62d10b7b5bb6d1a4da376ba66df41a2283183615bccbc8fe",
+            "version": "3.0.3",
+            "wheel_sha256": "d6dd0be5b5b189d31db7cda48b91d7e0a9795f31430b7f271219ab30f1d3ac9d"
+          },
+          "Pygments": {
+            "record_sha256": "b47ca19c32aa9efd11c357b28b6ab6063bd8b4dd9921a18a1a17e01f975d24de",
+            "version": "2.21.0",
+            "wheel_sha256": "2363c69b61c4a97c838da3b130dcd6468f4848992b21a82f2a63ec34377137d9"
+          },
+          "filelock": {
+            "record_sha256": "1ef83719724bfdb08a68067e728a9af38d77b28994877125184030688ae63561",
+            "version": "3.32.2",
+            "wheel_sha256": "87dd94cf281e586d135fa51132b8e3d9a598b316e90377a288663c9321036c82"
+          },
+          "fsspec": {
+            "record_sha256": "61ba9741a50801030d99983e2f288f4abe4c4991abc897db1515d9ac5e4a033b",
+            "version": "2026.7.0",
+            "wheel_sha256": "b57ddbafedfaef7018c1ecab32aa200a9d7ca26b77965f64e48b70061249d279"
+          },
+          "iniconfig": {
+            "record_sha256": "66787079877a254b4512fa2ce5f1bc399da444fd07965277f40738d4771c4d7f",
+            "version": "2.3.0",
+            "wheel_sha256": "f631c04d2c48c52b84d0d0549c99ff3859c98df65b3101406327ecc7d53fbf12"
+          },
+          "mpmath": {
+            "record_sha256": "bb674e4e32e10e0f48e905e746ae927c66e4ea23ee547c5d4c72f824f2d43e04",
+            "version": "1.3.0",
+            "wheel_sha256": "a0b2b9fe80bbcd81a6647ff13108738cfb482d481d826cc0e02f5b35e5c88d2c"
+          },
+          "networkx": {
+            "record_sha256": "34a15c53076ce29677d9400441d75c954681da00b229b571afbfea6de7668c5d",
+            "version": "3.6.1",
+            "wheel_sha256": "d47fbf302e7d9cbbb9e2555a0d267983d2aa476bac30e90dfbe5669bd57f3762"
+          },
+          "numpy": {
+            "record_sha256": "c38d1c08f8c6939ce32b73d751a75e47a1cb456e48c966b5a1ff13ebc880f1a3",
+            "version": "2.3.5",
+            "wheel_sha256": "0d8163f43acde9a73c2a33605353a4f1bc4798745a8b1d73183b28e5b435ae28"
+          },
+          "nvidia-cublas-cu12": {
+            "record_sha256": "82a69b9269bddcad908845c68cdf0a4c8f00a43ad321105cd3e704bd1ffda978",
+            "version": "12.1.3.1",
+            "wheel_sha256": "ee53ccca76a6fc08fb9701aa95b6ceb242cdaab118c3bb152af4e579af792728"
+          },
+          "nvidia-cuda-cupti-cu12": {
+            "record_sha256": "463c829a2e3bc24aa9d43a1739b2654dffc9f6234bb15b11e1784e954aafc467",
+            "version": "12.1.105",
+            "wheel_sha256": "e54fde3983165c624cb79254ae9818a456eb6e87a7fd4d56a2352c24ee542d7e"
+          },
+          "nvidia-cuda-nvrtc-cu12": {
+            "record_sha256": "aae08fc7891c9d1c93b615642bf2facb3a7d4707939eac01a677523f340aab8e",
+            "version": "12.1.105",
+            "wheel_sha256": "339b385f50c309763ca65456ec75e17bbefcbbf2893f462cb8b90584cd27a1c2"
+          },
+          "nvidia-cuda-runtime-cu12": {
+            "record_sha256": "febaf4e451bc30bb377d5128bbfea6e7784e9a5858bffe8cd6219a1b02438fb4",
+            "version": "12.1.105",
+            "wheel_sha256": "6e258468ddf5796e25f1dc591a31029fa317d97a0a94ed93468fc86301d61e40"
+          },
+          "nvidia-cudnn-cu12": {
+            "record_sha256": "9c8346559edfcc38282b96126dfe30fbb1531c0646e39de0cc3dd3362a03a555",
+            "version": "9.1.0.70",
+            "wheel_sha256": "165764f44ef8c61fcdfdfdbe769d687e06374059fbb388b6c89ecb0e28793a6f"
+          },
+          "nvidia-cufft-cu12": {
+            "record_sha256": "4ec4366d5524f84726b1dfbf2d7855b07b04c1c13ae5320dc09ce36e60db3a71",
+            "version": "11.0.2.54",
+            "wheel_sha256": "794e3948a1aa71fd817c3775866943936774d1c14e7628c74f6f7417224cdf56"
+          },
+          "nvidia-curand-cu12": {
+            "record_sha256": "8dc0759cd4f39fd36cd661688827eb35157b406ec8e2d8ecf7dbc6c995305d42",
+            "version": "10.3.2.106",
+            "wheel_sha256": "9d264c5036dde4e64f1de8c50ae753237c12e0b1348738169cd0f8a536c0e1e0"
+          },
+          "nvidia-cusolver-cu12": {
+            "record_sha256": "a63770827aeb1933be738e55f5a3a750c4a95f7c9f3c7fce7c1d55e48ce5969d",
+            "version": "11.4.5.107",
+            "wheel_sha256": "8a7ec542f0412294b15072fa7dab71d31334014a69f953004ea7a118206fe0dd"
+          },
+          "nvidia-cusparse-cu12": {
+            "record_sha256": "941a23b7ad429d029e9e1cd1d45850a116c1372dd9415beb9860c41eee2334da",
+            "version": "12.1.0.106",
+            "wheel_sha256": "f3b50f42cf363f86ab21f720998517a659a48131e8d538dc02f8768237bd884c"
+          },
+          "nvidia-nccl-cu12": {
+            "record_sha256": "81d5c536d0dbbec691c1d6822b55931af5392a0986948922e42573962da67abd",
+            "version": "2.21.5",
+            "wheel_sha256": "8579076d30a8c24988834445f8d633c697d42397e92ffc3f63fa26766d25e0a0"
+          },
+          "nvidia-nvjitlink-cu12": {
+            "record_sha256": "211016fc358a85ea5409b6848030f86514d9a548619cd7fddc15a3a85ac92b70",
+            "version": "12.9.86",
+            "wheel_sha256": "e3f1171dbdc83c5932a45f0f4c99180a70de9bd2718c1ab77d14104f6d7147f9"
+          },
+          "nvidia-nvtx-cu12": {
+            "record_sha256": "f52f9d1de478fc5bf533045fde9af9b7a8a88133cf345b5b7288537473c8b93a",
+            "version": "12.1.105",
+            "wheel_sha256": "dc21cf308ca5691e7c04d962e213f8a4aa9bbfa23d95412f452254c2caeb09e5"
+          },
+          "packaging": {
+            "record_sha256": "7074c2b63752a891e4032b7c2043f0d237bc170e33c85c7c1af0d99140469905",
+            "version": "26.3",
+            "wheel_sha256": "d7193f7c8e4e93f444fde0262bf90af30e16fa0ad0ad44cb553c87339b23cd1c"
+          },
+          "pluggy": {
+            "record_sha256": "916f99c41b52173d1f9c02dbf67aab4c137fb4cd57b559d9755a79acd52f7d1b",
+            "version": "1.6.0",
+            "wheel_sha256": "e920276dd6813095e9377c0bc5566d94c932c33b27a3e3945d8389c374dd4746"
+          },
+          "pytest": {
+            "record_sha256": "0b578440e1c21bd5b568460dcff9af756e41f7b0b0ce177e4ec1237ec3591200",
+            "version": "8.4.2",
+            "wheel_sha256": "872f880de3fc3a5bdc88a11b39c9710c3497a547cfa9320bc3c5e62fbf272e79"
+          },
+          "scipy": {
+            "record_sha256": "9dd8f9d59393daa15da22b6cd6d26ae287bfa9cb86d14a8e0528d61f43190035",
+            "version": "1.17.1",
+            "wheel_sha256": "02ae3b274fde71c5e92ac4d54bc06c42d80e399fec704383dcd99b301df37458"
+          },
+          "setuptools": {
+            "record_sha256": "2c66042043bcbe249b106f7b69b353528b5386ac93d6118f444e12b92e0908da",
+            "version": "83.0.0",
+            "wheel_sha256": "29b23c360f22f414dc7336bb39178cc7bcbf6021ed2733cde173f09dba19abb3"
+          },
+          "shapely": {
+            "record_sha256": "b2b35832504c1c921d4064ad2d05b6d6052dabf7bbd31b44e9cf1bbd29c433fc",
+            "version": "2.1.2",
+            "wheel_sha256": "1e7d4d7ad262a48bb44277ca12c7c78cb1b0f56b32c10734ec9a1d30c0b0c54b"
+          },
+          "sympy": {
+            "record_sha256": "bb63c5fa8a150f8554e00d41d66671714dcd0fea2ae9e9c45801cf13310abadf",
+            "version": "1.13.1",
+            "wheel_sha256": "db36cdc64bf61b9b24578b6f7bab1ecdd2452cf008f34faa33776680c26d66f8"
+          },
+          "torch": {
+            "record_sha256": "d97f4074cf7c05d8bebaad7ca00c1e4aa6ca122fd41eb06efd380b7205992ffd",
+            "version": "2.5.1+cu121",
+            "wheel_sha256": "222be02548c2e74a21a8fbc8e5b8d2eef9f9faee865d70385d2eb1b9aabcbc76"
+          },
+          "triton": {
+            "record_sha256": "c88e536a877a2f7cfc3a8426f1d76414c1a61767b0ed4e813f31f75cc7bee668",
+            "version": "3.1.0",
+            "wheel_sha256": "c8182f42fd8080a7d39d666814fa36c5e30cc00ea7eeeb1a2983dbb4c99a0fdc"
+          },
+          "typing_extensions": {
+            "record_sha256": "c9683637fd3591b7fc8fe5b5da0bc40c497cd6067d21407365f52663a3ea1446",
+            "version": "4.16.0",
+            "wheel_sha256": "481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8"
+          }
+        },
+        "installer_report_path": "/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/csi-pairs-install-report.json",
+        "installer_report_sha256": "eb21cff04bccdf0f523eeffba908c817c2edad8c312a65a575b958a35186fb95",
+        "platform_libc_name": "glibc",
+        "platform_libc_version": "2.31",
+        "platform_mac_version": null,
+        "platform_machine": "x86_64",
+        "platform_release": "4.18.0-348.23.1.2.g50e329dc22ea.el8.x86_64",
+        "platform_system": "Linux",
+        "python_dont_write_bytecode": true,
+        "python_executable": "/root/miniconda3/envs/csi-pairs-formal/bin/python3.12",
+        "python_executable_name": "python3.12",
+        "python_implementation": "CPython",
+        "python_prefix": "/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z",
+        "python_version": "3.12.13",
+        "requirements_lock_sha256": "9548a24a4faf5db17b5251df407b4402de033ae8648ec321c850fe6105002cf1",
+        "reviewed_wheel_manifest_path": "/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/csi-pairs-reviewed-wheel-manifest.json",
+        "reviewed_wheel_manifest_sha256": "669aa8938bf2390c4e117240e6f7021378e5f5ff280afa2c01c48d6452d29e9d",
+        "reviewed_wheelhouse_path": "/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/csi-pairs-reviewed-wheels",
+        "reviewed_wheelhouse_sha256": "fa31496ca575bf617e214c2d78a621a2150dcbb58cbca8101b18f93847507865",
+        "schema_version": "csi-pairs-runtime-provenance-v3",
+        "source_tree_sha256": "8e8eaf212578b3dc624e40d1d979f0c37787afa3e7e464eac52d5b68610dfe07",
+        "torch": {
+          "cuda_available": true,
+          "cuda_matmul_allow_tf32": false,
+          "cuda_version": "12.1",
+          "cudnn_allow_tf32": false,
+          "cudnn_benchmark": false,
+          "cudnn_deterministic": true,
+          "deterministic_algorithms": true,
+          "float32_matmul_precision": "highest",
+          "gpu_names": [
+            "NVIDIA A100-SXM4-40GB",
+            "NVIDIA A100-SXM4-40GB"
+          ],
+          "version": "2.5.1+cu121"
+        }
+      },
+      "runtime_provenance_sha256": "b932e19891ce63535cf1714a6b3adb0ade296d0a6a6326a4aebf3c1041117a30",
+      "scientific_use": "CANDIDATE_NOT_DOMAIN_EVIDENCE",
+      "sha256": "4e8638c23abcf2bd1b8f5d30dbf626292cd24afee02bbb4adad854223c563934",
+      "source_tree_sha256": "8e8eaf212578b3dc624e40d1d979f0c37787afa3e7e464eac52d5b68610dfe07"
+    },
+    {
+      "artifact_label": "csi-pairs-formal-v2.1-v6",
+      "bytes": 295489,
+      "config_sha256": "3424a269a751f219f4897b969db7cc13d2236fc72e8e2ccb663dec8d7f8f477c",
+      "dataset_sha256": "060d8671380acaf43bd0beb2c77ac5c6ec112e4ddc083451ab36a5916b7c9cac",
+      "fixture": false,
+      "path": "summary.csv",
+      "requirements_lock_sha256": "9548a24a4faf5db17b5251df407b4402de033ae8648ec321c850fe6105002cf1",
+      "runtime_provenance": {
+        "cublas_workspace_config": ":4096:8",
+        "installed_distributions": {
+          "Jinja2": {
+            "record_sha256": "aea0a4bbe71769b8884b52cca4358e901f777f3e233c6726b728fd78b3b571e9",
+            "version": "3.1.6",
+            "wheel_sha256": "85ece4451f492d0c13c5dd7c13a64681a86afae63a5f347908daf103ce6d2f67"
+          },
+          "MarkupSafe": {
+            "record_sha256": "f07692abaeeeb03b62d10b7b5bb6d1a4da376ba66df41a2283183615bccbc8fe",
+            "version": "3.0.3",
+            "wheel_sha256": "d6dd0be5b5b189d31db7cda48b91d7e0a9795f31430b7f271219ab30f1d3ac9d"
+          },
+          "Pygments": {
+            "record_sha256": "b47ca19c32aa9efd11c357b28b6ab6063bd8b4dd9921a18a1a17e01f975d24de",
+            "version": "2.21.0",
+            "wheel_sha256": "2363c69b61c4a97c838da3b130dcd6468f4848992b21a82f2a63ec34377137d9"
+          },
+          "filelock": {
+            "record_sha256": "1ef83719724bfdb08a68067e728a9af38d77b28994877125184030688ae63561",
+            "version": "3.32.2",
+            "wheel_sha256": "87dd94cf281e586d135fa51132b8e3d9a598b316e90377a288663c9321036c82"
+          },
+          "fsspec": {
+            "record_sha256": "61ba9741a50801030d99983e2f288f4abe4c4991abc897db1515d9ac5e4a033b",
+            "version": "2026.7.0",
+            "wheel_sha256": "b57ddbafedfaef7018c1ecab32aa200a9d7ca26b77965f64e48b70061249d279"
+          },
+          "iniconfig": {
+            "record_sha256": "66787079877a254b4512fa2ce5f1bc399da444fd07965277f40738d4771c4d7f",
+            "version": "2.3.0",
+            "wheel_sha256": "f631c04d2c48c52b84d0d0549c99ff3859c98df65b3101406327ecc7d53fbf12"
+          },
+          "mpmath": {
+            "record_sha256": "bb674e4e32e10e0f48e905e746ae927c66e4ea23ee547c5d4c72f824f2d43e04",
+            "version": "1.3.0",
+            "wheel_sha256": "a0b2b9fe80bbcd81a6647ff13108738cfb482d481d826cc0e02f5b35e5c88d2c"
+          },
+          "networkx": {
+            "record_sha256": "34a15c53076ce29677d9400441d75c954681da00b229b571afbfea6de7668c5d",
+            "version": "3.6.1",
+            "wheel_sha256": "d47fbf302e7d9cbbb9e2555a0d267983d2aa476bac30e90dfbe5669bd57f3762"
+          },
+          "numpy": {
+            "record_sha256": "c38d1c08f8c6939ce32b73d751a75e47a1cb456e48c966b5a1ff13ebc880f1a3",
+            "version": "2.3.5",
+            "wheel_sha256": "0d8163f43acde9a73c2a33605353a4f1bc4798745a8b1d73183b28e5b435ae28"
+          },
+          "nvidia-cublas-cu12": {
+            "record_sha256": "82a69b9269bddcad908845c68cdf0a4c8f00a43ad321105cd3e704bd1ffda978",
+            "version": "12.1.3.1",
+            "wheel_sha256": "ee53ccca76a6fc08fb9701aa95b6ceb242cdaab118c3bb152af4e579af792728"
+          },
+          "nvidia-cuda-cupti-cu12": {
+            "record_sha256": "463c829a2e3bc24aa9d43a1739b2654dffc9f6234bb15b11e1784e954aafc467",
+            "version": "12.1.105",
+            "wheel_sha256": "e54fde3983165c624cb79254ae9818a456eb6e87a7fd4d56a2352c24ee542d7e"
+          },
+          "nvidia-cuda-nvrtc-cu12": {
+            "record_sha256": "aae08fc7891c9d1c93b615642bf2facb3a7d4707939eac01a677523f340aab8e",
+            "version": "12.1.105",
+            "wheel_sha256": "339b385f50c309763ca65456ec75e17bbefcbbf2893f462cb8b90584cd27a1c2"
+          },
+          "nvidia-cuda-runtime-cu12": {
+            "record_sha256": "febaf4e451bc30bb377d5128bbfea6e7784e9a5858bffe8cd6219a1b02438fb4",
+            "version": "12.1.105",
+            "wheel_sha256": "6e258468ddf5796e25f1dc591a31029fa317d97a0a94ed93468fc86301d61e40"
+          },
+          "nvidia-cudnn-cu12": {
+            "record_sha256": "9c8346559edfcc38282b96126dfe30fbb1531c0646e39de0cc3dd3362a03a555",
+            "version": "9.1.0.70",
+            "wheel_sha256": "165764f44ef8c61fcdfdfdbe769d687e06374059fbb388b6c89ecb0e28793a6f"
+          },
+          "nvidia-cufft-cu12": {
+            "record_sha256": "4ec4366d5524f84726b1dfbf2d7855b07b04c1c13ae5320dc09ce36e60db3a71",
+            "version": "11.0.2.54",
+            "wheel_sha256": "794e3948a1aa71fd817c3775866943936774d1c14e7628c74f6f7417224cdf56"
+          },
+          "nvidia-curand-cu12": {
+            "record_sha256": "8dc0759cd4f39fd36cd661688827eb35157b406ec8e2d8ecf7dbc6c995305d42",
+            "version": "10.3.2.106",
+            "wheel_sha256": "9d264c5036dde4e64f1de8c50ae753237c12e0b1348738169cd0f8a536c0e1e0"
+          },
+          "nvidia-cusolver-cu12": {
+            "record_sha256": "a63770827aeb1933be738e55f5a3a750c4a95f7c9f3c7fce7c1d55e48ce5969d",
+            "version": "11.4.5.107",
+            "wheel_sha256": "8a7ec542f0412294b15072fa7dab71d31334014a69f953004ea7a118206fe0dd"
+          },
+          "nvidia-cusparse-cu12": {
+            "record_sha256": "941a23b7ad429d029e9e1cd1d45850a116c1372dd9415beb9860c41eee2334da",
+            "version": "12.1.0.106",
+            "wheel_sha256": "f3b50f42cf363f86ab21f720998517a659a48131e8d538dc02f8768237bd884c"
+          },
+          "nvidia-nccl-cu12": {
+            "record_sha256": "81d5c536d0dbbec691c1d6822b55931af5392a0986948922e42573962da67abd",
+            "version": "2.21.5",
+            "wheel_sha256": "8579076d30a8c24988834445f8d633c697d42397e92ffc3f63fa26766d25e0a0"
+          },
+          "nvidia-nvjitlink-cu12": {
+            "record_sha256": "211016fc358a85ea5409b6848030f86514d9a548619cd7fddc15a3a85ac92b70",
+            "version": "12.9.86",
+            "wheel_sha256": "e3f1171dbdc83c5932a45f0f4c99180a70de9bd2718c1ab77d14104f6d7147f9"
+          },
+          "nvidia-nvtx-cu12": {
+            "record_sha256": "f52f9d1de478fc5bf533045fde9af9b7a8a88133cf345b5b7288537473c8b93a",
+            "version": "12.1.105",
+            "wheel_sha256": "dc21cf308ca5691e7c04d962e213f8a4aa9bbfa23d95412f452254c2caeb09e5"
+          },
+          "packaging": {
+            "record_sha256": "7074c2b63752a891e4032b7c2043f0d237bc170e33c85c7c1af0d99140469905",
+            "version": "26.3",
+            "wheel_sha256": "d7193f7c8e4e93f444fde0262bf90af30e16fa0ad0ad44cb553c87339b23cd1c"
+          },
+          "pluggy": {
+            "record_sha256": "916f99c41b52173d1f9c02dbf67aab4c137fb4cd57b559d9755a79acd52f7d1b",
+            "version": "1.6.0",
+            "wheel_sha256": "e920276dd6813095e9377c0bc5566d94c932c33b27a3e3945d8389c374dd4746"
+          },
+          "pytest": {
+            "record_sha256": "0b578440e1c21bd5b568460dcff9af756e41f7b0b0ce177e4ec1237ec3591200",
+            "version": "8.4.2",
+            "wheel_sha256": "872f880de3fc3a5bdc88a11b39c9710c3497a547cfa9320bc3c5e62fbf272e79"
+          },
+          "scipy": {
+            "record_sha256": "9dd8f9d59393daa15da22b6cd6d26ae287bfa9cb86d14a8e0528d61f43190035",
+            "version": "1.17.1",
+            "wheel_sha256": "02ae3b274fde71c5e92ac4d54bc06c42d80e399fec704383dcd99b301df37458"
+          },
+          "setuptools": {
+            "record_sha256": "2c66042043bcbe249b106f7b69b353528b5386ac93d6118f444e12b92e0908da",
+            "version": "83.0.0",
+            "wheel_sha256": "29b23c360f22f414dc7336bb39178cc7bcbf6021ed2733cde173f09dba19abb3"
+          },
+          "shapely": {
+            "record_sha256": "b2b35832504c1c921d4064ad2d05b6d6052dabf7bbd31b44e9cf1bbd29c433fc",
+            "version": "2.1.2",
+            "wheel_sha256": "1e7d4d7ad262a48bb44277ca12c7c78cb1b0f56b32c10734ec9a1d30c0b0c54b"
+          },
+          "sympy": {
+            "record_sha256": "bb63c5fa8a150f8554e00d41d66671714dcd0fea2ae9e9c45801cf13310abadf",
+            "version": "1.13.1",
+            "wheel_sha256": "db36cdc64bf61b9b24578b6f7bab1ecdd2452cf008f34faa33776680c26d66f8"
+          },
+          "torch": {
+            "record_sha256": "d97f4074cf7c05d8bebaad7ca00c1e4aa6ca122fd41eb06efd380b7205992ffd",
+            "version": "2.5.1+cu121",
+            "wheel_sha256": "222be02548c2e74a21a8fbc8e5b8d2eef9f9faee865d70385d2eb1b9aabcbc76"
+          },
+          "triton": {
+            "record_sha256": "c88e536a877a2f7cfc3a8426f1d76414c1a61767b0ed4e813f31f75cc7bee668",
+            "version": "3.1.0",
+            "wheel_sha256": "c8182f42fd8080a7d39d666814fa36c5e30cc00ea7eeeb1a2983dbb4c99a0fdc"
+          },
+          "typing_extensions": {
+            "record_sha256": "c9683637fd3591b7fc8fe5b5da0bc40c497cd6067d21407365f52663a3ea1446",
+            "version": "4.16.0",
+            "wheel_sha256": "481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8"
+          }
+        },
+        "installer_report_path": "/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/csi-pairs-install-report.json",
+        "installer_report_sha256": "eb21cff04bccdf0f523eeffba908c817c2edad8c312a65a575b958a35186fb95",
+        "platform_libc_name": "glibc",
+        "platform_libc_version": "2.31",
+        "platform_mac_version": null,
+        "platform_machine": "x86_64",
+        "platform_release": "4.18.0-348.23.1.2.g50e329dc22ea.el8.x86_64",
+        "platform_system": "Linux",
+        "python_dont_write_bytecode": true,
+        "python_executable": "/root/miniconda3/envs/csi-pairs-formal/bin/python3.12",
+        "python_executable_name": "python3.12",
+        "python_implementation": "CPython",
+        "python_prefix": "/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z",
+        "python_version": "3.12.13",
+        "requirements_lock_sha256": "9548a24a4faf5db17b5251df407b4402de033ae8648ec321c850fe6105002cf1",
+        "reviewed_wheel_manifest_path": "/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/csi-pairs-reviewed-wheel-manifest.json",
+        "reviewed_wheel_manifest_sha256": "669aa8938bf2390c4e117240e6f7021378e5f5ff280afa2c01c48d6452d29e9d",
+        "reviewed_wheelhouse_path": "/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/csi-pairs-reviewed-wheels",
+        "reviewed_wheelhouse_sha256": "fa31496ca575bf617e214c2d78a621a2150dcbb58cbca8101b18f93847507865",
+        "schema_version": "csi-pairs-runtime-provenance-v3",
+        "source_tree_sha256": "8e8eaf212578b3dc624e40d1d979f0c37787afa3e7e464eac52d5b68610dfe07",
+        "torch": {
+          "cuda_available": true,
+          "cuda_matmul_allow_tf32": false,
+          "cuda_version": "12.1",
+          "cudnn_allow_tf32": false,
+          "cudnn_benchmark": false,
+          "cudnn_deterministic": true,
+          "deterministic_algorithms": true,
+          "float32_matmul_precision": "highest",
+          "gpu_names": [
+            "NVIDIA A100-SXM4-40GB",
+            "NVIDIA A100-SXM4-40GB"
+          ],
+          "version": "2.5.1+cu121"
+        }
+      },
+      "runtime_provenance_sha256": "b932e19891ce63535cf1714a6b3adb0ade296d0a6a6326a4aebf3c1041117a30",
+      "scientific_use": "CANDIDATE_NOT_DOMAIN_EVIDENCE",
+      "sha256": "8c88d11243274a17110120cd76fc6a1b7251bf25c1d4f931866e8f58eea8825a",
+      "source_tree_sha256": "8e8eaf212578b3dc624e40d1d979f0c37787afa3e7e464eac52d5b68610dfe07"
+    }
+  ],
+  "fixture": false,
+  "requirements_lock_sha256": "9548a24a4faf5db17b5251df407b4402de033ae8648ec321c850fe6105002cf1",
+  "runtime_provenance": {
+    "cublas_workspace_config": ":4096:8",
+    "installed_distributions": {
+      "Jinja2": {
+        "record_sha256": "aea0a4bbe71769b8884b52cca4358e901f777f3e233c6726b728fd78b3b571e9",
+        "version": "3.1.6",
+        "wheel_sha256": "85ece4451f492d0c13c5dd7c13a64681a86afae63a5f347908daf103ce6d2f67"
+      },
+      "MarkupSafe": {
+        "record_sha256": "f07692abaeeeb03b62d10b7b5bb6d1a4da376ba66df41a2283183615bccbc8fe",
+        "version": "3.0.3",
+        "wheel_sha256": "d6dd0be5b5b189d31db7cda48b91d7e0a9795f31430b7f271219ab30f1d3ac9d"
+      },
+      "Pygments": {
+        "record_sha256": "b47ca19c32aa9efd11c357b28b6ab6063bd8b4dd9921a18a1a17e01f975d24de",
+        "version": "2.21.0",
+        "wheel_sha256": "2363c69b61c4a97c838da3b130dcd6468f4848992b21a82f2a63ec34377137d9"
+      },
+      "filelock": {
+        "record_sha256": "1ef83719724bfdb08a68067e728a9af38d77b28994877125184030688ae63561",
+        "version": "3.32.2",
+        "wheel_sha256": "87dd94cf281e586d135fa51132b8e3d9a598b316e90377a288663c9321036c82"
+      },
+      "fsspec": {
+        "record_sha256": "61ba9741a50801030d99983e2f288f4abe4c4991abc897db1515d9ac5e4a033b",
+        "version": "2026.7.0",
+        "wheel_sha256": "b57ddbafedfaef7018c1ecab32aa200a9d7ca26b77965f64e48b70061249d279"
+      },
+      "iniconfig": {
+        "record_sha256": "66787079877a254b4512fa2ce5f1bc399da444fd07965277f40738d4771c4d7f",
+        "version": "2.3.0",
+        "wheel_sha256": "f631c04d2c48c52b84d0d0549c99ff3859c98df65b3101406327ecc7d53fbf12"
+      },
+      "mpmath": {
+        "record_sha256": "bb674e4e32e10e0f48e905e746ae927c66e4ea23ee547c5d4c72f824f2d43e04",
+        "version": "1.3.0",
+        "wheel_sha256": "a0b2b9fe80bbcd81a6647ff13108738cfb482d481d826cc0e02f5b35e5c88d2c"
+      },
+      "networkx": {
+        "record_sha256": "34a15c53076ce29677d9400441d75c954681da00b229b571afbfea6de7668c5d",
+        "version": "3.6.1",
+        "wheel_sha256": "d47fbf302e7d9cbbb9e2555a0d267983d2aa476bac30e90dfbe5669bd57f3762"
+      },
+      "numpy": {
+        "record_sha256": "c38d1c08f8c6939ce32b73d751a75e47a1cb456e48c966b5a1ff13ebc880f1a3",
+        "version": "2.3.5",
+        "wheel_sha256": "0d8163f43acde9a73c2a33605353a4f1bc4798745a8b1d73183b28e5b435ae28"
+      },
+      "nvidia-cublas-cu12": {
+        "record_sha256": "82a69b9269bddcad908845c68cdf0a4c8f00a43ad321105cd3e704bd1ffda978",
+        "version": "12.1.3.1",
+        "wheel_sha256": "ee53ccca76a6fc08fb9701aa95b6ceb242cdaab118c3bb152af4e579af792728"
+      },
+      "nvidia-cuda-cupti-cu12": {
+        "record_sha256": "463c829a2e3bc24aa9d43a1739b2654dffc9f6234bb15b11e1784e954aafc467",
+        "version": "12.1.105",
+        "wheel_sha256": "e54fde3983165c624cb79254ae9818a456eb6e87a7fd4d56a2352c24ee542d7e"
+      },
+      "nvidia-cuda-nvrtc-cu12": {
+        "record_sha256": "aae08fc7891c9d1c93b615642bf2facb3a7d4707939eac01a677523f340aab8e",
+        "version": "12.1.105",
+        "wheel_sha256": "339b385f50c309763ca65456ec75e17bbefcbbf2893f462cb8b90584cd27a1c2"
+      },
+      "nvidia-cuda-runtime-cu12": {
+        "record_sha256": "febaf4e451bc30bb377d5128bbfea6e7784e9a5858bffe8cd6219a1b02438fb4",
+        "version": "12.1.105",
+        "wheel_sha256": "6e258468ddf5796e25f1dc591a31029fa317d97a0a94ed93468fc86301d61e40"
+      },
+      "nvidia-cudnn-cu12": {
+        "record_sha256": "9c8346559edfcc38282b96126dfe30fbb1531c0646e39de0cc3dd3362a03a555",
+        "version": "9.1.0.70",
+        "wheel_sha256": "165764f44ef8c61fcdfdfdbe769d687e06374059fbb388b6c89ecb0e28793a6f"
+      },
+      "nvidia-cufft-cu12": {
+        "record_sha256": "4ec4366d5524f84726b1dfbf2d7855b07b04c1c13ae5320dc09ce36e60db3a71",
+        "version": "11.0.2.54",
+        "wheel_sha256": "794e3948a1aa71fd817c3775866943936774d1c14e7628c74f6f7417224cdf56"
+      },
+      "nvidia-curand-cu12": {
+        "record_sha256": "8dc0759cd4f39fd36cd661688827eb35157b406ec8e2d8ecf7dbc6c995305d42",
+        "version": "10.3.2.106",
+        "wheel_sha256": "9d264c5036dde4e64f1de8c50ae753237c12e0b1348738169cd0f8a536c0e1e0"
+      },
+      "nvidia-cusolver-cu12": {
+        "record_sha256": "a63770827aeb1933be738e55f5a3a750c4a95f7c9f3c7fce7c1d55e48ce5969d",
+        "version": "11.4.5.107",
+        "wheel_sha256": "8a7ec542f0412294b15072fa7dab71d31334014a69f953004ea7a118206fe0dd"
+      },
+      "nvidia-cusparse-cu12": {
+        "record_sha256": "941a23b7ad429d029e9e1cd1d45850a116c1372dd9415beb9860c41eee2334da",
+        "version": "12.1.0.106",
+        "wheel_sha256": "f3b50f42cf363f86ab21f720998517a659a48131e8d538dc02f8768237bd884c"
+      },
+      "nvidia-nccl-cu12": {
+        "record_sha256": "81d5c536d0dbbec691c1d6822b55931af5392a0986948922e42573962da67abd",
+        "version": "2.21.5",
+        "wheel_sha256": "8579076d30a8c24988834445f8d633c697d42397e92ffc3f63fa26766d25e0a0"
+      },
+      "nvidia-nvjitlink-cu12": {
+        "record_sha256": "211016fc358a85ea5409b6848030f86514d9a548619cd7fddc15a3a85ac92b70",
+        "version": "12.9.86",
+        "wheel_sha256": "e3f1171dbdc83c5932a45f0f4c99180a70de9bd2718c1ab77d14104f6d7147f9"
+      },
+      "nvidia-nvtx-cu12": {
+        "record_sha256": "f52f9d1de478fc5bf533045fde9af9b7a8a88133cf345b5b7288537473c8b93a",
+        "version": "12.1.105",
+        "wheel_sha256": "dc21cf308ca5691e7c04d962e213f8a4aa9bbfa23d95412f452254c2caeb09e5"
+      },
+      "packaging": {
+        "record_sha256": "7074c2b63752a891e4032b7c2043f0d237bc170e33c85c7c1af0d99140469905",
+        "version": "26.3",
+        "wheel_sha256": "d7193f7c8e4e93f444fde0262bf90af30e16fa0ad0ad44cb553c87339b23cd1c"
+      },
+      "pluggy": {
+        "record_sha256": "916f99c41b52173d1f9c02dbf67aab4c137fb4cd57b559d9755a79acd52f7d1b",
+        "version": "1.6.0",
+        "wheel_sha256": "e920276dd6813095e9377c0bc5566d94c932c33b27a3e3945d8389c374dd4746"
+      },
+      "pytest": {
+        "record_sha256": "0b578440e1c21bd5b568460dcff9af756e41f7b0b0ce177e4ec1237ec3591200",
+        "version": "8.4.2",
+        "wheel_sha256": "872f880de3fc3a5bdc88a11b39c9710c3497a547cfa9320bc3c5e62fbf272e79"
+      },
+      "scipy": {
+        "record_sha256": "9dd8f9d59393daa15da22b6cd6d26ae287bfa9cb86d14a8e0528d61f43190035",
+        "version": "1.17.1",
+        "wheel_sha256": "02ae3b274fde71c5e92ac4d54bc06c42d80e399fec704383dcd99b301df37458"
+      },
+      "setuptools": {
+        "record_sha256": "2c66042043bcbe249b106f7b69b353528b5386ac93d6118f444e12b92e0908da",
+        "version": "83.0.0",
+        "wheel_sha256": "29b23c360f22f414dc7336bb39178cc7bcbf6021ed2733cde173f09dba19abb3"
+      },
+      "shapely": {
+        "record_sha256": "b2b35832504c1c921d4064ad2d05b6d6052dabf7bbd31b44e9cf1bbd29c433fc",
+        "version": "2.1.2",
+        "wheel_sha256": "1e7d4d7ad262a48bb44277ca12c7c78cb1b0f56b32c10734ec9a1d30c0b0c54b"
+      },
+      "sympy": {
+        "record_sha256": "bb63c5fa8a150f8554e00d41d66671714dcd0fea2ae9e9c45801cf13310abadf",
+        "version": "1.13.1",
+        "wheel_sha256": "db36cdc64bf61b9b24578b6f7bab1ecdd2452cf008f34faa33776680c26d66f8"
+      },
+      "torch": {
+        "record_sha256": "d97f4074cf7c05d8bebaad7ca00c1e4aa6ca122fd41eb06efd380b7205992ffd",
+        "version": "2.5.1+cu121",
+        "wheel_sha256": "222be02548c2e74a21a8fbc8e5b8d2eef9f9faee865d70385d2eb1b9aabcbc76"
+      },
+      "triton": {
+        "record_sha256": "c88e536a877a2f7cfc3a8426f1d76414c1a61767b0ed4e813f31f75cc7bee668",
+        "version": "3.1.0",
+        "wheel_sha256": "c8182f42fd8080a7d39d666814fa36c5e30cc00ea7eeeb1a2983dbb4c99a0fdc"
+      },
+      "typing_extensions": {
+        "record_sha256": "c9683637fd3591b7fc8fe5b5da0bc40c497cd6067d21407365f52663a3ea1446",
+        "version": "4.16.0",
+        "wheel_sha256": "481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8"
+      }
+    },
+    "installer_report_path": "/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/csi-pairs-install-report.json",
+    "installer_report_sha256": "eb21cff04bccdf0f523eeffba908c817c2edad8c312a65a575b958a35186fb95",
+    "platform_libc_name": "glibc",
+    "platform_libc_version": "2.31",
+    "platform_mac_version": null,
+    "platform_machine": "x86_64",
+    "platform_release": "4.18.0-348.23.1.2.g50e329dc22ea.el8.x86_64",
+    "platform_system": "Linux",
+    "python_dont_write_bytecode": true,
+    "python_executable": "/root/miniconda3/envs/csi-pairs-formal/bin/python3.12",
+    "python_executable_name": "python3.12",
+    "python_implementation": "CPython",
+    "python_prefix": "/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z",
+    "python_version": "3.12.13",
+    "requirements_lock_sha256": "9548a24a4faf5db17b5251df407b4402de033ae8648ec321c850fe6105002cf1",
+    "reviewed_wheel_manifest_path": "/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/csi-pairs-reviewed-wheel-manifest.json",
+    "reviewed_wheel_manifest_sha256": "669aa8938bf2390c4e117240e6f7021378e5f5ff280afa2c01c48d6452d29e9d",
+    "reviewed_wheelhouse_path": "/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/csi-pairs-reviewed-wheels",
+    "reviewed_wheelhouse_sha256": "fa31496ca575bf617e214c2d78a621a2150dcbb58cbca8101b18f93847507865",
+    "schema_version": "csi-pairs-runtime-provenance-v3",
+    "source_tree_sha256": "8e8eaf212578b3dc624e40d1d979f0c37787afa3e7e464eac52d5b68610dfe07",
+    "torch": {
+      "cuda_available": true,
+      "cuda_matmul_allow_tf32": false,
+      "cuda_version": "12.1",
+      "cudnn_allow_tf32": false,
+      "cudnn_benchmark": false,
+      "cudnn_deterministic": true,
+      "deterministic_algorithms": true,
+      "float32_matmul_precision": "highest",
+      "gpu_names": [
+        "NVIDIA A100-SXM4-40GB",
+        "NVIDIA A100-SXM4-40GB"
+      ],
+      "version": "2.5.1+cu121"
+    }
+  },
+  "runtime_provenance_sha256": "b932e19891ce63535cf1714a6b3adb0ade296d0a6a6326a4aebf3c1041117a30",
+  "schema_version": "csi-pairs-formal-stage-manifest-v2.1-v6",
+  "scientific_use": "CANDIDATE_NOT_DOMAIN_EVIDENCE",
+  "source_tree_sha256": "8e8eaf212578b3dc624e40d1d979f0c37787afa3e7e464eac52d5b68610dfe07"
+}

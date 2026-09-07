@@ -1,0 +1,26 @@
+/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/lib/python3.12/site-packages/torch/nn/modules/transformer.py:379: UserWarning: enable_nested_tensor is True, but self.use_nested_tensor is False because encoder_layer.norm_first was True
+  warnings.warn(
+{"fit_banks": 32, "fit_rows": 524288, "stage": "physical_response_fit_rows_ready"}
+{"fit_active_rows": 92272, "fit_null_rows": 416592, "gate_members": 3, "response_scale": 3.132510801137955, "stage": "physical_response_gate_fit_complete"}
+{"bank_id": "osm-sionna-source-chicago-bank-16", "rows": 262144, "scene": 32, "stage": "physical_response_selection_bank_complete"}
+{"bank_id": "osm-sionna-source-chicago-bank-17", "rows": 262144, "scene": 33, "stage": "physical_response_selection_bank_complete"}
+{"bank_id": "osm-sionna-source-chicago-bank-18", "rows": 262144, "scene": 34, "stage": "physical_response_selection_bank_complete"}
+{"bank_id": "osm-sionna-source-chicago-bank-19", "rows": 262144, "scene": 35, "stage": "physical_response_selection_bank_complete"}
+{"bank_id": "osm-sionna-source-austin-bank-16", "rows": 262144, "scene": 36, "stage": "physical_response_selection_bank_complete"}
+{"bank_id": "osm-sionna-source-austin-bank-17", "rows": 262144, "scene": 37, "stage": "physical_response_selection_bank_complete"}
+{"bank_id": "osm-sionna-source-austin-bank-18", "rows": 262144, "scene": 38, "stage": "physical_response_selection_bank_complete"}
+{"bank_id": "osm-sionna-source-austin-bank-19", "rows": 262144, "scene": 39, "stage": "physical_response_selection_bank_complete"}
+warning: G1/G2 Response qualification failed; continuing because --continue-on-stage-fail (G1/G2 Response qualification produced incomplete or invalid engineering output)
+warning: wrong-map control failed; continuing because --continue-on-stage-fail (RuntimeError: formal stages require a live independent data-verification gate)
+warning: four-arm factorial failed; continuing because --continue-on-stage-fail (RuntimeError: formal stages require a live independent data-verification gate)
+warning: formal evaluation failed; continuing because --continue-on-stage-fail (FileNotFoundError: [Errno 2] No such file or directory: '/root/xunlian/Futaoran/CSI_MAIN_C591701_20260901/runs/c591701-engineering-all-20260902T0130/factorial/gate.json')
+warning: risk contract failed; continuing because --continue-on-stage-fail (RuntimeError: formal stages require a live independent data-verification gate)
+warning: path audit failed; continuing because --continue-on-stage-fail (RuntimeError: formal stages require a live independent data-verification gate)
+warning: external baselines failed; continuing because --continue-on-stage-fail (ValueError: waibu formal resources are missing: ['2502.11965v2.pdf', '2505.09160v2.pdf', '2601.03789v1.pdf', '2604.07086v1.pdf'])
+warning: representation baselines failed; continuing because --continue-on-stage-fail (RuntimeError: formal stages require a live independent data-verification gate)
+warning: resource controls failed; continuing because --continue-on-stage-fail (RuntimeError: formal stages require a live independent data-verification gate)
+warning: scene-ID audit failed; continuing because --continue-on-stage-fail (RuntimeError: formal stages require a live independent data-verification gate)
+warning: shuffled-pair control failed; continuing because --continue-on-stage-fail (RuntimeError: factorial requires scientific_use=FORMAL_EXPERIMENT_ALLOWED)
+warning: retention audit failed; continuing because --continue-on-stage-fail (RuntimeError: formal stages require a live independent data-verification gate)
+warning: claim assembly failed; continuing because --continue-on-stage-fail (claim assembly produced incomplete or invalid engineering output)
+{"output": "/root/xunlian/Futaoran/CSI_MAIN_C591701_20260901/runs/c591701-engineering-all-20260902T0130", "status": "NON_CLAIM"}

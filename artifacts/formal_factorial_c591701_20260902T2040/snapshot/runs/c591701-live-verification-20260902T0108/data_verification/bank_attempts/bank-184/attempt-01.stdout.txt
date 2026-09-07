@@ -1,0 +1,19 @@
+[31m2026-09-02 15:13:25 WARN  [PLYMesh] "background.ply": performance warning -- this file uses the ASCII PLY format, which is slow to parse. Consider converting it to the binary PLY format.
+{"event":"formal_candidate_bank_started","scene_id":"osm-sionna-target-boston-bank-30","scene_index":184,"world_count":16}
+{"elapsed_seconds":68.026,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-target-boston-bank-30","scene_index":184,"world_count":16,"world_index":0,"worlds_complete":1}
+{"elapsed_seconds":132.336,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-target-boston-bank-30","scene_index":184,"world_count":16,"world_index":1,"worlds_complete":2}
+{"elapsed_seconds":196.983,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-target-boston-bank-30","scene_index":184,"world_count":16,"world_index":2,"worlds_complete":3}
+{"elapsed_seconds":261.335,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-target-boston-bank-30","scene_index":184,"world_count":16,"world_index":3,"worlds_complete":4}
+{"elapsed_seconds":325.096,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-target-boston-bank-30","scene_index":184,"world_count":16,"world_index":4,"worlds_complete":5}
+{"elapsed_seconds":389.583,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-target-boston-bank-30","scene_index":184,"world_count":16,"world_index":5,"worlds_complete":6}
+{"elapsed_seconds":454.022,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-target-boston-bank-30","scene_index":184,"world_count":16,"world_index":6,"worlds_complete":7}
+{"elapsed_seconds":518.173,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-target-boston-bank-30","scene_index":184,"world_count":16,"world_index":7,"worlds_complete":8}
+{"elapsed_seconds":582.452,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-target-boston-bank-30","scene_index":184,"world_count":16,"world_index":8,"worlds_complete":9}
+{"elapsed_seconds":646.875,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-target-boston-bank-30","scene_index":184,"world_count":16,"world_index":9,"worlds_complete":10}
+{"elapsed_seconds":711.115,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-target-boston-bank-30","scene_index":184,"world_count":16,"world_index":10,"worlds_complete":11}
+{"elapsed_seconds":775.731,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-target-boston-bank-30","scene_index":184,"world_count":16,"world_index":11,"worlds_complete":12}
+{"elapsed_seconds":840.082,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-target-boston-bank-30","scene_index":184,"world_count":16,"world_index":12,"worlds_complete":13}
+{"elapsed_seconds":904.266,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-target-boston-bank-30","scene_index":184,"world_count":16,"world_index":13,"worlds_complete":14}
+{"elapsed_seconds":968.987,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-target-boston-bank-30","scene_index":184,"world_count":16,"world_index":14,"worlds_complete":15}
+{"elapsed_seconds":1033.353,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-target-boston-bank-30","scene_index":184,"world_count":16,"world_index":15,"worlds_complete":16}
+[0m

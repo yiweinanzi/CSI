@@ -1,0 +1,13 @@
+{
+  "schema_version": "csi-pairs-archive-byte-verification-v1",
+  "status": "PASS",
+  "scientific_use": "ARCHIVE_INTEGRITY_ONLY_NOT_CLAIM",
+  "sota_ready": false,
+  "parts_verified": 5,
+  "unique_objects_sha256_verified": 836,
+  "original_paths_covered": 1981,
+  "original_bytes_covered": 16874184618,
+  "archive_manifest_sha256": "5dd531dab596a4edd066e951d525ebc3705d0ccb8f0dcf43059a5a4a4b5298bb",
+  "source_inventory_sha256": "9d1f622e90de3c6d2405ebdd2a6ee145cdcb55d552cf31ea6aa8ad57987a0591",
+  "compressed_stream_sha256": "8b93a8d4a91467de9cb4d760d5b4899a52ac2022552aa8706c7b89ebec23780e"
+}

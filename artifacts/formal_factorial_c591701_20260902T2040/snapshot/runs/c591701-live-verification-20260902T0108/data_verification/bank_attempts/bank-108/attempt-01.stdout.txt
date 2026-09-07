@@ -1,0 +1,8 @@
+{"event":"formal_candidate_bank_started","scene_id":"osm-sionna-source-austin-bank-51","scene_index":108,"world_count":16}
+{"elapsed_seconds":77.256,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-source-austin-bank-51","scene_index":108,"world_count":16,"world_index":0,"worlds_complete":1}
+{"elapsed_seconds":149.626,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-source-austin-bank-51","scene_index":108,"world_count":16,"world_index":1,"worlds_complete":2}
+{"elapsed_seconds":222.203,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-source-austin-bank-51","scene_index":108,"world_count":16,"world_index":2,"worlds_complete":3}
+{"elapsed_seconds":295.455,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-source-austin-bank-51","scene_index":108,"world_count":16,"world_index":3,"worlds_complete":4}
+{"elapsed_seconds":368.367,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-source-austin-bank-51","scene_index":108,"world_count":16,"world_index":4,"worlds_complete":5}
+{"elapsed_seconds":441.958,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-source-austin-bank-51","scene_index":108,"world_count":16,"world_index":5,"worlds_complete":6}
+{"elapsed_seconds":514.854,"event":"formal_candidate_world_complete","scene_id":"osm-sionna-source-austin-bank-51","scene_index":108,"world_count":16,"world_index":6,"worlds_complete":7}

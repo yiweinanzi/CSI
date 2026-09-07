@@ -1,0 +1,9 @@
+slice_key,city,k,method,family,median_error_m,status,join_ready,missing_join_fields,source,source_sha256
+city × k × method,,,full,factorial_arm,,NOT_ASSESSED,False,[],,
+city × k × method,,,alignment,factorial_arm,,NOT_ASSESSED,False,[],,
+city × k × method,,,response,factorial_arm,,NOT_ASSESSED,False,[],,
+city × k × method,,,endpoint,factorial_arm,,NOT_ASSESSED,False,[],,
+city × k × method,,,Wi-GATr,c1_external,,NOT_ASSESSED,False,"['city', 'k']",,
+city × k × method,,,PMNet,c1_external,,NOT_ASSESSED,False,"['city', 'k']",,
+city × k × method,,,representation,representation_baseline,,NOT_ASSESSED,False,"['city', 'k']",,
+city × k × method,,,resource_control,resource_control,,NOT_ASSESSED,False,"['city', 'k']",,

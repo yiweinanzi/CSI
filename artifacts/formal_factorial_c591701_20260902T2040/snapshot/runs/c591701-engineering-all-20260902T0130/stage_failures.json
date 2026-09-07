@@ -1,0 +1,58 @@
+{
+  "continue_on_stage_fail": true,
+  "failures": [
+    {
+      "error": "G1/G2 Response qualification produced incomplete or invalid engineering output",
+      "stage": "G1/G2 Response qualification"
+    },
+    {
+      "error": "formal stages require a live independent data-verification gate",
+      "stage": "wrong-map control"
+    },
+    {
+      "error": "formal stages require a live independent data-verification gate",
+      "stage": "four-arm factorial"
+    },
+    {
+      "error": "[Errno 2] No such file or directory: '/root/xunlian/Futaoran/CSI_MAIN_C591701_20260901/runs/c591701-engineering-all-20260902T0130/factorial/gate.json'",
+      "stage": "formal evaluation"
+    },
+    {
+      "error": "formal stages require a live independent data-verification gate",
+      "stage": "risk contract"
+    },
+    {
+      "error": "formal stages require a live independent data-verification gate",
+      "stage": "path audit"
+    },
+    {
+      "error": "waibu formal resources are missing: ['2502.11965v2.pdf', '2505.09160v2.pdf', '2601.03789v1.pdf', '2604.07086v1.pdf']",
+      "stage": "external baselines"
+    },
+    {
+      "error": "formal stages require a live independent data-verification gate",
+      "stage": "representation baselines"
+    },
+    {
+      "error": "formal stages require a live independent data-verification gate",
+      "stage": "resource controls"
+    },
+    {
+      "error": "formal stages require a live independent data-verification gate",
+      "stage": "scene-ID audit"
+    },
+    {
+      "error": "factorial requires scientific_use=FORMAL_EXPERIMENT_ALLOWED",
+      "stage": "shuffled-pair control"
+    },
+    {
+      "error": "formal stages require a live independent data-verification gate",
+      "stage": "retention audit"
+    },
+    {
+      "error": "claim assembly produced incomplete or invalid engineering output",
+      "stage": "claim assembly"
+    }
+  ],
+  "schema_version": "csi-pairs-stage-failures-v1"
+}
