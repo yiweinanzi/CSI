@@ -769,6 +769,7 @@ def _fit_probe_bundle(
     rng_lock=None,
     device=None,
     progress_callback=None,
+    corpus_callback=None,
 ) -> _ProbeBundle:
     def report(probe, event=None):
         if progress_callback is not None:
@@ -821,6 +822,8 @@ def _fit_probe_bundle(
         routed=routed_selection,
         batch_size=batch_size,
     )
+    if corpus_callback is not None:
+        corpus_callback(compatibility_train, compatibility_selection)
     compatibility_probe, selection_record = fit_select_compatibility_probe(
         compatibility_train["features"],
         compatibility_train["labels"],
@@ -4179,6 +4182,7 @@ def run_streaming_formal_evaluation(
     probe_build_limit: int = 1,
     authenticated_origin=None,
     stop_after_units: int | None = None,
+    validation_corpus_callback=None,
 ) -> dict:
     """Run one identity-bound evaluation with bank-level atomic resume."""
 
@@ -4510,6 +4514,9 @@ def run_streaming_formal_evaluation(
                         rng_lock=rng_lock,
                         device=unit.execution_device,
                         progress_callback=report_probe,
+                        corpus_callback=(
+                            lambda train, selection: validation_corpus_callback(unit, train, selection)
+                        ) if validation_corpus_callback is not None and unit.canonical_index == 0 else None,
                     )
                     requires_commit = True
                 state["probes"] = probes

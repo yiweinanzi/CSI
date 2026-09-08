@@ -173,6 +173,7 @@ class ProbeAccelerationTests(unittest.TestCase):
         response.update(targets=x[:, :2], source_targets=x[:, :2] * 0)
         dataset = SimpleNamespace(indices_for_role=lambda role: np.array([0]))
         events = []
+        corpora = []
         with (
             mock.patch("formal_v2.formal_evaluation_streaming.route_dataset", return_value=object()),
             mock.patch("formal_v2.formal_evaluation_streaming.legacy._compatibility_dataset", return_value=rows),
@@ -186,9 +187,13 @@ class ProbeAccelerationTests(unittest.TestCase):
                 {"evaluation": {"probe_steps": 2, "probe_hidden_dim": 8, "probe_learning_rate": 0.001}},
                 object(), object(), seed=42, batch_size=3, device="cuda:0",
                 rng_lock=threading.Lock(), progress_callback=events.append,
+                corpus_callback=lambda train, selection: corpora.append((train, selection)),
             )
         self.assertEqual(fit_binary.call_count, 1)
         self.assertEqual(fit_response.call_count, 5)
+        self.assertEqual(len(corpora), 1)
+        self.assertIs(corpora[0][0], rows)
+        self.assertIs(corpora[0][1], rows)
         for call in (*fit_binary.call_args_list, *fit_response.call_args_list):
             self.assertEqual(call.kwargs["device"], "cuda:0")
             self.assertEqual(call.kwargs["train_batch_rows"], PROBE_TRAIN_BATCH_ROWS)
