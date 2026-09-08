@@ -1,0 +1,72 @@
+{
+  "utc": "2026-09-08T08:08:14.368963+00:00",
+  "pid": 6306,
+  "proc_start_ticks": "3095033",
+  "verified_command": [
+    "/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/bin/python",
+    "-B",
+    "-m",
+    "formal_v2.formal_cli",
+    "all",
+    "--config",
+    "formal_v2/configs/formal_v2.json",
+    "--dataset",
+    "/root/xunlian/Futaoran/\u6b63\u5f0f\u5f00\u59cb\u8bad\u7ec3/CSI-PAIRS-V6-WIDEBAND-FORMAL-227-20260819T105509Z/dataset.npz",
+    "--output",
+    "/root/xunlian/Futaoran/CSI_MAIN_C591701_20260901/runs/c591701-formal-prepare-20260902T2040",
+    "--adapter-manifest",
+    "formal_v2/external_adapters/all_map_adapters_v1.json",
+    "--verifier-manifest",
+    "formal_v2/configs/sionna_osm_verifier_v2.json",
+    "--approval-manifest",
+    "/root/xunlian/Futaoran/formal_external_inputs/run_approvals/c591701-formal-prepare-20260902T2040/LLM_JUDGE_APPROVAL.json",
+    "--continue-on-stage-fail"
+  ],
+  "signal": "SIGTERM",
+  "reason": "User-authorized evaluation-only execution repair after scene preservation and A/B validation",
+  "last_progress": {
+    "completed_at": null,
+    "completed_units": 0,
+    "current_arm": "endpoint",
+    "current_seed": 20270001,
+    "current_shard": "checkpoint-00",
+    "current_substage": "probe_state",
+    "elapsed_seconds": 41355.296439,
+    "estimated_completion_at": null,
+    "eta_seconds": null,
+    "percentage": 0.0,
+    "run_identity": {
+      "code_revision": "c5917018610b262f5263ccaeba2f087b2eb96a96",
+      "compute_plan_sha256": "c2c84b63034a286d60088955a1ab3d1e410c9ce41cc2ccfc06c20951f2b7d85e",
+      "config_sha256": "3424a269a751f219f4897b969db7cc13d2236fc72e8e2ccb663dec8d7f8f477c",
+      "dataset_sha256": "060d8671380acaf43bd0beb2c77ac5c6ec112e4ddc083451ab36a5916b7c9cac",
+      "execution_profile": {
+        "batch_size": 256,
+        "execution_devices": [
+          "cuda:0",
+          "cuda:1"
+        ],
+        "schema_version": "csi-pairs-v6-evaluation-execution-profile-v1"
+      },
+      "execution_profile_sha256": "efb85ae08dde05de4db558d9d59cf44d490cfdf7dbe96dec7e96cfe368eadc7e",
+      "factorial_gate_sha256": "d7e5eaf2fb2fbf2a30b554f9cf65fb975fa53bd5ef638f27fd9b9d96c2fc9fe0",
+      "legacy_checkpoint_inventory_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "migration_accepted_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "output_schema_id": "csi-pairs-v6-streaming-evaluation-v1",
+      "output_schema_sha256": "64992c8217626fd98885aabed77c67175da6722f5e29ac64d0d07d563a02bd6f",
+      "qualification_gate_sha256": "d13fb43c7717ef5d1a668b29b2d8e989d02fa4633ce856b2de3867161f776be2",
+      "run_nonce": "acca1487063d621e81385232e2c27f9865056e643b067c57d259c42709b13fb6",
+      "runtime_provenance_sha256": "b932e19891ce63535cf1714a6b3adb0ade296d0a6a6326a4aebf3c1041117a30",
+      "schema_version": "csi-pairs-v6-evaluation-run-identity-v3",
+      "source_tree_sha256": "8e8eaf212578b3dc624e40d1d979f0c37787afa3e7e464eac52d5b68610dfe07"
+    },
+    "run_identity_sha256": "36dffc2fdc815920e14b5d9cce967baa6fa3388cb90d1eefc1798cd11c555260",
+    "schema_version": "csi-pairs-v6-evaluation-progress-v2",
+    "started_at": "2026-09-07T20:38:42.650877Z",
+    "status": "RUNNING",
+    "throughput_units_per_second": 0.0,
+    "total_units": 1489,
+    "updated_at": "2026-09-08T08:07:57.947316Z"
+  },
+  "recovery_boundary": "Completed upstream artifacts retained; unsaved probe fitting has no optimizer checkpoint and must restart."
+}

@@ -1,0 +1,10 @@
+{
+  "one_step": {
+    "rtol": 0.0001,
+    "atol": 5e-06
+  },
+  "complete": {
+    "rtol": 0.002,
+    "atol": 0.0002
+  }
+}

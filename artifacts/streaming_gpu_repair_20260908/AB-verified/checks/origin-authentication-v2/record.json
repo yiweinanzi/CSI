@@ -1,0 +1,30 @@
+{
+  "started_at": "2026-09-08T08:00:25.145532+00:00",
+  "completed_at": "2026-09-08T08:04:01.572845+00:00",
+  "command": [
+    "/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/bin/python",
+    "-B",
+    "formal_v2/tools/verify_evaluation_origin.py",
+    "--origin-server",
+    "/root/xunlian/Futaoran/CSI_MAIN_C591701_20260901/code/CSI-PAIRS-v2.0-server",
+    "--config",
+    "/root/xunlian/Futaoran/CSI_MAIN_C591701_20260901/code/CSI-PAIRS-v2.0-server/formal_v2/configs/formal_v2.json",
+    "--dataset",
+    "/root/xunlian/Futaoran/\u6b63\u5f0f\u5f00\u59cb\u8bad\u7ec3/CSI-PAIRS-V6-WIDEBAND-FORMAL-227-20260819T105509Z/dataset.npz",
+    "--run",
+    "/root/xunlian/Futaoran/CSI_MAIN_C591701_20260901/runs/c591701-formal-prepare-20260902T2040"
+  ],
+  "cwd": "/root/xunlian/Futaoran/CSI_STREAMING_GPU_FIX_20260908/code/CSI-PAIRS-v2.0-server",
+  "returncode": 0,
+  "git_head": "c5917018610b262f5263ccaeba2f087b2eb96a96",
+  "git_status": " M formal_v2/formal_cli.py\n M formal_v2/formal_evaluation.py\n M formal_v2/formal_evaluation_streaming.py\n M formal_v2/formal_metrics.py\n M formal_v2/formal_probes.py\n M formal_v2/tests/test_formal_probes_devices.py\n?? formal_v2/tests/test_metrics_auroc.py\n?? formal_v2/tests/test_probe_acceleration.py\n?? formal_v2/tools/\n",
+  "tracked_diff_sha256": "2605c32b4b8eecf17779a959cecf98fc61309ee64e2cc3e1b0032792bc32de30",
+  "environment": {
+    "OMP_NUM_THREADS": "4",
+    "MKL_NUM_THREADS": "4",
+    "OPENBLAS_NUM_THREADS": "4",
+    "CUDA_VISIBLE_DEVICES": null,
+    "CSI_PAIRS_DEVICES": null,
+    "CUBLAS_WORKSPACE_CONFIG": ":4096:8"
+  }
+}

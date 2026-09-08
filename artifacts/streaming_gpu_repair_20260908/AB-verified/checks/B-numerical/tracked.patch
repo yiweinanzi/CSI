@@ -1,0 +1,817 @@
+diff --git a/code/CSI-PAIRS-v2.0-server/formal_v2/formal_cli.py b/code/CSI-PAIRS-v2.0-server/formal_v2/formal_cli.py
+index 4b07703..d42e0b5 100644
+--- a/code/CSI-PAIRS-v2.0-server/formal_v2/formal_cli.py
++++ b/code/CSI-PAIRS-v2.0-server/formal_v2/formal_cli.py
+@@ -465,6 +465,15 @@ def main(argv: list[str] | None = None) -> int:
+                     "status": "NOT_STARTED",
+                     "state_root": str(state_root),
+                 }
++            detail_path = state_root / "probe_progress.json"
++            if detail_path.is_file():
++                try:
++                    detail = read_strict_json(detail_path)
++                    if not isinstance(detail, dict) or detail.get("schema_version") != "csi-pairs-probe-progress-v1":
++                        raise ValueError("unknown probe telemetry schema")
++                    status["probe_progress"] = detail
++                except (OSError, ValueError) as error:
++                    status["probe_progress_warning"] = str(error)
+             print(json.dumps(status, sort_keys=True, ensure_ascii=True))
+             return 0
+         config = load_formal_config(args.config)
+diff --git a/code/CSI-PAIRS-v2.0-server/formal_v2/formal_evaluation.py b/code/CSI-PAIRS-v2.0-server/formal_v2/formal_evaluation.py
+index 7451079..f7f03a7 100644
+--- a/code/CSI-PAIRS-v2.0-server/formal_v2/formal_evaluation.py
++++ b/code/CSI-PAIRS-v2.0-server/formal_v2/formal_evaluation.py
+@@ -1335,6 +1335,12 @@ def _prepare_alignment_shortcut_probes(
+     source_train,
+     source_selection,
+     config,
++    *,
++    device=None,
++    train_batch_rows=None,
++    rng_lock=None,
++    progress_callback=None,
++    prefer_full_batch=False,
+ ):
+     prepared = {}
+     for offset, (name, (field, _input_class)) in enumerate(
+@@ -1345,6 +1351,9 @@ def _prepare_alignment_shortcut_probes(
+             probe = None
+             selected_family = "constant"
+         else:
++            def report(event, name=name):
++                if progress_callback is not None:
++                    progress_callback({**event, "probe": name})
+             probe, selection = fit_select_compatibility_probe(
+                 source_train[field],
+                 source_train["labels"],
+@@ -1352,9 +1361,18 @@ def _prepare_alignment_shortcut_probes(
+                 source_selection["labels"],
+                 config,
+                 seed=int(seed) + 33001 + offset,
++                device=device,
++                train_batch_rows=train_batch_rows,
++                rng_lock=rng_lock,
++                progress_callback=report,
++                prefer_full_batch=prefer_full_batch,
++            )
++            report({"phase": "prediction", "partition": "source_train"})
++            source_scores = predict_binary_probe(
++                probe, source_train[field], batch_rows=train_batch_rows
+             )
+-            source_scores = predict_binary_probe(probe, source_train[field])
+             selected_family = selection["selected_family"]
++            report({"phase": "statistics", "metric": "source_train_auroc"})
+         prepared[name] = {
+             "probe": probe,
+             "selected_family": selected_family,
+diff --git a/code/CSI-PAIRS-v2.0-server/formal_v2/formal_evaluation_streaming.py b/code/CSI-PAIRS-v2.0-server/formal_v2/formal_evaluation_streaming.py
+index 1b02150..eb8c308 100644
+--- a/code/CSI-PAIRS-v2.0-server/formal_v2/formal_evaluation_streaming.py
++++ b/code/CSI-PAIRS-v2.0-server/formal_v2/formal_evaluation_streaming.py
+@@ -10,6 +10,8 @@ import os
+ import queue
+ import tempfile
+ import threading
++import time
++from datetime import datetime, timezone
+ from concurrent.futures import ThreadPoolExecutor
+ from contextlib import nullcontext
+ from dataclasses import dataclass
+@@ -64,6 +66,102 @@ FINALIZATION_SCHEMA = "csi-pairs-v6-evaluation-finalization-v1"
+ STATE_DIRECTORY = "evaluation_state"
+ DEFAULT_PROGRESS_HEARTBEAT_SECONDS = 30.0
+ DEFAULT_EVALUATION_WORKER_DEVICES = ("cuda:0", "cuda:1")
++PROBE_TRAIN_BATCH_ROWS = 4096
++PROBE_BUILD_RESERVATION_BYTES = 256 * 1024**3
++
++
++def _available_probe_memory() -> int | None:
++    try:
++        fields = dict(line.split(":", 1) for line in Path("/proc/meminfo").read_text().splitlines())
++        available = int(fields["MemAvailable"].split()[0]) * 1024
++        for line in Path("/proc/self/cgroup").read_text().splitlines():
++            _hierarchy, controllers, relative = line.split(":", 2)
++            if not controllers:
++                root = Path("/sys/fs/cgroup")
++                limit_name, usage_name = "memory.max", "memory.current"
++            elif "memory" in controllers.split(","):
++                root = Path("/sys/fs/cgroup/memory")
++                limit_name, usage_name = "memory.limit_in_bytes", "memory.usage_in_bytes"
++            else:
++                continue
++            nested = root / relative.lstrip("/")
++            # A namespaced cgroup mount can already point at the current group.
++            current = nested if (nested / limit_name).is_file() else root
++            for group in (current, *current.parents):
++                if group != root and root not in group.parents:
++                    break
++                limit = (group / limit_name).read_text().strip()
++                if limit != "max":
++                    available = min(available, int(limit) - int((group / usage_name).read_text()))
++        return max(0, available)
++    except (OSError, ValueError, KeyError):
++        return None
++
++
++def _probe_build_capacity(worker_count: int, available_bytes: int | None) -> int:
++    if available_bytes is None:
++        return 1
++    # Reserve headroom for the dataset, scene workers and allocator temporaries.
++    capacity = (available_bytes - 64 * 1024**3) // PROBE_BUILD_RESERVATION_BYTES
++    return max(1, min(worker_count, int(capacity)))
++
++
++class _ProbeProgress:
++    """Workers update memory only; the coordinator heartbeat publishes telemetry."""
++
++    def __init__(self, capacity: int, available_bytes: int | None):
++        self._lock = threading.Lock()
++        self._workers = {}
++        self.capacity = capacity
++        self.available_bytes = available_bytes
++        self._started = {}
++        self._phases = {}
++        self._completed = {}
++
++    def callback(self, unit):
++        def update(event):
++            with self._lock:
++                key = (unit.execution_device, unit.checkpoint_index)
++                now = time.monotonic()
++                self._started.setdefault(key, now)
++                phase = (event.get("probe"), event.get("family"), event.get("phase"))
++                if phase[-1] == "accumulating":
++                    phase = (*phase[:-1], "training")
++                previous_phase, phase_start = self._phases.get(key, (phase, now))
++                if previous_phase != phase:
++                    phase_start = now
++                self._phases[key] = (phase, phase_start)
++                completed = self._completed.setdefault(key, set())
++                if event.get("phase") == "training_complete":
++                    completed.add((event.get("probe"), event.get("family")))
++                self._workers[unit.execution_device] = {
++                    "seed": unit.seed, "arm": unit.arm,
++                    "checkpoint_index": unit.checkpoint_index,
++                    "unit_index": getattr(unit, "canonical_index", unit.checkpoint_index),
++                    "device": unit.execution_device,
++                    "updated_at": datetime.now(timezone.utc).isoformat(),
++                    "last_actual_callback_at": datetime.now(timezone.utc).isoformat(),
++                    "unit_elapsed_seconds": now - self._started[key],
++                    "stage_elapsed_seconds": now - phase_start,
++                    "completed_training_models": len(completed),
++                    "total_training_models": 17,
++                    "step_note": "optimizer submissions during training; CUDA synchronized at training_complete",
++                    **event,
++                }
++        return update
++
++    def snapshot(self):
++        with self._lock:
++            return {
++                "schema_version": "csi-pairs-probe-progress-v1",
++                "note": "telemetry only; not completed shards or scientific evidence",
++                "updated_at": datetime.now(timezone.utc).isoformat(),
++                "build_capacity": self.capacity,
++                "available_memory_at_start_bytes": self.available_bytes,
++                "reservation_per_build_bytes": PROBE_BUILD_RESERVATION_BYTES,
++                "train_batch_rows": PROBE_TRAIN_BATCH_ROWS,
++                "workers": {key: dict(value) for key, value in self._workers.items()},
++            }
+ 
+ 
+ @dataclass(frozen=True)
+@@ -633,7 +731,20 @@ def _fit_probe_bundle(
+     seed: int,
+     batch_size: int,
+     rng_lock=None,
++    device=None,
++    progress_callback=None,
+ ) -> _ProbeBundle:
++    def report(probe, event=None):
++        if progress_callback is not None:
++            progress_callback({"probe": probe, **(event or {"phase": "preparing"})})
++
++    probe_options = {
++        "device": device,
++        "train_batch_rows": PROBE_TRAIN_BATCH_ROWS if device is not None else None,
++        "rng_lock": rng_lock,
++        "prefer_full_batch": device is not None,
++    }
++    report("routing")
+     train_scenes = dataset.indices_for_role("source_probe_train")
+     selection_scenes = dataset.indices_for_role("source_probe_selection")
+     routed_train = route_dataset(
+@@ -650,6 +761,7 @@ def _fit_probe_bundle(
+         selection_scenes,
+         normalization=route_normalization,
+     )
++    report("compatibility_train_features")
+     compatibility_train = legacy._compatibility_dataset(
+         model,
+         dataset,
+@@ -661,6 +773,7 @@ def _fit_probe_bundle(
+         routed=routed_train,
+         batch_size=batch_size,
+     )
++    report("compatibility_selection_features")
+     compatibility_selection = legacy._compatibility_dataset(
+         model,
+         dataset,
+@@ -672,23 +785,27 @@ def _fit_probe_bundle(
+         routed=routed_selection,
+         batch_size=batch_size,
+     )
+-    with (rng_lock if rng_lock is not None else nullcontext()):
+-        compatibility_probe, selection_record = fit_select_compatibility_probe(
+-            compatibility_train["features"],
+-            compatibility_train["labels"],
+-            compatibility_selection["features"],
+-            compatibility_selection["labels"],
+-            config,
+-            seed=seed + 31001,
+-        )
+-        shortcut_probes = legacy._prepare_alignment_shortcut_probes(
+-            seed,
+-            compatibility_train,
+-            compatibility_selection,
+-            config,
+-        )
++    compatibility_probe, selection_record = fit_select_compatibility_probe(
++        compatibility_train["features"],
++        compatibility_train["labels"],
++        compatibility_selection["features"],
++        compatibility_selection["labels"],
++        config,
++        seed=seed + 31001,
++        **probe_options,
++        progress_callback=lambda event: report("compatibility", event),
++    )
++    shortcut_probes = legacy._prepare_alignment_shortcut_probes(
++        seed,
++        compatibility_train,
++        compatibility_selection,
++        config,
++        **probe_options,
++        progress_callback=lambda event: report("shortcut", event),
++    )
+     del compatibility_train, compatibility_selection, routed_selection
+     gc.collect()
++    report("response_train_features")
+     response_train = legacy._response_probe_dataset(
+         model,
+         dataset,
+@@ -702,32 +819,44 @@ def _fit_probe_bundle(
+         batch_size=batch_size,
+     )
+     response_target = response_train["targets"] - response_train["source_targets"]
+-    with (rng_lock if rng_lock is not None else nullcontext()):
+-        response_probe = fit_action_response_probe(
+-            response_train["features"],
++    response_probe = fit_action_response_probe(
++        response_train["features"],
++        response_target,
++        config,
++        seed=seed + 32001,
++        zero_action_x=response_train["no_action_features"],
++        **probe_options,
++        progress_callback=lambda event: report("response", event),
++    )
++    variants: dict[str, ActionResponseProbe] = {}
++    contrast_variants = {"without_map", "edit_only", "oracle_x"}
++    for offset, name in enumerate(
++        ("without_map", "edit_only", "csi_only", "oracle_x"), start=1
++    ):
++        variants[name] = fit_action_response_probe(
++            response_train[f"{name}_features"],
+             response_target,
+             config,
+-            seed=seed + 32001,
+-            zero_action_x=response_train["no_action_features"],
++            seed=seed + 32001 + offset,
++            zero_action_x=(
++                response_train[f"{name}_zero_action_features"]
++                if name in contrast_variants
++                else None
++            ),
++            **probe_options,
++            progress_callback=lambda event, name=name: report(name, event),
+         )
+-        variants: dict[str, ActionResponseProbe] = {}
+-        contrast_variants = {"without_map", "edit_only", "oracle_x"}
+-        for offset, name in enumerate(
+-            ("without_map", "edit_only", "csi_only", "oracle_x"), start=1
+-        ):
+-            variants[name] = fit_action_response_probe(
+-                response_train[f"{name}_features"],
+-                response_target,
+-                config,
+-                seed=seed + 32001 + offset,
+-                zero_action_x=(
+-                    response_train[f"{name}_zero_action_features"]
+-                    if name in contrast_variants
+-                    else None
+-                ),
+-            )
+     del response_train, response_target, routed_train
+     gc.collect()
++    if device is not None:
++        # Preserve identical scene evaluation placement on fresh and resumed bundles.
++        for probe in (
++            compatibility_probe, response_probe, *variants.values(),
++            *(record["probe"] for record in shortcut_probes.values()),
++        ):
++            if probe is not None:
++                probe.cpu()
++    report("bundle", {"phase": "ready_to_commit"})
+     return _ProbeBundle(
+         compatibility_probe=compatibility_probe,
+         compatibility_selection=selection_record,
+@@ -738,10 +867,20 @@ def _fit_probe_bundle(
+ 
+ 
+ def _fit_probe_bundle_exclusive(probe_build_lock, *args, **kwargs) -> _ProbeBundle:
+-    """Keep the two device workers from materializing probe corpora together."""
++    """Admit only the number of full probe corpora allowed by the memory budget."""
+ 
++    callback = kwargs.get("progress_callback")
++    if callback is not None:
++        callback({"phase": "waiting_for_memory_slot", "probe": "bundle"})
++    waiting_since = time.monotonic()
+     with probe_build_lock:
+-        return _fit_probe_bundle(*args, **kwargs)
++        acquired_at = time.monotonic()
++        if callback is not None:
++            callback({"phase": "memory_slot_acquired", "probe": "bundle", "lock_wait_seconds": acquired_at - waiting_since})
++        result = _fit_probe_bundle(*args, **kwargs)
++        if callback is not None:
++            callback({"phase": "ready_to_commit", "probe": "bundle", "lock_wait_seconds": acquired_at - waiting_since, "lock_held_seconds": time.monotonic() - acquired_at})
++        return result
+ 
+ 
+ def _require_prediction_shape(
+@@ -3226,6 +3365,7 @@ class _ProgressHeartbeat:
+         substage: str | None,
+         shard: str | None,
+         interval_seconds: float = DEFAULT_PROGRESS_HEARTBEAT_SECONDS,
++        probe_progress=None,
+     ) -> None:
+         if (
+             isinstance(interval_seconds, bool)
+@@ -3243,6 +3383,7 @@ class _ProgressHeartbeat:
+         self.substage = substage
+         self.shard = shard
+         self.interval_seconds = float(interval_seconds)
++        self.probe_progress = probe_progress
+         self._stop = threading.Event()
+         self._errors: list[BaseException] = []
+         self._thread: threading.Thread | None = None
+@@ -3260,6 +3401,11 @@ class _ProgressHeartbeat:
+             substage=self.substage,
+             shard=self.shard,
+         )
++        if self.probe_progress is not None:
++            write_atomic_json(
++                Path(self.store.root) / "probe_progress.json",
++                self.probe_progress.snapshot(),
++            )
+ 
+     def _run(self) -> None:
+         while not self._stop.wait(self.interval_seconds):
+@@ -3994,6 +4140,7 @@ def run_streaming_formal_evaluation(
+     run_identity: EvaluationRunIdentity,
+     execution_devices: Iterable[str],
+     batch_size: int = 1,
++    probe_build_limit: int = 1,
+ ) -> dict:
+     """Run one identity-bound evaluation with bank-level atomic resume."""
+ 
+@@ -4013,6 +4160,8 @@ def run_streaming_formal_evaluation(
+     )
+     if type(batch_size) is not int or batch_size < 1:
+         raise ValueError("streaming evaluation batch_size must be positive")
++    if type(probe_build_limit) is not int or probe_build_limit not in (1, 2):
++        raise ValueError("probe_build_limit must be one or two")
+     worker_devices = _validated_worker_devices(execution_devices)
+     actual_execution_profile = EvaluationExecutionProfile(
+         execution_devices=worker_devices,
+@@ -4228,7 +4377,10 @@ def run_streaming_formal_evaluation(
+             for device in worker_devices
+         }
+         rng_lock = threading.Lock()
+-        probe_build_lock = threading.Lock()
++        available_probe_memory = _available_probe_memory()
++        probe_capacity = min(probe_build_limit, _probe_build_capacity(len(worker_devices), available_probe_memory))
++        probe_build_lock = threading.BoundedSemaphore(probe_capacity)
++        probe_progress = _ProbeProgress(probe_capacity, available_probe_memory)
+ 
+         def ensure_common_state(device: str, state: dict[str, object]) -> None:
+             if state["teacher"] is not None:
+@@ -4273,6 +4425,8 @@ def run_streaming_formal_evaluation(
+             checkpoint = checkpoint_rows[unit.checkpoint_index]
+             state = worker_states[unit.execution_device]
+             if unit.substage == "probe_state":
++                report_probe = probe_progress.callback(unit)
++                report_probe({"probe": "model", "phase": "loading"})
+                 previous_scenes = state["scene_evaluations"]
+                 if isinstance(previous_scenes, dict) and previous_scenes:
+                     raise RuntimeError(
+@@ -4308,6 +4462,8 @@ def run_streaming_formal_evaluation(
+                         seed=unit.seed,
+                         batch_size=unit.batch_size,
+                         rng_lock=rng_lock,
++                        device=unit.execution_device,
++                        progress_callback=report_probe,
+                     )
+                     requires_commit = True
+                 state["probes"] = probes
+@@ -4455,6 +4611,7 @@ def run_streaming_formal_evaluation(
+                     if unit.canonical_index in fragments[table]:
+                         raise RuntimeError("evaluation fragment was published twice")
+                     fragments[table][unit.canonical_index] = fragment.payload_path
++                probe_progress.callback(unit)({"probe": "bundle", "phase": "committed"})
+             else:
+                 if not isinstance(result, _SceneWorkResult):
+                     raise RuntimeError("evaluation scene worker result is invalid")
+@@ -4523,6 +4680,7 @@ def run_streaming_formal_evaluation(
+                 arm=unit.arm,
+                 substage=unit.substage,
+                 shard=unit.shard,
++                probe_progress=probe_progress,
+             )
+ 
+         run_evaluation_worker_coordinator(
+diff --git a/code/CSI-PAIRS-v2.0-server/formal_v2/formal_metrics.py b/code/CSI-PAIRS-v2.0-server/formal_v2/formal_metrics.py
+index c8a5715..0e20899 100644
+--- a/code/CSI-PAIRS-v2.0-server/formal_v2/formal_metrics.py
++++ b/code/CSI-PAIRS-v2.0-server/formal_v2/formal_metrics.py
+@@ -13,11 +13,11 @@ def binary_auroc(labels: np.ndarray, scores: np.ndarray) -> float:
+     if set(np.unique(y).tolist()) != {0, 1}:
+         raise ValueError("AUROC requires aligned labels containing both classes")
+     order = np.argsort(s, kind="mergesort")
++    sorted_scores = s[order]
++    starts = np.r_[0, np.flatnonzero(sorted_scores[1:] != sorted_scores[:-1]) + 1]
++    stops = np.r_[starts[1:], s.size]
+     ranks = np.empty(s.size, dtype=np.float64)
+-    ranks[order] = np.arange(1, s.size + 1, dtype=np.float64)
+-    for value in np.unique(s):
+-        tied = np.flatnonzero(s == value)
+-        ranks[tied] = np.mean(ranks[tied])
++    ranks[order] = np.repeat((starts + 1.0 + stops) / 2.0, stops - starts)
+     positive = y == 1
+     n_positive = int(np.sum(positive))
+     n_negative = int(np.sum(~positive))
+diff --git a/code/CSI-PAIRS-v2.0-server/formal_v2/formal_probes.py b/code/CSI-PAIRS-v2.0-server/formal_v2/formal_probes.py
+index 4903b9c..889afba 100644
+--- a/code/CSI-PAIRS-v2.0-server/formal_v2/formal_probes.py
++++ b/code/CSI-PAIRS-v2.0-server/formal_v2/formal_probes.py
+@@ -1,6 +1,7 @@
+ from __future__ import annotations
+ 
+ import copy
++from contextlib import nullcontext
+ 
+ import numpy as np
+ import torch
+@@ -9,6 +10,75 @@ from torch import nn
+ from .formal_metrics import binary_auroc, binary_nll
+ 
+ 
++def _initialize_probe(factory, seed, device, rng_lock):
++    # Training is deterministic and draws no randomness after initialization.
++    with (rng_lock if rng_lock is not None else nullcontext()):
++        if rng_lock is None:
++            torch.manual_seed(int(seed))
++            return factory().to(device=device)
++        with torch.random.fork_rng(devices=[]):
++            torch.random.default_generator.manual_seed(int(seed))
++            return factory().to(device=device)
++
++
++def _progress(callback, phase, step, total_steps, rows, total_rows):
++    if callback is not None:
++        callback({
++            "phase": phase,
++            "step": step,
++            "total_steps": total_steps,
++            "completed_rows": rows,
++            "total_rows": total_rows,
++        })
++
++
++def _training_rows(probe, features, targets, rows, zero, prefer_full, callback):
++    device = _module_device(probe)
++    if not prefer_full or device.type != "cuda":
++        return rows
++    count = int(features.shape[0])
++    widths = [layer.out_features for layer in probe.modules() if isinstance(layer, nn.Linear)]
++    inputs = (features.nbytes // features.itemsize + targets.size + (zero.size if zero is not None else 0)) * 4
++    # Conservative admission estimate, not an OOM-and-retry mechanism.
++    activations = count * sum(widths) * 4 * (16 if zero is not None else 8)
++    parameters = sum(p.numel() * p.element_size() for p in probe.parameters()) * 8
++    estimate = inputs + activations + parameters + 512 * 1024**2
++    free, _total = torch.cuda.mem_get_info(device)
++    selected = None if estimate <= int(free * 0.65) else rows
++    if selected is None and estimate > int(free * 0.65):
++        raise RuntimeError("full-batch probe does not fit the CUDA memory admission budget")
++    if callback is not None:
++        callback({
++            "phase": "memory_admission", "device": str(device),
++            "execution_mode": "full_batch" if selected is None else "full_gradient_accumulation",
++            "batch_rows": count if selected is None else selected,
++            "estimated_full_batch_bytes": estimate, "cuda_free_bytes": free,
++        })
++    return selected
++
++
++def _training_tensors(arrays, device, cache_on_device):
++    tensors = [None if a is None else _cpu_float_tensor(a) for a in arrays]
++    if cache_on_device and device.type == "cuda":
++        required = sum(t.numel() * t.element_size() for t in tensors if t is not None)
++        free, _total = torch.cuda.mem_get_info(device)
++        if required <= int(free * 0.35):
++            return [None if t is None else t.to(device) for t in tensors]
++    return tensors
++
++
++def _training_slice(tensor, start, stop, device):
++    values = tensor[start:stop]
++    return values if values.device == device else _transfer_float_batch(values, device)
++
++
++def _finish_training(probe, callback, steps, rows):
++    device = _module_device(probe)
++    if device.type == "cuda":
++        torch.cuda.synchronize(device)
++    _progress(callback, "training_complete", steps, steps, rows, rows)
++
++
+ class CompatibilityProbe(nn.Module):
+     def __init__(self, input_dim: int, family: str, hidden_dim: int):
+         super().__init__()
+@@ -56,27 +126,39 @@ def fit_select_compatibility_probe(
+     seed: int,
+     device: str | torch.device | None = None,
+     train_batch_rows: int | None = None,
++    rng_lock=None,
++    progress_callback=None,
++    prefer_full_batch: bool = False,
+ ) -> tuple[CompatibilityProbe, dict]:
+     resolved_device = _resolve_probe_device(device)
+     batch_rows = _validate_batch_rows(train_batch_rows, "train_batch_rows")
+     candidates = []
+     for offset, family in enumerate(("linear", "mlp2")):
+-        torch.manual_seed(int(seed) + offset)
+-        probe = CompatibilityProbe(
+-            train_x.shape[1], family, int(config["evaluation"]["probe_hidden_dim"])
+-        ).to(device=resolved_device)
++        probe = _initialize_probe(
++            lambda: CompatibilityProbe(
++                train_x.shape[1], family, int(config["evaluation"]["probe_hidden_dim"])
++            ),
++            int(seed) + offset, resolved_device, rng_lock,
++        )
++        def report(event, family=family):
++            if progress_callback is not None:
++                progress_callback({**event, "family": family})
+         _fit_binary(
+             probe,
+             train_x,
+             train_y,
+             config,
+             train_batch_rows=batch_rows,
++            progress_callback=report,
++            prefer_full_batch=prefer_full_batch,
+         )
++        report({"phase": "prediction", "step": 0, "total_steps": 0})
+         probabilities = predict_binary_probe(
+             probe,
+             selection_x,
+             batch_rows=(batch_rows if resolved_device.type == "cuda" else None),
+         )
++        report({"phase": "statistics", "metric": "binary_nll_and_auroc"})
+         candidates.append(
+             {
+                 "family": family,
+@@ -87,6 +169,8 @@ def fit_select_compatibility_probe(
+         )
+     candidates.sort(key=lambda row: (row["selection_nll"], row["family"]))
+     selected = candidates[0]
++    if progress_callback is not None:
++        progress_callback({"phase": "probe_complete", "selected_family": selected["family"]})
+     return selected["probe"], {
+         "selected_family": selected["family"],
+         "selection_nll": selected["selection_nll"],
+@@ -106,13 +190,18 @@ def fit_action_response_probe(
+     zero_action_x: np.ndarray | None = None,
+     device: str | torch.device | None = None,
+     train_batch_rows: int | None = None,
++    rng_lock=None,
++    progress_callback=None,
++    prefer_full_batch: bool = False,
+ ) -> ActionResponseProbe:
+-    torch.manual_seed(int(seed))
+     resolved_device = _resolve_probe_device(device)
+     batch_rows = _validate_batch_rows(train_batch_rows, "train_batch_rows")
+-    probe = ActionResponseProbe(
+-        train_x.shape[1], train_y.shape[1], int(config["evaluation"]["probe_hidden_dim"])
+-    ).to(device=resolved_device)
++    probe = _initialize_probe(
++        lambda: ActionResponseProbe(
++            train_x.shape[1], train_y.shape[1], int(config["evaluation"]["probe_hidden_dim"])
++        ),
++        seed, resolved_device, rng_lock,
++    )
+     optimizer = torch.optim.AdamW(
+         probe.parameters(), lr=float(config["evaluation"]["probe_learning_rate"])
+     )
+@@ -120,6 +209,11 @@ def fit_action_response_probe(
+         raise ValueError("zero-action probe features must match action features")
+     probe.zero_preserving = zero_action_x is not None
+     row_count = int(train_x.shape[0])
++    batch_rows = _training_rows(
++        probe, train_x, train_y, batch_rows, zero_action_x, prefer_full_batch, progress_callback
++    )
++    steps = int(config["evaluation"]["probe_steps"])
++    _progress(progress_callback, "training", 0, steps, 0, row_count)
+     if batch_rows is None or batch_rows >= row_count:
+         x = torch.as_tensor(train_x, dtype=torch.float32, device=resolved_device)
+         y = torch.as_tensor(train_y, dtype=torch.float32, device=resolved_device)
+@@ -132,29 +226,29 @@ def fit_action_response_probe(
+             if zero_action_x is not None
+             else None
+         )
+-        for _ in range(int(config["evaluation"]["probe_steps"])):
++        for step in range(steps):
+             optimizer.zero_grad(set_to_none=True)
+             prediction = probe(x) - probe(zero) if zero is not None else probe(x)
+             loss = torch.mean((prediction - y) ** 2)
+             loss.backward()
+             optimizer.step()
++            _progress(progress_callback, "training", step + 1, steps, row_count, row_count)
+         probe.eval()
++        _finish_training(probe, progress_callback, steps, row_count)
+         return probe
+ 
+-    x_cpu = _cpu_float_tensor(train_x)
+-    y_cpu = _cpu_float_tensor(train_y)
+-    zero_cpu = (
+-        _cpu_float_tensor(zero_action_x) if zero_action_x is not None else None
++    x_cpu, y_cpu, zero_cpu = _training_tensors(
++        (train_x, train_y, zero_action_x), resolved_device, prefer_full_batch
+     )
+     denominator = int(y_cpu.numel())
+-    for _ in range(int(config["evaluation"]["probe_steps"])):
++    for step in range(steps):
+         optimizer.zero_grad(set_to_none=True)
+         for start in range(0, row_count, batch_rows):
+             stop = min(start + batch_rows, row_count)
+-            x_batch = _transfer_float_batch(x_cpu[start:stop], resolved_device)
+-            y_batch = _transfer_float_batch(y_cpu[start:stop], resolved_device)
++            x_batch = _training_slice(x_cpu, start, stop, resolved_device)
++            y_batch = _training_slice(y_cpu, start, stop, resolved_device)
+             zero_batch = (
+-                _transfer_float_batch(zero_cpu[start:stop], resolved_device)
++                _training_slice(zero_cpu, start, stop, resolved_device)
+                 if zero_cpu is not None
+                 else None
+             )
+@@ -165,8 +259,11 @@ def fit_action_response_probe(
+             )
+             squared_error_sum = torch.sum((prediction - y_batch) ** 2)
+             (squared_error_sum / denominator).backward()
++            _progress(progress_callback, "accumulating", step, steps, stop, row_count)
+         optimizer.step()
++        _progress(progress_callback, "training", step + 1, steps, row_count, row_count)
+     probe.eval()
++    _finish_training(probe, progress_callback, steps, row_count)
+     return probe
+ 
+ 
+@@ -251,42 +348,49 @@ def predict_response_probe(
+         return np.concatenate(predictions, axis=0)
+ 
+ 
+-def _fit_binary(probe, features, labels, config, *, train_batch_rows=None):
++def _fit_binary(probe, features, labels, config, *, train_batch_rows=None, progress_callback=None, prefer_full_batch=False):
+     optimizer = torch.optim.AdamW(
+         probe.parameters(), lr=float(config["evaluation"]["probe_learning_rate"])
+     )
+     device = _module_device(probe)
+     rows = _validate_batch_rows(train_batch_rows, "train_batch_rows")
++    rows = _training_rows(probe, features, labels, rows, None, prefer_full_batch, progress_callback)
+     row_count = int(features.shape[0])
++    steps = int(config["evaluation"]["probe_steps"])
++    _progress(progress_callback, "training", 0, steps, 0, row_count)
+     if rows is None or rows >= row_count:
+         x = torch.as_tensor(features, dtype=torch.float32, device=device)
+         y = torch.as_tensor(labels, dtype=torch.float32, device=device)
+-        for _ in range(int(config["evaluation"]["probe_steps"])):
++        for step in range(steps):
+             optimizer.zero_grad(set_to_none=True)
+             logits = probe(x)
+             loss = torch.nn.functional.binary_cross_entropy_with_logits(logits, y)
+             loss.backward()
+             optimizer.step()
++            _progress(progress_callback, "training", step + 1, steps, row_count, row_count)
+         probe.eval()
++        _finish_training(probe, progress_callback, steps, row_count)
+         return
+ 
+-    x_cpu = _cpu_float_tensor(features)
+-    y_cpu = _cpu_float_tensor(labels)
++    x_cpu, y_cpu = _training_tensors((features, labels), device, prefer_full_batch)
+     denominator = int(y_cpu.numel())
+-    for _ in range(int(config["evaluation"]["probe_steps"])):
++    for step in range(steps):
+         optimizer.zero_grad(set_to_none=True)
+         for start in range(0, row_count, rows):
+             stop = min(start + rows, row_count)
+-            x_batch = _transfer_float_batch(x_cpu[start:stop], device)
+-            y_batch = _transfer_float_batch(y_cpu[start:stop], device)
++            x_batch = _training_slice(x_cpu, start, stop, device)
++            y_batch = _training_slice(y_cpu, start, stop, device)
+             loss_sum = torch.nn.functional.binary_cross_entropy_with_logits(
+                 probe(x_batch),
+                 y_batch,
+                 reduction="sum",
+             )
+             (loss_sum / denominator).backward()
++            _progress(progress_callback, "accumulating", step, steps, stop, row_count)
+         optimizer.step()
++        _progress(progress_callback, "training", step + 1, steps, row_count, row_count)
+     probe.eval()
++    _finish_training(probe, progress_callback, steps, row_count)
+ 
+ 
+ def _cpu_float_tensor(values) -> torch.Tensor:
+diff --git a/code/CSI-PAIRS-v2.0-server/formal_v2/tests/test_formal_probes_devices.py b/code/CSI-PAIRS-v2.0-server/formal_v2/tests/test_formal_probes_devices.py
+index 8927eb0..ce34284 100644
+--- a/code/CSI-PAIRS-v2.0-server/formal_v2/tests/test_formal_probes_devices.py
++++ b/code/CSI-PAIRS-v2.0-server/formal_v2/tests/test_formal_probes_devices.py
+@@ -1,6 +1,8 @@
+ from __future__ import annotations
+ 
+ import copy
++import threading
++from concurrent.futures import ThreadPoolExecutor
+ import unittest
+ from unittest import mock
+ 
+@@ -59,6 +61,56 @@ class ProbeDeviceTests(unittest.TestCase):
+             predict_response_probe(explicit, self.features, self.zero),
+         )
+ 
++    def test_progress_reports_full_gradient_steps_and_partial_batches(self):
++        events = []
++        fit_action_response_probe(
++            self.features, self.targets, _config(steps=3), seed=141,
++            train_batch_rows=6, progress_callback=events.append,
++        )
++        steps = [e["step"] for e in events if e["phase"] == "training"]
++        self.assertEqual(steps, [0, 1, 2, 3])
++        self.assertEqual(
++            [e["completed_rows"] for e in events if e["phase"] == "accumulating"],
++            [6, 12, 18, 19] * 3,
++        )
++
++    def test_concurrent_probe_initialization_matches_serial_and_preserves_rng(self):
++        lock = threading.Lock()
++        before = torch.random.get_rng_state().clone()
++
++        def fit(seed):
++            return fit_action_response_probe(
++                self.features, self.targets, _config(), seed=seed,
++                train_batch_rows=6, rng_lock=lock,
++            )
++
++        serial = [fit(seed) for seed in (812, 813)]
++        with ThreadPoolExecutor(max_workers=2) as pool:
++            concurrent = list(pool.map(fit, (812, 813)))
++        for a, b in zip(serial, concurrent):
++            for key, value in a.state_dict().items():
++                self.assertTrue(torch.equal(value, b.state_dict()[key]), key)
++        self.assertTrue(torch.equal(before, torch.random.get_rng_state()))
++
++    @unittest.skipUnless(torch.cuda.device_count() >= 2, "two CUDA devices required")
++    def test_two_gpu_probes_match_serial_on_each_device(self):
++        lock = threading.Lock()
++
++        def fit(index):
++            return fit_action_response_probe(
++                self.features, self.targets, _config(), seed=932 + index,
++                zero_action_x=self.zero, device=f"cuda:{index}",
++                train_batch_rows=6, rng_lock=lock,
++            )
++
++        serial = [fit(index) for index in (0, 1)]
++        with ThreadPoolExecutor(max_workers=2) as pool:
++            concurrent = list(pool.map(fit, (0, 1)))
++        for index, (a, b) in enumerate(zip(serial, concurrent)):
++            self.assertEqual(next(b.parameters()).device, torch.device(f"cuda:{index}"))
++            for key, value in a.state_dict().items():
++                self.assertTrue(torch.equal(value, b.state_dict()[key]), key)
++
+     def test_chunked_response_prediction_preserves_order(self):
+         probe = fit_action_response_probe(
+             self.features,

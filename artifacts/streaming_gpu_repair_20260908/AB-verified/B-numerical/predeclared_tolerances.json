@@ -1,0 +1,10 @@
+{
+  "forward_loss_gradient_step": {
+    "rtol": 0.0001,
+    "atol": 5e-06
+  },
+  "complete_2000_step_output": {
+    "rtol": 0.002,
+    "atol": 0.0002
+  }
+}
