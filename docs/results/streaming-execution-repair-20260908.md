@@ -246,6 +246,12 @@ its checkpoint, matching trace, and all 248 source validation rows. See
 Seven arm jobs were not yet validated by that snapshot. No Full comparison or
 full-pilot completion is implied by this partial receipt.
 
+A second [partial artifact audit](../../artifacts/streaming_gpu_repair_20260908/source-pilot-e270230-freeze/source-pilot-handoff-audit.json)
+exited 0 at 19:05:02Z and independently validated 2/8 arm jobs (fixed-margin
+endpoint and alignment), each with 128 optimizer updates and 248 validation rows.
+At 19:07:29Z the live runner had saved 3/8 arms and was at Full step 64/128;
+that later live count is separate from the two-arm independent audit snapshot.
+
 `tools/validate_complete_D.py` is a new read-only artifact validator outside the
 frozen runtime. It requires the bounded D receipt, official 1/1489 count, all 17
 distinct model completions, authenticated captured corpus, restored full probe
