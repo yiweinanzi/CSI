@@ -161,3 +161,38 @@ Completed future bundles require identity and payload validation before reuse.
 | Compatibility / shortcut / response probes | formal_evaluation_streaming._fit_probe_bundle | Yes | Refit all affected arms and seeds uniformly |
 | Streaming diagnostic statistics | formal_evaluation / formal_metrics | Yes | Uniform evaluation, retaining new source binding |
 | Downstream risk / controls / claims | Original downstream consumers | Indirect | Need complete new evaluation and normal dependency checks |
+
+## Existing SOTA Obstacles, 2026-09-09
+
+The [summary-only audit](../../artifacts/streaming_gpu_repair_20260908/sota-obstacle-audit-20260909/report.md)
+retains all eight city/budget cells and the original summary bytes. It authenticates
+the factorial manifest and gate against D's upstream origin receipt, then checks
+the actual localization/training CSV hashes against that original manifest.
+The full NPZ is not rehashed by this small audit; its identity comes from D's
+existing LIVE authentication receipt. Original and evaluation commits stay separate.
+
+Full is strictly first among the four arms in 0/8 cells. Its mean bank-median
+error exceeds Response-only by 0.376485--1.660415 meters, depending on the cell.
+These are descriptive meter differences, not log-utility differences or a claim
+of significance in every cell. The original assessed G4 conditions and G5 remain
+FAIL; four G4 subconditions are still unassessed, not passed. The audit does not
+certify a complete same-run Wi-GATr/PMNet comparison or an assembled claims package.
+
+Full's original training gradient summaries are included as diagnostic leads.
+Small alignment-gradient magnitudes and mean encoder cosine alone do not identify
+the cause of the localization gap and do not establish a remedy. Method changes
+and new main-model training are not part of this audit. Any separately authorized
+method experiment must lock its selection protocol, preserve fair four-arm budgets,
+exclude target query results from selection and disclose prior target exposure.
+
+Commands executed from this evidence worktree using the existing core venv:
+
+```text
+python -B -m unittest discover -s artifacts/streaming_gpu_repair_20260908/tools -p test_audit_sota_obstacles.py -v
+python -B artifacts/streaming_gpu_repair_20260908/tools/audit_sota_obstacles.py --origin-receipt /root/xunlian/Futaoran/CSI_STREAMING_GPU_FIX_20260908/runs/complete-D-2ce2472/evaluation_origin.json --output artifacts/streaming_gpu_repair_20260908/sota-obstacle-audit-20260909
+```
+
+Both commands exited 0. Six synthetic parser tests passed; they are not formal
+experimental results. The actual audit status is `AUDIT_COMPLETE_NON_CLAIM`, with
+`sota_ready=false`. Its JSON SHA-256 is
+`dd2353e813afac27f0523cdd4f66a6f92d64d8f6f9b855ca48243e6c4252ab5f`.
