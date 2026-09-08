@@ -1,0 +1,53 @@
+{
+  "allowed_roles": [
+    "source_encoder_train",
+    "source_method_selection"
+  ],
+  "arms": [
+    "endpoint",
+    "alignment",
+    "response",
+    "full"
+  ],
+  "authorization": "User explicitly confirmed independent method research and fair four-arm retraining on existing hardware; no paid resources.",
+  "base_config_sha256": "3424a269a751f219f4897b969db7cc13d2236fc72e8e2ccb663dec8d7f8f477c",
+  "checkpoint_interval_steps": 16,
+  "dataset_sha256": "060d8671380acaf43bd0beb2c77ac5c6ec112e4ddc083451ab36a5916b7c9cac",
+  "device": "cuda:1",
+  "host_available_floor_gib": 64,
+  "host_rss_limit_gib": 64,
+  "origin_commit": "c5917018610b262f5263ccaeba2f087b2eb96a96",
+  "prior_target_exposure": "Existing target aggregate results have already been observed. No new target evaluation or target-driven candidate selection is permitted in this pilot.",
+  "recipes": [
+    {
+      "alignment_primary_margin": "fixed",
+      "name": "fixed_margin"
+    },
+    {
+      "alignment_primary_margin": "effect_aware",
+      "name": "effect_aware_margin"
+    }
+  ],
+  "schema_version": "csi-pairs-source-method-pilot-v1",
+  "scientific_use": "NON_CLAIM",
+  "seed": 20270001,
+  "selection_role": "source_method_selection",
+  "selection_role_change": "Independent research expands this role from original kappa/scale calibration to source-only candidate validation. It does not rewrite the original protocol.",
+  "sota_ready": false,
+  "steps_per_arm": 128,
+  "training_role": "source_encoder_train",
+  "validation": {
+    "cities": "all source_method_selection cities",
+    "draws": 10,
+    "label_budgets": [
+      0,
+      8,
+      32,
+      128
+    ],
+    "metric": "Equal source-city x budget mean of bank median error in meters",
+    "partition": "Seeded half of unique physical source-validation positions is support-only; the remaining half is validation-only, excluding coordinate siblings across all source-validation banks.",
+    "partition_seed": 20270909,
+    "promotion": "Only eligible for a larger source-only pilot if candidate Full is strictly best among all four arms in every source city/budget cell and its macro error improves over fixed-margin Full. No automatic formal retraining or SOTA claim."
+  }
+}

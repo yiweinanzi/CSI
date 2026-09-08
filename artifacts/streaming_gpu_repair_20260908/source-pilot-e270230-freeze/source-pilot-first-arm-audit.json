@@ -1,0 +1,39 @@
+{
+  "arms": [
+    {
+      "arm": "endpoint",
+      "completed_steps": 128,
+      "device": "cuda:1",
+      "optimizer_steps": [
+        128
+      ],
+      "recipe": "fixed_margin",
+      "result_sha256": "f6cd34f827c6e527a2435d3778581e424fc95f902b333070b7f7bee63e0a2b63",
+      "state_value_sha256": "e5093aa4a5139ec8b6f762c26ad78513532730d6b0cd348ed81937ee2b8924d7",
+      "validation_csv_sha256": "29d878daa915721f02fa149919d7f1691acca1f6bce63720b1a8808e6f85a43f",
+      "validation_rows": 248
+    }
+  ],
+  "auditor_source_sha256": "e9ee75951841d75bd3feda9ecfcb1182d36c834435f752dab8536189f9791a2b",
+  "code_commit": "e270230fa950337469f3f25340c22874767d2ac2",
+  "dataset_sha256": "060d8671380acaf43bd0beb2c77ac5c6ec112e4ddc083451ab36a5916b7c9cac",
+  "formal_units_added": 0,
+  "pending_arm_jobs": [
+    "fixed_margin/alignment",
+    "fixed_margin/response",
+    "fixed_margin/full",
+    "effect_aware_margin/endpoint",
+    "effect_aware_margin/alignment",
+    "effect_aware_margin/response",
+    "effect_aware_margin/full"
+  ],
+  "run": "/root/xunlian/Futaoran/CSI_METHOD_SOURCE_PILOT_20260909/runs/source-pilot-e270230-01",
+  "schema_version": "csi-pairs-source-pilot-partial-audit-v1",
+  "scientific_use": "NON_CLAIM",
+  "scope": "Artifact/optimizer consistency only; no formal factorial or SOTA acceptance",
+  "sota_ready": false,
+  "status": "PARTIAL_ARTIFACTS_VALIDATED_RESEARCH_STILL_RUNNING",
+  "total_arm_jobs": 8,
+  "utc": "2026-09-08T18:59:27.243540+00:00",
+  "validated_arm_jobs": 1
+}

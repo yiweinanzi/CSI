@@ -1,0 +1,28 @@
+{
+  "started_at": "2026-09-08T18:39:00.917682+00:00",
+  "completed_at": "2026-09-08T18:39:21.343060+00:00",
+  "command": [
+    "/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/bin/python",
+    "-B",
+    "-m",
+    "pytest",
+    "-q",
+    "-p",
+    "no:cacheprovider",
+    "formal_v2/tests/test_source_method_pilot.py",
+    "formal_v2/tests/test_factorial_integrity.py"
+  ],
+  "cwd": "/root/xunlian/Futaoran/CSI_METHOD_SOURCE_PILOT_20260909/code/CSI-PAIRS-v2.0-server",
+  "returncode": 0,
+  "git_head": "2ce24729814d1d7357fafb280ab10192ee3ace6b",
+  "git_status": " M formal_v2/formal_cli.py\n?? formal_v2/configs/source_method_pilot_20260909.json\n?? formal_v2/formal_source_guard.py\n?? formal_v2/formal_source_method_pilot.py\n?? formal_v2/tests/test_source_method_pilot.py\n?? formal_v2/tools/supervise_source_method_pilot.py\n?? formal_v2/tools/verify_source_method_inputs.py\n?? ../../docs/results/source-method-pilot-20260909.md\n",
+  "tracked_diff_sha256": "551fd54c16c5d47dd180915aa4bec361f07f777910efa518c8c331a2076c8fb8",
+  "environment": {
+    "OMP_NUM_THREADS": "2",
+    "MKL_NUM_THREADS": "2",
+    "OPENBLAS_NUM_THREADS": "2",
+    "CUDA_VISIBLE_DEVICES": "0,1",
+    "CSI_PAIRS_DEVICES": null,
+    "CUBLAS_WORKSPACE_CONFIG": ":4096:8"
+  }
+}

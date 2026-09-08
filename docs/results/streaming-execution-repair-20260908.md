@@ -196,3 +196,68 @@ Both commands exited 0. Six synthetic parser tests passed; they are not formal
 experimental results. The actual audit status is `AUDIT_COMPLETE_NON_CLAIM`, with
 `sota_ready=false`. Its JSON SHA-256 is
 `dd2353e813afac27f0523cdd4f66a6f92d64d8f6f9b855ca48243e6c4252ab5f`.
+
+## Authorized Source Pilot And D Validator, 2026-09-09
+
+The user subsequently confirmed independent method research on existing hardware.
+This does not change the scope of the execution-only Streaming repair or its gates.
+The isolated source research worktree is
+`/root/xunlian/Futaoran/CSI_METHOD_SOURCE_PILOT_20260909`, frozen commit
+`e270230fa950337469f3f25340c22874767d2ac2`, branch
+`experiment/source-method-pilot-20260909`. D remains untouched at `2ce2472`.
+
+The pilot compares the existing fixed and effect-aware margin implementations:
+two recipes, all four arms, 128 original training updates per arm, one shared
+actual initialization and paired batch plans. It uses only source training and
+source selection roles on the same real NPZ. All source cities and k=0/8/32/128
+are covered; target query results do not select a candidate. It is NON_CLAIM and
+adds zero formal units. The original formal config validator still rejects the
+effect-aware candidate; it is permitted only by this separate, frozen research
+protocol. No automatic 20,000-step formal retraining has been launched.
+
+Evidence archive: [source-pilot-e270230-freeze](../../artifacts/streaming_gpu_repair_20260908/source-pilot-e270230-freeze/).
+It retains the initial 3-fail/15-pass draft test, corrected tests, original-input
+authentication, frozen-commit test outputs, and real supervisor start records.
+Frozen-commit regression exited 0: 48 passed in 25.30 seconds, including actual
+CPU/CUDA-1 synthetic training, paired control invariance, checkpoint restoration,
+role/sibling isolation and CLI dispatch. These tests are not formal results.
+
+The real NPZ was rehashed to
+`060d8671380acaf43bd0beb2c77ac5c6ec112e4ddc083451ab36a5916b7c9cac`.
+Original-source authentication exited 0 with both source roles verified PASS,
+teacher and normalization manifest bindings checked, original factorial FAIL
+preserved. The research never imports an old trained arm as its new model.
+
+The research child PID is 218460 (start ticks 12191858); detached supervisor PID
+218455. It started at 2026-09-08T18:45:53Z using the existing core venv and
+logical cuda:1. CUDA properties independently mapped devices 0 and 1 to GPU UUIDs
+`0e31845b-99e5-7784-4b0d-d37446c79176` and
+`826ef21b-33e6-41a7-7a7b-c2e15cd2b96d`, respectively. NVML process IDs use the
+host namespace and must not be confused with container PIDs. Two different
+experiments using different GPUs are not formal dual-card acceptance E.
+
+Live research output:
+`/root/xunlian/Futaoran/CSI_METHOD_SOURCE_PILOT_20260909/runs/source-pilot-e270230-01`.
+Shared endpoint calibration completed 128 synchronized CUDA updates at 18:52:32Z.
+At 18:59:27Z the independent partial artifact audit exited 0 and verified one
+complete arm (fixed-margin endpoint): 128 optimizer steps, changed model matching
+its checkpoint, matching trace, and all 248 source validation rows. See
+[the partial receipt](../../artifacts/streaming_gpu_repair_20260908/source-pilot-e270230-freeze/source-pilot-first-arm-audit.json).
+Seven arm jobs were not yet validated by that snapshot. No Full comparison or
+full-pilot completion is implied by this partial receipt.
+
+`tools/validate_complete_D.py` is a new read-only artifact validator outside the
+frozen runtime. It requires the bounded D receipt, official 1/1489 count, all 17
+distinct model completions, authenticated captured corpus, restored full probe
+bundle including response dimensions, and byte-identical deterministic contract
+CSV replay. Its six count/identity mutation tests passed (exit 0). The actual D
+invocation returned `NOT_READY` / exit 3 because the bounded result is absent;
+it did not write a PASS receipt or modify D. Its full artifact path is therefore
+still unverified. D had 12/17 models and 0/1489 units at the last observation.
+Formal E and F have not been executed by this continuation.
+
+The research supervisor can request a cooperative checkpoint-boundary pause
+when D's bounded receipt appears, leaving GPU 1 available for formal E. It sends
+no signals to D. This is a real process logger, not a promise of unattended
+completion or a reliable full-chain ETA. Original c591701 eight-cell meter
+conclusions, old 9850fff G5 FAIL, and lack of SOTA evidence remain unchanged.

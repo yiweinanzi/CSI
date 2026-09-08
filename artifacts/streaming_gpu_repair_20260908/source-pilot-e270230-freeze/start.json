@@ -1,0 +1,40 @@
+{
+  "command": [
+    "/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/bin/python",
+    "-B",
+    "-m",
+    "formal_v2.formal_cli",
+    "run-source-method-pilot",
+    "--dataset",
+    "/root/xunlian/Futaoran/\u6b63\u5f0f\u5f00\u59cb\u8bad\u7ec3/CSI-PAIRS-V6-WIDEBAND-FORMAL-227-20260819T105509Z/dataset.npz",
+    "--config",
+    "formal_v2/configs/formal_v2.json",
+    "--protocol",
+    "formal_v2/configs/source_method_pilot_20260909.json",
+    "--output",
+    "/root/xunlian/Futaoran/CSI_METHOD_SOURCE_PILOT_20260909/runs/source-pilot-e270230-01",
+    "--origin-server",
+    "/root/xunlian/Futaoran/CSI_MAIN_C591701_20260901/code/CSI-PAIRS-v2.0-server",
+    "--upstream-root",
+    "/root/xunlian/Futaoran/CSI_MAIN_C591701_20260901/runs/c591701-formal-prepare-20260902T2040"
+  ],
+  "cwd": "/root/xunlian/Futaoran/CSI_METHOD_SOURCE_PILOT_20260909/code/CSI-PAIRS-v2.0-server",
+  "supervisor_pid": 218455,
+  "git_head": "e270230fa950337469f3f25340c22874767d2ac2",
+  "tracked_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "environment": {
+    "OMP_NUM_THREADS": "4",
+    "MKL_NUM_THREADS": "4",
+    "OPENBLAS_NUM_THREADS": "4",
+    "CUDA_VISIBLE_DEVICES": "0,1",
+    "CSI_PAIRS_DEVICES": "cuda:1",
+    "CUBLAS_WORKSPACE_CONFIG": ":4096:8",
+    "PYTHONDONTWRITEBYTECODE": "1"
+  },
+  "scientific_use": "NON_CLAIM",
+  "sota_ready": false,
+  "pid": 218460,
+  "started_at": "2026-09-08T18:45:53.742638+00:00",
+  "process_start_ticks": 12191858,
+  "status": "STARTED_NOT_COMPLETED"
+}

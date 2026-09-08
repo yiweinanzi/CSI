@@ -1,0 +1,28 @@
+diff --git a/code/CSI-PAIRS-v2.0-server/formal_v2/formal_cli.py b/code/CSI-PAIRS-v2.0-server/formal_v2/formal_cli.py
+index 8b37d2b..915ab03 100644
+--- a/code/CSI-PAIRS-v2.0-server/formal_v2/formal_cli.py
++++ b/code/CSI-PAIRS-v2.0-server/formal_v2/formal_cli.py
+@@ -159,6 +159,9 @@ def build_parser() -> argparse.ArgumentParser:
+     repair.add_argument("--probe-build-limit", type=int, choices=(1, 2), default=1)
+     repair.add_argument("--representative-probe", action="store_true")
+     repair.add_argument("--capture-validation-corpus", action="store_true")
++    source_pilot = subparsers.add_parser("run-source-method-pilot", help="bounded source-only method research, never a formal SOTA run")
++    for name in ("dataset", "config", "protocol", "output", "origin-server", "upstream-root"):
++        source_pilot.add_argument("--" + name, required=True)
+ 
+     for command in (
+         "inspect-data",
+@@ -361,6 +364,13 @@ def main(argv: list[str] | None = None) -> int:
+             return 2
+     output_lock: _OutputLock | None = None
+     try:
++        if args.command == "run-source-method-pilot":
++            from .formal_source_method_pilot import main as source_pilot_main
++
++            command = []
++            for name in ("dataset", "config", "protocol", "output", "origin-server", "upstream-root"):
++                command.extend(["--" + name, str(getattr(args, name.replace("-", "_")))])
++            return source_pilot_main(command)
+         if args.command == "run-evaluation-repair":
+             from .formal_evaluation_repair import main as repair_main
+ 
