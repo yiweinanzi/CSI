@@ -108,6 +108,31 @@ It is started, not completed. E on authenticated full source input is not yet
 passed; F is not started. No single probe, synthetic test or process heartbeat
 counts as a completed original unit.
 
+At 2026-09-08 22:32 Asia/Shanghai, D had completed 5 of 17 fitted models,
+but still 0 of 1,489 original units. The map-only MLP was around full-update
+step 421/2000 on cuda:0. D compatibility train/selection preparation took
+3002.393 / 3403.469 seconds. Map-only linear training took 7056.739 seconds;
+its much wider input triggered the conservative full-gradient-accumulation
+admission path. Each optimizer update still covers all 38,696 training rows.
+C's 11.337-second low-dimensional candidate fitting is not a timing estimate
+for these wide map inputs, a complete bundle, or the entire evaluation.
+
+The original D wrapper and resource sampler disappeared; their last resource
+samples are at 19:12:51/52. D itself survived, with its original PID/start ticks,
+working directory and stdout/stderr paths unchanged. A read-only observer was
+started at 22:31:55, after the sandboxed nvidia-smi call returned status 9 and
+the outside-sandbox launch was approved. This is a monitoring warning, not an
+evaluation restart. Missing resource observations and the original parent's
+eventual child wait status cannot be reconstructed or reported as exit 0.
+The external receipt is
+`formal_external_inputs/supervision/c591701-streaming-gpu-fix-20260908/checks/D-observer-resumed-20260908T1927/record.json`.
+Its actual timestamp, not the directory label, identifies the resumed sampling.
+The new observer binds PID 26999 and start ticks 9109609 and sends no signals.
+At 22:32, the sampled GPU usage was 40% / 0%, with 7805 / 0 MiB allocated
+as reported by nvidia-smi. D RSS was 241654398976 bytes and host MemAvailable
+518335066112 bytes. These observations do not establish full-run resource
+peaks, formal dual-GPU acceptance, or completion of the active unit.
+
 The official definition remains completed_units/1489. A complete probe-state
 unit includes all 17 fitted candidates/models and a validated atomic bundle.
 Concurrent synthetic tests are not formal E acceptance. The default memory
