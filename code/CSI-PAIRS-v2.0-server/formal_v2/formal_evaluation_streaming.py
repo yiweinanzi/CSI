@@ -109,7 +109,7 @@ def _probe_build_capacity(worker_count: int, available_bytes: int | None) -> int
 class _ProbeProgress:
     """Workers update memory only; the coordinator heartbeat publishes telemetry."""
 
-    def __init__(self, capacity: int, available_bytes: int | None):
+    def __init__(self, capacity: int, available_bytes: int | None, *, run_id=None, total_units=None):
         self._lock = threading.Lock()
         self._workers = {}
         self.capacity = capacity
@@ -117,6 +117,11 @@ class _ProbeProgress:
         self._started = {}
         self._phases = {}
         self._completed = {}
+        self.run_id = run_id
+        self.total_units = total_units
+        self._phase_history = {}
+        self._memory_admissions = {}
+        self._memory_slots = {}
 
     def callback(self, unit):
         def update(event):
@@ -129,8 +134,18 @@ class _ProbeProgress:
                     phase = (*phase[:-1], "training")
                 previous_phase, phase_start = self._phases.get(key, (phase, now))
                 if previous_phase != phase:
+                    self._phase_history.setdefault(key, []).append({
+                        "probe": previous_phase[0], "family": previous_phase[1],
+                        "phase": previous_phase[2], "seconds": now - phase_start,
+                        "ended_at": datetime.now(timezone.utc).isoformat(),
+                    })
                     phase_start = now
                 self._phases[key] = (phase, phase_start)
+                if event.get("phase") == "memory_admission":
+                    self._memory_admissions.setdefault(key, {})[(event.get("probe"), event.get("family"))] = dict(event)
+                for field in ("lock_wait_seconds", "lock_held_seconds"):
+                    if field in event:
+                        self._memory_slots.setdefault(key, {})[field] = event[field]
                 completed = self._completed.setdefault(key, set())
                 if event.get("phase") == "training_complete":
                     completed.add((event.get("probe"), event.get("family")))
@@ -152,6 +167,24 @@ class _ProbeProgress:
 
     def snapshot(self):
         with self._lock:
+            now = time.monotonic()
+            workers = {}
+            for device, value in self._workers.items():
+                key = (device, value["checkpoint_index"])
+                workers[device] = {
+                    **value,
+                    "unit_elapsed_seconds": now - self._started[key],
+                    "stage_elapsed_seconds": now - self._phases[key][1],
+                }
+            # Preserve brief phases and finished checkpoint histories between heartbeats.
+            timelines = {
+                f"{device}/checkpoint-{index:02d}": {
+                    "phase_timings": [dict(row) for row in self._phase_history.get((device, index), ())],
+                    "memory_admissions": [dict(row) for row in self._memory_admissions.get((device, index), {}).values()],
+                    "memory_slot_timing": dict(self._memory_slots.get((device, index), {})),
+                }
+                for device, index in self._started
+            }
             return {
                 "schema_version": "csi-pairs-probe-progress-v1",
                 "note": "telemetry only; not completed shards or scientific evidence",
@@ -160,7 +193,10 @@ class _ProbeProgress:
                 "available_memory_at_start_bytes": self.available_bytes,
                 "reservation_per_build_bytes": PROBE_BUILD_RESERVATION_BYTES,
                 "train_batch_rows": PROBE_TRAIN_BATCH_ROWS,
-                "workers": {key: dict(value) for key, value in self._workers.items()},
+                "run_id": self.run_id,
+                "total_units": self.total_units,
+                "workers": workers,
+                "observed_probe_timelines": timelines,
             }
 
 
@@ -4387,7 +4423,10 @@ def run_streaming_formal_evaluation(
         available_probe_memory = _available_probe_memory()
         probe_capacity = min(probe_build_limit, _probe_build_capacity(len(worker_devices), available_probe_memory))
         probe_build_lock = threading.BoundedSemaphore(probe_capacity)
-        probe_progress = _ProbeProgress(probe_capacity, available_probe_memory)
+        probe_progress = _ProbeProgress(
+            probe_capacity, available_probe_memory,
+            run_id=run_identity.run_nonce, total_units=total_units,
+        )
 
         def ensure_common_state(device: str, state: dict[str, object]) -> None:
             if state["teacher"] is not None:

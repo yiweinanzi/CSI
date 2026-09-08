@@ -24,6 +24,41 @@ from formal_v2.formal_probes import fit_action_response_probe, fit_select_compat
 
 
 class ProbeAccelerationTests(unittest.TestCase):
+    def test_brief_phases_and_lock_timings_survive_later_callbacks(self):
+        progress = _ProbeProgress(1, None, run_id="test-run", total_units=1489)
+        unit = SimpleNamespace(execution_device="cuda:0", seed=42, arm="endpoint", checkpoint_index=0, canonical_index=0)
+        update = progress.callback(unit)
+        with mock.patch("formal_v2.formal_evaluation_streaming.time.monotonic", side_effect=[10, 12, 12.01, 15, 20]):
+            update({"probe": "bundle", "phase": "waiting_for_memory_slot"})
+            update({"probe": "bundle", "phase": "memory_slot_acquired", "lock_wait_seconds": 2})
+            update({"probe": "compatibility", "phase": "preparing"})
+            update({"probe": "bundle", "phase": "ready_to_commit", "lock_held_seconds": 3})
+            result = progress.snapshot()
+        self.assertEqual(result["run_id"], "test-run")
+        self.assertEqual(result["total_units"], 1489)
+        self.assertNotIn("completed_units", result)
+        timeline = result["observed_probe_timelines"]["cuda:0/checkpoint-00"]
+        self.assertEqual(timeline["memory_slot_timing"], {"lock_wait_seconds": 2, "lock_held_seconds": 3})
+        self.assertEqual(timeline["phase_timings"][0]["seconds"], 2)
+        self.assertAlmostEqual(timeline["phase_timings"][1]["seconds"], .01)
+        self.assertEqual(result["workers"]["cuda:0"]["stage_elapsed_seconds"], 5)
+
+    def test_memory_admission_and_old_checkpoint_timelines_are_retained(self):
+        progress = _ProbeProgress(1, None)
+        first = SimpleNamespace(execution_device="cuda:0", seed=42, arm="endpoint", checkpoint_index=0)
+        second = SimpleNamespace(execution_device="cuda:0", seed=42, arm="response", checkpoint_index=2)
+        update = progress.callback(first)
+        update({"probe": "compatibility", "family": "linear", "phase": "memory_admission", "execution_mode": "full_batch", "batch_rows": 99})
+        update({"probe": "compatibility", "family": "linear", "phase": "training_complete", "step": 2000})
+        snapshot = progress.snapshot()
+        progress.callback(second)({"probe": "model", "phase": "loading"})
+        result = progress.snapshot()
+        timeline = result["observed_probe_timelines"]["cuda:0/checkpoint-00"]
+        self.assertEqual(timeline["memory_admissions"][0]["batch_rows"], 99)
+        self.assertEqual(result["workers"]["cuda:0"]["checkpoint_index"], 2)
+        self.assertEqual(snapshot["workers"]["cuda:0"]["checkpoint_index"], 0)
+        self.assertEqual(snapshot["workers"]["cuda:0"]["completed_training_models"], 1)
+
     def test_cli_exposes_probe_telemetry_without_changing_shard_progress(self):
         from formal_v2.formal_cli import main
 
