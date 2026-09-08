@@ -54,6 +54,13 @@ source version. Both exit codes are 1, not converted to a PASS.
 
 ## Formal Acceptance Still Separate
 
+Telemetry-only follow-up `7613ac7` retains completed phase durations, brief
+memory-admission events and lock wait/hold observations across heartbeat updates
+and later checkpoints, and labels snapshots with the real run ID and original
+total-unit count. Its [14 focused tests](../../artifacts/streaming_gpu_repair_20260908/progress-retention/manifest.json)
+passed. This follow-up is isolated from the currently running C process, whose
+source remains `1738cae`; it does not hot-modify C or change probe fitting.
+
 At this A/B snapshot, C is running in
 `CSI_STREAMING_GPU_FIX_20260908/runs/representative-C-1738cae` and has not completed.
 D (one complete original probe bundle) and E (formal dual-device acceptance) are

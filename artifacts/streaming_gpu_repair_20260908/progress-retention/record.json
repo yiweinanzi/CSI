@@ -1,0 +1,30 @@
+{
+  "started_at": "2026-09-08T09:04:22.416839+00:00",
+  "completed_at": "2026-09-08T09:04:37.559971+00:00",
+  "command": [
+    "/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/bin/python",
+    "-B",
+    "-m",
+    "pytest",
+    "-q",
+    "formal_v2/tests/test_probe_acceleration.py",
+    "formal_v2/tests/test_evaluation_status_json.py",
+    "formal_v2/tests/test_evaluation_repair.py",
+    "-p",
+    "no:cacheprovider",
+    "--tb=short"
+  ],
+  "cwd": "/root/xunlian/Futaoran/CSI_STREAMING_GPU_REPAIR_EVIDENCE_20260908/code/CSI-PAIRS-v2.0-server",
+  "returncode": 0,
+  "git_head": "dc001420a1377eb53bdcb97a3ceed1073dcd308e",
+  "git_status": " M formal_v2/formal_evaluation_streaming.py\n M formal_v2/tests/test_probe_acceleration.py\n",
+  "tracked_diff_sha256": "62829a3ca83d949af94e30099d314948ea86e67198cf7fdc1ac8186b6581d85f",
+  "environment": {
+    "OMP_NUM_THREADS": "4",
+    "MKL_NUM_THREADS": "4",
+    "OPENBLAS_NUM_THREADS": "4",
+    "CUDA_VISIBLE_DEVICES": "1",
+    "CSI_PAIRS_DEVICES": null,
+    "CUBLAS_WORKSPACE_CONFIG": ":4096:8"
+  }
+}
