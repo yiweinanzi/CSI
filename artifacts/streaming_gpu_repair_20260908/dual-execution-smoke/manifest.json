@@ -1,0 +1,15 @@
+{
+  "check": "dual-execution-smoke",
+  "returncode": 0,
+  "git_head_at_check": "2ce24729814d1d7357fafb280ab10192ee3ace6b",
+  "tracked_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "source": "/root/xunlian/Futaoran/formal_external_inputs/supervision/c591701-streaming-gpu-fix-20260908/checks/dual-execution-smoke",
+  "files_sha256": {
+    "tracked.patch": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stdout.log": "09bc3ac72d0d929c57b8ccde69dfdb4ecdea2ef4282f594cd483d4069e6a981c",
+    "stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "resources.jsonl": "9f4bbc2fb8aef430ecb803c6e3bace2bfab237d4dc3ad04f6bb7ea26de6b9e4f",
+    "record.json": "250c09681c2afe3a0550519e73c6edf5d1a2dc1a96854aba1130e2fab8527efb"
+  },
+  "note": "A completed command is not necessarily a passed acceptance; inspect exit code and scientific scope."
+}

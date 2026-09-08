@@ -1,0 +1,15 @@
+{
+  "check": "corpus-and-overlap-regression",
+  "returncode": 0,
+  "git_head_at_check": "391106a5f28f2337cf8cf5e8bde7e0bcd94ed4fb",
+  "tracked_diff_sha256": "da7e8b71b89e2196d2ea90eed890fd2b8cfddabca72bf3fbe26a09648a46e2ab",
+  "source": "/root/xunlian/Futaoran/formal_external_inputs/supervision/c591701-streaming-gpu-fix-20260908/checks/corpus-and-overlap-regression",
+  "files_sha256": {
+    "tracked.patch": "da7e8b71b89e2196d2ea90eed890fd2b8cfddabca72bf3fbe26a09648a46e2ab",
+    "stdout.log": "c5839a72f41aab28105595e3d0ea27b08147579beee2081651f019505800f6ee",
+    "stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "resources.jsonl": "465da98c15fe2a2624e1674cb4c6c052642f941f5ab3d3e7bd45dca5690fc211",
+    "record.json": "d7004b9753834d5d2914d29163309a1cfa1b2798ca9c43bf7382070a5add89ce"
+  },
+  "note": "A completed command is not necessarily a passed acceptance; inspect exit code and scientific scope."
+}

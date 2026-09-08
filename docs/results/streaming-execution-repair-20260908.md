@@ -11,8 +11,9 @@ There is no SOTA evidence.
 | Item | Value |
 | --- | --- |
 | Upstream training commit | c5917018610b262f5263ccaeba2f087b2eb96a96 |
-| Evaluation code commit | 1738caea131b9ed0d28994c89d17c3730586d323 |
-| Evaluation source SHA-256 | 98572664677378e50baead78828671d0cc92cc6e580809cb57b8e4c3ad8785eb |
+| C evaluation code commit | 1738caea131b9ed0d28994c89d17c3730586d323 |
+| C evaluation source SHA-256 | 98572664677378e50baead78828671d0cc92cc6e580809cb57b8e4c3ad8785eb |
+| D execution code commit | 2ce24729814d1d7357fafb280ab10192ee3ace6b |
 | Original formal NPZ SHA-256 | 060d8671380acaf43bd0beb2c77ac5c6ec112e4ddc083451ab36a5916b7c9cac |
 | Runtime | Existing core venv, Python 3.12.13, torch 2.5.1+cu121 |
 | Precision | FP32, no AMP, no TF32 |
@@ -58,14 +59,54 @@ Telemetry-only follow-up `7613ac7` retains completed phase durations, brief
 memory-admission events and lock wait/hold observations across heartbeat updates
 and later checkpoints, and labels snapshots with the real run ID and original
 total-unit count. Its [14 focused tests](../../artifacts/streaming_gpu_repair_20260908/progress-retention/manifest.json)
-passed. This follow-up is isolated from the currently running C process, whose
-source remains `1738cae`; it does not hot-modify C or change probe fitting.
+passed. This follow-up was isolated from C, whose source remained `1738cae` until
+completion. After C exited and its artifacts passed independent checks, it was
+cherry-picked as `27075c8`; full-source corpus capture and E acceptance tools were
+then cherry-picked as `2ce2472`. C provenance was not rewritten.
 
-At this A/B snapshot, C is running in
-`CSI_STREAMING_GPU_FIX_20260908/runs/representative-C-1738cae` and has not completed.
-D (one complete original probe bundle) and E (formal dual-device acceptance) are
-not passed. F (remaining full evaluation) has not started. No single probe,
-synthetic test or process heartbeat counts as a completed original unit.
+C passed in `CSI_STREAMING_GPU_FIX_20260908/runs/representative-C-1738cae`.
+Its [artifact manifest](../../artifacts/streaming_gpu_repair_20260908/C-formal-probe-artifacts/manifest.json)
+contains the probe state, predictions, source receipt and independent validation.
+The [command log](../../artifacts/streaming_gpu_repair_20260908/C-representative-formal/record.json)
+and [independent check](../../artifacts/streaming_gpu_repair_20260908/C-artifact-validation/record.json)
+both exited 0. This is representative probe acceptance, not a complete unit.
+
+| C measurement | Actual value |
+| --- | --- |
+| Original train feature shape | 38,696 x 128 |
+| Original selection feature shape | 42,520 x 128 |
+| Full updates | 2,000 each for linear and MLP candidates; no accumulation observed |
+| Train preparation phase | 2,966.423 s |
+| Selection preparation phase | 3,212.926 s, including initialization before the first subsequent phase callback |
+| Candidate fitting and selection wall time | 11.337 s, including cold initialization |
+| Linear / MLP synchronized training phases | 2.340 s / 4.908 s |
+| Representative total after origin authentication | 6,201.868 s |
+| Peak process RSS | 154,314,981,376 bytes |
+| Peak CUDA allocated / reserved | 1,203,760,640 / 1,233,125,376 bytes |
+| Selected family | linear |
+| Endpoint compatibility selection AUROC / NLL | 0.5000094405244746 / 0.6931731106398445 |
+
+The CUDA event interval is 11,336.985 ms, not busy-kernel time. No old/new complete
+unit comparison or end-to-end speed ratio is claimed. These endpoint probe
+statistics are not Full localization results. Both completed training events,
+file hashes, probability shape/range, finite FP32 state and unchanged backbone
+were checked. Peak process RSS excludes separate authentication subprocess RSS;
+the resource logs retain that sampling scope explicitly.
+
+After the follow-ups, [139 focused regression tests](../../artifacts/streaming_gpu_repair_20260908/regression-before-D/record.json)
+passed with 16 ordinary PyTorch warnings. The known legacy streaming-module
+failure set above remains disclosed. A separate
+[dual-device integration smoke](../../artifacts/streaming_gpu_repair_20260908/dual-execution-smoke/record.json)
+recorded 56,029 / 92,081 kernels on devices 0 / 1, with 10,721.864 microseconds
+of actual kernel interval overlap and identical serial/parallel smoke
+probabilities. It is not formal E acceptance.
+
+D started at 2026-09-08 18:12 Asia/Shanghai in
+`CSI_STREAMING_GPU_FIX_20260908/runs/complete-D-2ce2472`, with
+`--stop-after-units 1 --probe-build-limit 1 --capture-validation-corpus`.
+It is started, not completed. E on authenticated full source input is not yet
+passed; F is not started. No single probe, synthetic test or process heartbeat
+counts as a completed original unit.
 
 The official definition remains completed_units/1489. A complete probe-state
 unit includes all 17 fitted candidates/models and a validated atomic bundle.

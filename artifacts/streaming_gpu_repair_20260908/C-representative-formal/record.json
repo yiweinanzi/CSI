@@ -1,0 +1,35 @@
+{
+  "started_at": "2026-09-08T08:15:24.349707+00:00",
+  "completed_at": "2026-09-08T10:04:47.577724+00:00",
+  "command": [
+    "/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/bin/python",
+    "-B",
+    "-m",
+    "formal_v2.formal_cli",
+    "run-evaluation-repair",
+    "--config",
+    "formal_v2/configs/formal_v2.json",
+    "--dataset",
+    "/root/xunlian/Futaoran/\u6b63\u5f0f\u5f00\u59cb\u8bad\u7ec3/CSI-PAIRS-V6-WIDEBAND-FORMAL-227-20260819T105509Z/dataset.npz",
+    "--output",
+    "/root/xunlian/Futaoran/CSI_STREAMING_GPU_FIX_20260908/runs/representative-C-1738cae",
+    "--upstream-root",
+    "/root/xunlian/Futaoran/CSI_MAIN_C591701_20260901/runs/c591701-formal-prepare-20260902T2040",
+    "--origin-server",
+    "/root/xunlian/Futaoran/CSI_MAIN_C591701_20260901/code/CSI-PAIRS-v2.0-server",
+    "--representative-probe"
+  ],
+  "cwd": "/root/xunlian/Futaoran/CSI_STREAMING_GPU_FIX_20260908/code/CSI-PAIRS-v2.0-server",
+  "returncode": 0,
+  "git_head": "1738caea131b9ed0d28994c89d17c3730586d323",
+  "git_status": "?? ../../runs/\n",
+  "tracked_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "environment": {
+    "OMP_NUM_THREADS": "4",
+    "MKL_NUM_THREADS": "4",
+    "OPENBLAS_NUM_THREADS": "4",
+    "CUDA_VISIBLE_DEVICES": "0,1",
+    "CSI_PAIRS_DEVICES": "cuda:0,cuda:1",
+    "CUBLAS_WORKSPACE_CONFIG": ":4096:8"
+  }
+}

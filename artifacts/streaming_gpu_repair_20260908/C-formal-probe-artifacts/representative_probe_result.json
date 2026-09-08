@@ -1,0 +1,170 @@
+{
+  "backbone_unchanged": true,
+  "candidates": [
+    "linear",
+    "mlp2"
+  ],
+  "checkpoint_path": "/root/xunlian/Futaoran/CSI_STREAMING_GPU_FIX_20260908/runs/representative-C-1738cae/representative_compatibility_probe.pt",
+  "checkpoint_sha256": "f1497ea8c111c21ca29bf18c0a2a6c008ded1cd11e80f3cdb581b9f08fe22778",
+  "cuda_peak_allocated_bytes": 1203760640,
+  "cuda_peak_reserved_bytes": 1233125376,
+  "dataset_sha256": "060d8671380acaf43bd0beb2c77ac5c6ec112e4ddc083451ab36a5916b7c9cac",
+  "device": "cuda:0",
+  "formal_work_unit_complete": false,
+  "host_maxrss_bytes": 154314981376,
+  "origin_receipt_sha256": "3ae811b24e4401b292a0e095125c831bcafee143daa2388bae3f85b7811eba8b",
+  "phases": [
+    {
+      "phase": [
+        "load_teacher_and_checkpoint",
+        null
+      ],
+      "seconds": 9.156263327007764
+    },
+    {
+      "phase": [
+        "normalization",
+        null
+      ],
+      "seconds": 5.997528566993424
+    },
+    {
+      "phase": [
+        "prepare_source_probe_train",
+        null
+      ],
+      "seconds": 2966.4231065430067
+    },
+    {
+      "phase": [
+        "prepare_source_probe_selection",
+        null
+      ],
+      "seconds": 3212.926200855989
+    },
+    {
+      "phase": [
+        "memory_admission",
+        "linear"
+      ],
+      "seconds": 0.0018062550079775974
+    },
+    {
+      "phase": [
+        "training",
+        "linear"
+      ],
+      "seconds": 2.3399918060022173
+    },
+    {
+      "phase": [
+        "training_complete",
+        "linear"
+      ],
+      "seconds": 0.001767493988154456
+    },
+    {
+      "phase": [
+        "prediction",
+        "linear"
+      ],
+      "seconds": 0.009217901999363676
+    },
+    {
+      "phase": [
+        "statistics",
+        "linear"
+      ],
+      "seconds": 0.00917740201111883
+    },
+    {
+      "phase": [
+        "memory_admission",
+        "mlp2"
+      ],
+      "seconds": 9.252995369024575e-06
+    },
+    {
+      "phase": [
+        "training",
+        "mlp2"
+      ],
+      "seconds": 4.90793856199889
+    },
+    {
+      "phase": [
+        "training_complete",
+        "mlp2"
+      ],
+      "seconds": 0.0019200350070605054
+    },
+    {
+      "phase": [
+        "prediction",
+        "mlp2"
+      ],
+      "seconds": 0.01373537999461405
+    },
+    {
+      "phase": [
+        "statistics",
+        "mlp2"
+      ],
+      "seconds": 0.007642543001566082
+    },
+    {
+      "phase": [
+        "probe_complete",
+        null
+      ],
+      "seconds": 0.00018112499674316496
+    },
+    {
+      "phase": [
+        "prediction",
+        null
+      ],
+      "seconds": 0.009009718996821903
+    },
+    {
+      "phase": [
+        "statistics",
+        null
+      ],
+      "seconds": 0.06030804400506895
+    }
+  ],
+  "predictions_sha256": "b17473be1b6b28279f1178b553418aa15ccb7d01908a0ae747cfd30f2fc83210",
+  "selection": {
+    "candidate_metrics": [
+      {
+        "family": "linear",
+        "selection_auroc": 0.5000094405244746,
+        "selection_nll": 0.6931731106398445
+      },
+      {
+        "family": "mlp2",
+        "selection_auroc": 0.5000184640021098,
+        "selection_nll": 1.094740093513101
+      }
+    ],
+    "selected_family": "linear",
+    "selection_auroc": 0.5000094405244746,
+    "selection_nll": 0.6931731106398445
+  },
+  "selection_shape": [
+    42520,
+    128
+  ],
+  "sota_ready": false,
+  "status": "REPRESENTATIVE_PROBE_COMPLETE",
+  "total_seconds": 6201.86844070701,
+  "train_shape": [
+    38696,
+    128
+  ],
+  "training_selection_cuda_interval_ms": 11336.9853515625,
+  "training_selection_wall_seconds": 11.337016607998521,
+  "training_steps_per_candidate": 2000,
+  "upstream_checkpoint_sha256": "010d54fae4eacf41459b1595e6216162b5e93edff28368f65f0991049dccbc87"
+}
