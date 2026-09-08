@@ -48,6 +48,9 @@ The larger legacy streaming test module is not universally green: the original
 source and repair share ten observed failures (nine outdated mocked LIVE input
 contracts and one exact/scene floating-point assertion). These were not bypassed
 in production. The 134-test focused suite does not claim to be the entire repo.
+The [original/repair comparison](../../artifacts/streaming_gpu_repair_20260908/streaming-regression-baseline/comparison.json)
+records identical named failures, with 10 failed / 41 passed / 1 skipped on each
+source version. Both exit codes are 1, not converted to a PASS.
 
 ## Formal Acceptance Still Separate
 

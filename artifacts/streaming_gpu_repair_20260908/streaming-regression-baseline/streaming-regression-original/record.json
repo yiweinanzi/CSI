@@ -1,0 +1,28 @@
+{
+  "started_at": "2026-09-08T08:55:59.551597+00:00",
+  "completed_at": "2026-09-08T08:56:09.656112+00:00",
+  "command": [
+    "/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/bin/python",
+    "-B",
+    "-m",
+    "pytest",
+    "-q",
+    "formal_v2/tests/test_evaluation_streaming.py",
+    "-p",
+    "no:cacheprovider",
+    "--tb=short"
+  ],
+  "cwd": "/root/xunlian/Futaoran/CSI_MAIN_C591701_20260901/code/CSI-PAIRS-v2.0-server",
+  "returncode": 1,
+  "git_head": "c5917018610b262f5263ccaeba2f087b2eb96a96",
+  "git_status": "?? ../../.inspection_v6_20260901T.csi-pairs-operation.lock.guard\n?? ../../artifacts/formal_factorial_c591701_20260902T2040/\n?? formal_v2/external_adapters/.runtime-differt\n?? formal_v2/external_adapters/.runtime-sionna-shared-link-20260901\n?? formal_v2/external_adapters/.venv-wigatr\n?? ../../inspection_v6_20260901T/\n?? ../../operator_preflight_20260901T/\n?? ../../runs/\n",
+  "tracked_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "environment": {
+    "OMP_NUM_THREADS": "4",
+    "MKL_NUM_THREADS": "4",
+    "OPENBLAS_NUM_THREADS": "4",
+    "CUDA_VISIBLE_DEVICES": "1",
+    "CSI_PAIRS_DEVICES": null,
+    "CUBLAS_WORKSPACE_CONFIG": ":4096:8"
+  }
+}

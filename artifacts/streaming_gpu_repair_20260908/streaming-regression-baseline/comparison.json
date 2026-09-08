@@ -1,0 +1,32 @@
+{
+  "original_and_repair_failed_tests_identical": true,
+  "failed_tests": [
+    "FAILED formal_v2/tests/test_evaluation_streaming.py::EvaluationStreamingTests::test_completed_restart_authenticates_finalization_without_rewriting",
+    "FAILED formal_v2/tests/test_evaluation_streaming.py::EvaluationStreamingTests::test_damaged_final_output_invalidates_receipt_and_only_refinalizes",
+    "FAILED formal_v2/tests/test_evaluation_streaming.py::EvaluationStreamingTests::test_deleted_scene_bundle_recomputes_only_the_deleted_scene",
+    "FAILED formal_v2/tests/test_evaluation_streaming.py::EvaluationStreamingTests::test_final_csv_must_match_authenticated_fragment_merge",
+    "FAILED formal_v2/tests/test_evaluation_streaming.py::EvaluationStreamingTests::test_final_output_crash_temporaries_are_preserved_then_retry_succeeds",
+    "FAILED formal_v2/tests/test_evaluation_streaming.py::EvaluationStreamingTests::test_finalization_receipt_recovers_crash_before_progress_completion",
+    "FAILED formal_v2/tests/test_evaluation_streaming.py::EvaluationStreamingTests::test_finalization_shard_rejects_stale_run_identity",
+    "FAILED formal_v2/tests/test_evaluation_streaming.py::EvaluationStreamingTests::test_forged_final_gate_is_rejected_by_strict_scientific_replay",
+    "FAILED formal_v2/tests/test_evaluation_streaming.py::EvaluationStreamingTests::test_merged_and_scene_probe_predictions_match_on_cpu",
+    "FAILED formal_v2/tests/test_evaluation_streaming.py::EvaluationStreamingTests::test_runner_rejects_execution_profile_mismatch_before_output_creation"
+  ],
+  "whole_module_passed": false,
+  "per_version": {
+    "failed": 10,
+    "passed": 41,
+    "skipped": 1
+  },
+  "scope": "Preexisting regression failures preserved, not bypassed in production; this comparison is not an all-green acceptance.",
+  "files_sha256": {
+    "streaming-regression-original/record.json": "be29fde9c69058a85ee8fc0a4cc5bd08bd0ecbfb0f30bd7f7522498de21db6a4",
+    "streaming-regression-original/stdout.log": "276f39edf27498f607158ce9157c120d0d25a723f1dca3e02df3f68b78fda199",
+    "streaming-regression-original/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "streaming-regression-original/tracked.patch": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "streaming-regression-repair/record.json": "04822aff8c37b3426f8702de4448bbc4c1de407f5d96eb0dda974d5a5b0a11da",
+    "streaming-regression-repair/stdout.log": "43d482b42ff3c7015cebcc9e581102168bea5986d02e7d8acd03e705c3bb2e05",
+    "streaming-regression-repair/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "streaming-regression-repair/tracked.patch": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+}
