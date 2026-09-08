@@ -32,6 +32,7 @@ EXECUTION_FILES = {
     "formal_metrics.py", "formal_probes.py", "formal_evaluation_repair.py",
     "tools/verify_evaluation_origin.py", "tools/validate_probe_execution.py",
     "tools/benchmark_probe_execution.py",
+    "tools/validate_formal_dual_probe.py",
 }
 
 
@@ -244,6 +245,120 @@ def run_representative_probe(config, dataset, origin, output, device):
     return result
 
 
+def validate_corpus_arrays(arrays):
+    if set(arrays) != {"train_features", "train_labels", "selection_features", "selection_labels"}:
+        raise RuntimeError("validation corpus has unexpected fields")
+    for role in ("train", "selection"):
+        x, y = arrays[role + "_features"], arrays[role + "_labels"]
+        if x.ndim != 2 or y.shape != (len(x),) or len(x) == 0:
+            raise RuntimeError("validation corpus shape is invalid")
+        if x.dtype != np.float64 or y.dtype != np.int64:
+            raise RuntimeError("validation corpus must retain the original feature and label dtypes")
+        if not np.isfinite(x).all() or not np.isfinite(y).all() or set(np.unique(y)) != {0, 1}:
+            raise RuntimeError("validation corpus contains invalid values or labels")
+    if arrays["train_features"].shape[1] != arrays["selection_features"].shape[1]:
+        raise RuntimeError("validation corpus feature dimensions differ")
+
+
+def write_validation_corpus(output, captured, origin, config, dataset, identity):
+    from .formal_evaluation_resume import EvaluationResumeStore
+    from .formal_evaluation_streaming import _probe_state_identity, _restore_probe_bundle, _dataset_response_output_dim
+
+    validate_corpus_arrays(captured)
+    checkpoint = origin.record["upstream"]["checkpoints"][0]
+    store = EvaluationResumeStore(output / "evaluation_state", identity)
+    shard = store.load_completed_shard(_probe_state_identity(identity, checkpoint, 0), suffix=".pt")
+    if shard is None:
+        raise RuntimeError("validation corpus requires a committed original probe-state unit")
+    _restore_probe_bundle(shard.payload_path, config, seed=int(checkpoint["seed"]), arm=checkpoint["arm"], expected_response_output_dim=_dataset_response_output_dim(dataset))
+    target = output / "validation_source_corpus"
+    target.mkdir(exist_ok=False)
+    files = {}
+    for name, array in captured.items():
+        path = target / (name + ".npy")
+        temporary = path.with_suffix(".npy.tmp")
+        with temporary.open("wb") as handle:
+            np.save(handle, array, allow_pickle=False)
+            handle.flush()
+            os.fsync(handle.fileno())
+        temporary.replace(path)
+        files[name] = {"path": path.name, "sha256": sha256_file(path), "shape": list(array.shape), "dtype": str(array.dtype)}
+    manifest = {
+        "schema_version": "csi-pairs-full-source-probe-validation-corpus-v1",
+        "scientific_use": "NON_CLAIM", "sota_ready": False,
+        "scope": "Full original source probe train and selection features; no query inputs, no subsampling",
+        "origin_receipt_path": str(origin.receipt_path), "origin_receipt_sha256": origin.receipt_sha256,
+        "execution_identity": identity.as_dict(), "checkpoint": checkpoint,
+        "probe_bundle_path": str(shard.payload_path), "probe_bundle_sha256": sha256_file(shard.payload_path),
+        "config": config,
+        "roles": {role: {"name": "source_probe_" + role, "scene_indices": dataset.indices_for_role("source_probe_" + role).tolist()} for role in ("train", "selection")},
+        "arrays": files,
+    }
+    write_atomic_json(target / "manifest.json", manifest)
+    return target / "manifest.json"
+
+
+def load_validation_corpus(manifest_path, config, *, expected_sha256):
+    from .formal_evidence import config_sha256, validate_runtime_provenance
+    from .formal_evaluation_resume import EvaluationResumeStore, EvaluationRunIdentity
+    from .formal_evaluation_streaming import _probe_state_identity, _restore_probe_bundle
+
+    path = Path(manifest_path).resolve()
+    if sha256_file(path) != expected_sha256:
+        raise RuntimeError("validation corpus manifest identity differs from completed D receipt")
+    manifest = read_strict_json(path)
+    if manifest["schema_version"] != "csi-pairs-full-source-probe-validation-corpus-v1" or manifest["config"] != config:
+        raise RuntimeError("validation corpus schema or configuration differs")
+    origin_path = Path(manifest["origin_receipt_path"])
+    if sha256_file(origin_path) != manifest["origin_receipt_sha256"]:
+        raise RuntimeError("validation corpus origin receipt changed")
+    origin = read_strict_json(origin_path)
+    upstream = origin["upstream"]
+    if upstream["origin_git_commit"] != ORIGIN_COMMIT or upstream["evidence"]["dataset_sha256"] != DATASET_SHA256 or sha256_file(upstream["dataset_path"]) != DATASET_SHA256:
+        raise RuntimeError("validation corpus upstream or actual NPZ identity differs")
+    server = Path(__file__).resolve().parents[1]
+    current_head = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=server, text=True).strip()
+    current_diff = hashlib.sha256(subprocess.check_output(["git", "diff", "HEAD", "--binary"], cwd=server)).hexdigest()
+    if current_head != origin["evaluation_git_commit"] or current_diff != origin["evaluation_tracked_diff_sha256"]:
+        raise RuntimeError("validation corpus evaluation commit or tracked diff differs")
+    if origin["evaluation_evidence"]["fixture"] or origin["evaluation_evidence"]["config_sha256"] != config_sha256(config):
+        raise RuntimeError("validation corpus is not the original formal configuration")
+    validate_runtime_provenance(origin["evaluation_evidence"]["runtime_provenance"])
+    for source, digest in upstream["inventory"].items():
+        if sha256_file(source) != digest:
+            raise RuntimeError("validation corpus upstream input changed: " + source)
+    for role in ("train", "selection"):
+        if manifest["roles"][role]["name"] != "source_probe_" + role or "source_probe_" + role not in upstream["verified_roles"]:
+            raise RuntimeError("validation corpus role isolation mismatch")
+    with np.load(upstream["dataset_path"], allow_pickle=False) as original_npz:
+        roles = original_npz["scene_roles"]
+        for role in ("train", "selection"):
+            if manifest["roles"][role]["scene_indices"] != np.flatnonzero(roles == "source_probe_" + role).tolist():
+                raise RuntimeError("validation corpus scene role inventory differs from actual NPZ")
+    checkpoint = upstream["checkpoints"][0]
+    if manifest["checkpoint"] != checkpoint:
+        raise RuntimeError("validation corpus checkpoint differs")
+    identity = EvaluationRunIdentity.from_dict(manifest["execution_identity"])
+    store = EvaluationResumeStore(origin_path.parent / "evaluation_state", identity)
+    shard = store.load_completed_shard(_probe_state_identity(identity, checkpoint, 0), suffix=".pt")
+    if shard is None or str(shard.payload_path) != manifest["probe_bundle_path"] or sha256_file(shard.payload_path) != manifest["probe_bundle_sha256"]:
+        raise RuntimeError("validation corpus original completed unit is invalid")
+    bundle = _restore_probe_bundle(shard.payload_path, config, seed=int(checkpoint["seed"]), arm=checkpoint["arm"])
+    arrays = {}
+    if set(manifest["arrays"]) != {"train_features", "train_labels", "selection_features", "selection_labels"}:
+        raise RuntimeError("validation corpus has unexpected array fields")
+    for name, record in manifest["arrays"].items():
+        array_path = path.parent / record["path"]
+        if record["path"] != name + ".npy" or array_path.is_symlink() or sha256_file(array_path) != record["sha256"]:
+            raise RuntimeError("validation corpus array identity differs")
+        array = np.load(array_path, mmap_mode="r", allow_pickle=False)
+        if list(array.shape) != record["shape"] or str(array.dtype) != record["dtype"]:
+            raise RuntimeError("validation corpus array schema differs")
+        arrays[name] = array
+    validate_corpus_arrays(arrays)
+    return arrays, manifest, bundle
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     for name in ("dataset", "config", "output", "upstream-root", "origin-server"):
@@ -251,7 +366,10 @@ def main(argv=None):
     parser.add_argument("--stop-after-units", type=int, default=1)
     parser.add_argument("--probe-build-limit", type=int, choices=(1, 2), default=1)
     parser.add_argument("--representative-probe", action="store_true")
+    parser.add_argument("--capture-validation-corpus", action="store_true")
     args = parser.parse_args(argv)
+    if args.capture_validation_corpus and (args.representative_probe or args.stop_after_units != 1):
+        parser.error("validation corpus capture requires exactly one complete original work unit")
     from .formal_cli import _acquire_output_lock, _acquire_legacy_read_lock
     from .formal_evaluation_streaming import run_streaming_formal_evaluation
 
@@ -281,6 +399,16 @@ def main(argv=None):
             "probe_build_limit": args.probe_build_limit,
         }))
         write_atomic_json(output / "execution_identity.json", identity.as_dict())
+        captured = {}
+
+        def capture(unit, train, selection):
+            checkpoint = origin.record["upstream"]["checkpoints"][0]
+            if (unit.seed, unit.arm, unit.checkpoint_sha256) != (checkpoint["seed"], checkpoint["arm"], checkpoint["sha256"]):
+                raise RuntimeError("validation corpus capture checkpoint mismatch")
+            for name, rows in (("train", train), ("selection", selection)):
+                for field in ("features", "labels"):
+                    captured[name + "_" + field] = rows[field]
+
         result = run_streaming_formal_evaluation(
             config, dataset, output, upstream_root=upstream_root,
             qualification_gate_path=upstream.qualification_gate,
@@ -291,7 +419,13 @@ def main(argv=None):
             batch_size=execution.batch_size, probe_build_limit=args.probe_build_limit,
             authenticated_origin=origin,
             stop_after_units=args.stop_after_units or None,
+            validation_corpus_callback=capture if args.capture_validation_corpus else None,
         )
+        if args.capture_validation_corpus:
+            corpus_manifest = write_validation_corpus(output, captured, origin, config, dataset, identity)
+            result["validation_corpus_manifest"] = str(corpus_manifest)
+            result["validation_corpus_manifest_sha256"] = sha256_file(corpus_manifest)
+            write_atomic_json(output / "bounded_validation_result.json", result)
         print(json.dumps(result, sort_keys=True))
         return 0
     finally:

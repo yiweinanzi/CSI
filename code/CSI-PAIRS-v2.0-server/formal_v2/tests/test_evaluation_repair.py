@@ -1,11 +1,45 @@
 import tempfile
 import unittest
 from pathlib import Path
+import numpy as np
 
-from formal_v2.formal_evaluation_repair import require_execution_only_changes
+from formal_v2.formal_evaluation_repair import require_execution_only_changes, validate_corpus_arrays, load_validation_corpus
 
 
 class EvaluationRepairTests(unittest.TestCase):
+    def test_validation_corpus_manifest_must_match_the_D_receipt(self):
+        path = Path(self.temporary.name) / "manifest.json"
+        path.write_text("{}")
+        with self.assertRaisesRegex(RuntimeError, "manifest identity differs"):
+            load_validation_corpus(path, {}, expected_sha256="0" * 64)
+
+    def test_dual_gpu_overlap_uses_real_kernel_interval_intersection(self):
+        from formal_v2.tools.validate_formal_dual_probe import kernel_overlap
+
+        events = [
+            {"cat": "kernel", "args": {"device": 0}, "ts": 1, "dur": 4},
+            {"cat": "kernel", "args": {"device": 0}, "ts": 2, "dur": 2},
+            {"cat": "kernel", "args": {"device": 1}, "ts": 3, "dur": 3},
+            {"cat": "gpu_memcpy", "args": {"device": 1}, "ts": 1, "dur": 50},
+        ]
+        result = kernel_overlap(events)
+        self.assertEqual(result["actual_kernel_overlap_microseconds"], 2)
+        self.assertEqual(result["kernel_counts"], {"0": 2, "1": 1})
+
+    def test_validation_corpus_retains_full_shape_and_original_dtypes(self):
+        arrays = {
+            "train_features": np.ones((4, 3), dtype=np.float64),
+            "train_labels": np.array([0, 1, 0, 1], dtype=np.int64),
+            "selection_features": np.ones((2, 3), dtype=np.float64),
+            "selection_labels": np.array([0, 1], dtype=np.int64),
+        }
+        validate_corpus_arrays(arrays)
+        for replacement in (np.ones((3, 3)), np.ones((4, 3), dtype=np.float32), np.full((4, 3), np.nan)):
+            with self.assertRaises(RuntimeError):
+                validate_corpus_arrays({**arrays, "train_features": replacement})
+        with self.assertRaises(RuntimeError):
+            validate_corpus_arrays({**arrays, "query_features": np.ones((1, 3))})
+
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)

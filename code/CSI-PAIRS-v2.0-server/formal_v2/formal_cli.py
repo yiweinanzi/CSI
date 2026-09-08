@@ -158,6 +158,7 @@ def build_parser() -> argparse.ArgumentParser:
     repair.add_argument("--stop-after-units", type=int, default=1)
     repair.add_argument("--probe-build-limit", type=int, choices=(1, 2), default=1)
     repair.add_argument("--representative-probe", action="store_true")
+    repair.add_argument("--capture-validation-corpus", action="store_true")
 
     for command in (
         "inspect-data",
@@ -368,6 +369,8 @@ def main(argv: list[str] | None = None) -> int:
                 command.extend(["--" + name, str(getattr(args, name.replace("-", "_")))])
             if args.representative_probe:
                 command.append("--representative-probe")
+            if args.capture_validation_corpus:
+                command.append("--capture-validation-corpus")
             return repair_main(command)
         if args.command == "make-fixture":
             source_banks_per_role = int(args.source_banks_per_role)

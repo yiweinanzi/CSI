@@ -82,3 +82,20 @@ AUROC comparisons, shared-initialization numerical comparisons, and an actual
 CUDA profiler trace. Synthetic smoke artifacts are explicitly NON_CLAIM and never
 substitute for the formal NPZ. Representative and bounded complete-unit results
 must be checked separately before resuming the full evaluation.
+
+For a bounded one-unit D run, `--capture-validation-corpus` retains only the
+already-generated complete compatibility train/selection features and labels.
+The worker only retains array references; after the original probe bundle is
+committed and semantically restored, the coordinator writes the auxiliary arrays
+and commits their manifest last. This cache is not a replacement NPZ, new formal
+unit, query partition, or additional scientific training budget. Its manifest
+binds original roles/scenes, dtypes, array hashes, configuration, source receipt,
+checkpoint and completed bundle. `bounded_validation_result.json` binds its hash.
+
+`tools.validate_formal_dual_probe` reauthenticates those dependencies and actual
+NPZ before comparing the independent linear/MLP candidates serially and on two
+devices, each with 2,000 full updates from shared actual initial states. CUDA
+kernel interval intersections establish overlap; allocation and process lifetime
+do not. This acceptance covers the full source corpus and independent candidates,
+not two complete 17-model bundles. Full-bundle memory admission stays at one until
+the complete overlapping-build resource envelope is separately validated.
