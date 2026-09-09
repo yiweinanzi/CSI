@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import copy
+import threading
+from concurrent.futures import ThreadPoolExecutor
 import unittest
 from unittest import mock
 
@@ -58,6 +60,56 @@ class ProbeDeviceTests(unittest.TestCase):
             predict_response_probe(default, self.features, self.zero),
             predict_response_probe(explicit, self.features, self.zero),
         )
+
+    def test_progress_reports_full_gradient_steps_and_partial_batches(self):
+        events = []
+        fit_action_response_probe(
+            self.features, self.targets, _config(steps=3), seed=141,
+            train_batch_rows=6, progress_callback=events.append,
+        )
+        steps = [e["step"] for e in events if e["phase"] == "training"]
+        self.assertEqual(steps, [0, 1, 2, 3])
+        self.assertEqual(
+            [e["completed_rows"] for e in events if e["phase"] == "accumulating"],
+            [6, 12, 18, 19] * 3,
+        )
+
+    def test_concurrent_probe_initialization_matches_serial_and_preserves_rng(self):
+        lock = threading.Lock()
+        before = torch.random.get_rng_state().clone()
+
+        def fit(seed):
+            return fit_action_response_probe(
+                self.features, self.targets, _config(), seed=seed,
+                train_batch_rows=6, rng_lock=lock,
+            )
+
+        serial = [fit(seed) for seed in (812, 813)]
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            concurrent = list(pool.map(fit, (812, 813)))
+        for a, b in zip(serial, concurrent):
+            for key, value in a.state_dict().items():
+                self.assertTrue(torch.equal(value, b.state_dict()[key]), key)
+        self.assertTrue(torch.equal(before, torch.random.get_rng_state()))
+
+    @unittest.skipUnless(torch.cuda.device_count() >= 2, "two CUDA devices required")
+    def test_two_gpu_probes_match_serial_on_each_device(self):
+        lock = threading.Lock()
+
+        def fit(index):
+            return fit_action_response_probe(
+                self.features, self.targets, _config(), seed=932 + index,
+                zero_action_x=self.zero, device=f"cuda:{index}",
+                train_batch_rows=6, rng_lock=lock,
+            )
+
+        serial = [fit(index) for index in (0, 1)]
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            concurrent = list(pool.map(fit, (0, 1)))
+        for index, (a, b) in enumerate(zip(serial, concurrent)):
+            self.assertEqual(next(b.parameters()).device, torch.device(f"cuda:{index}"))
+            for key, value in a.state_dict().items():
+                self.assertTrue(torch.equal(value, b.state_dict()[key]), key)
 
     def test_chunked_response_prediction_preserves_order(self):
         probe = fit_action_response_probe(

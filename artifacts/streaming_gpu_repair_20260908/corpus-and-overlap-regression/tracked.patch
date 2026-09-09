@@ -1,0 +1,305 @@
+diff --git a/code/CSI-PAIRS-v2.0-server/formal_v2/formal_cli.py b/code/CSI-PAIRS-v2.0-server/formal_v2/formal_cli.py
+index b3f91a4..8b37d2b 100644
+--- a/code/CSI-PAIRS-v2.0-server/formal_v2/formal_cli.py
++++ b/code/CSI-PAIRS-v2.0-server/formal_v2/formal_cli.py
+@@ -158,6 +158,7 @@ def build_parser() -> argparse.ArgumentParser:
+     repair.add_argument("--stop-after-units", type=int, default=1)
+     repair.add_argument("--probe-build-limit", type=int, choices=(1, 2), default=1)
+     repair.add_argument("--representative-probe", action="store_true")
++    repair.add_argument("--capture-validation-corpus", action="store_true")
+ 
+     for command in (
+         "inspect-data",
+@@ -368,6 +369,8 @@ def main(argv: list[str] | None = None) -> int:
+                 command.extend(["--" + name, str(getattr(args, name.replace("-", "_")))])
+             if args.representative_probe:
+                 command.append("--representative-probe")
++            if args.capture_validation_corpus:
++                command.append("--capture-validation-corpus")
+             return repair_main(command)
+         if args.command == "make-fixture":
+             source_banks_per_role = int(args.source_banks_per_role)
+diff --git a/code/CSI-PAIRS-v2.0-server/formal_v2/formal_evaluation_repair.py b/code/CSI-PAIRS-v2.0-server/formal_v2/formal_evaluation_repair.py
+index 03843b7..2f46f38 100644
+--- a/code/CSI-PAIRS-v2.0-server/formal_v2/formal_evaluation_repair.py
++++ b/code/CSI-PAIRS-v2.0-server/formal_v2/formal_evaluation_repair.py
+@@ -32,6 +32,7 @@ EXECUTION_FILES = {
+     "formal_metrics.py", "formal_probes.py", "formal_evaluation_repair.py",
+     "tools/verify_evaluation_origin.py", "tools/validate_probe_execution.py",
+     "tools/benchmark_probe_execution.py",
++    "tools/validate_formal_dual_probe.py",
+ }
+ 
+ 
+@@ -244,6 +245,113 @@ def run_representative_probe(config, dataset, origin, output, device):
+     return result
+ 
+ 
++def validate_corpus_arrays(arrays):
++    if set(arrays) != {"train_features", "train_labels", "selection_features", "selection_labels"}:
++        raise RuntimeError("validation corpus has unexpected fields")
++    for role in ("train", "selection"):
++        x, y = arrays[role + "_features"], arrays[role + "_labels"]
++        if x.ndim != 2 or y.shape != (len(x),) or len(x) == 0:
++            raise RuntimeError("validation corpus shape is invalid")
++        if x.dtype != np.float64 or y.dtype != np.int64:
++            raise RuntimeError("validation corpus must retain the original feature and label dtypes")
++        if not np.isfinite(x).all() or not np.isfinite(y).all() or set(np.unique(y)) != {0, 1}:
++            raise RuntimeError("validation corpus contains invalid values or labels")
++    if arrays["train_features"].shape[1] != arrays["selection_features"].shape[1]:
++        raise RuntimeError("validation corpus feature dimensions differ")
++
++
++def write_validation_corpus(output, captured, origin, config, dataset, identity):
++    from .formal_evaluation_resume import EvaluationResumeStore
++    from .formal_evaluation_streaming import _probe_state_identity, _restore_probe_bundle, _dataset_response_output_dim
++
++    validate_corpus_arrays(captured)
++    checkpoint = origin.record["upstream"]["checkpoints"][0]
++    store = EvaluationResumeStore(output / "evaluation_state", identity)
++    shard = store.load_completed_shard(_probe_state_identity(identity, checkpoint, 0), suffix=".pt")
++    if shard is None:
++        raise RuntimeError("validation corpus requires a committed original probe-state unit")
++    _restore_probe_bundle(shard.payload_path, config, seed=int(checkpoint["seed"]), arm=checkpoint["arm"], expected_response_output_dim=_dataset_response_output_dim(dataset))
++    target = output / "validation_source_corpus"
++    target.mkdir(exist_ok=False)
++    files = {}
++    for name, array in captured.items():
++        path = target / (name + ".npy")
++        temporary = path.with_suffix(".npy.tmp")
++        with temporary.open("wb") as handle:
++            np.save(handle, array, allow_pickle=False)
++            handle.flush()
++            os.fsync(handle.fileno())
++        temporary.replace(path)
++        files[name] = {"path": path.name, "sha256": sha256_file(path), "shape": list(array.shape), "dtype": str(array.dtype)}
++    manifest = {
++        "schema_version": "csi-pairs-full-source-probe-validation-corpus-v1",
++        "scientific_use": "NON_CLAIM", "sota_ready": False,
++        "scope": "Full original source probe train and selection features; no query inputs, no subsampling",
++        "origin_receipt_path": str(origin.receipt_path), "origin_receipt_sha256": origin.receipt_sha256,
++        "execution_identity": identity.as_dict(), "checkpoint": checkpoint,
++        "probe_bundle_path": str(shard.payload_path), "probe_bundle_sha256": sha256_file(shard.payload_path),
++        "config": config,
++        "roles": {role: {"name": "source_probe_" + role, "scene_indices": dataset.indices_for_role("source_probe_" + role).tolist()} for role in ("train", "selection")},
++        "arrays": files,
++    }
++    write_atomic_json(target / "manifest.json", manifest)
++    return target / "manifest.json"
++
++
++def load_validation_corpus(manifest_path, config, *, expected_sha256):
++    from .formal_evidence import config_sha256, validate_runtime_provenance
++    from .formal_evaluation_resume import EvaluationResumeStore, EvaluationRunIdentity
++    from .formal_evaluation_streaming import _probe_state_identity, _restore_probe_bundle
++
++    path = Path(manifest_path).resolve()
++    if sha256_file(path) != expected_sha256:
++        raise RuntimeError("validation corpus manifest identity differs from completed D receipt")
++    manifest = read_strict_json(path)
++    if manifest["schema_version"] != "csi-pairs-full-source-probe-validation-corpus-v1" or manifest["config"] != config:
++        raise RuntimeError("validation corpus schema or configuration differs")
++    origin_path = Path(manifest["origin_receipt_path"])
++    if sha256_file(origin_path) != manifest["origin_receipt_sha256"]:
++        raise RuntimeError("validation corpus origin receipt changed")
++    origin = read_strict_json(origin_path)
++    upstream = origin["upstream"]
++    if upstream["origin_git_commit"] != ORIGIN_COMMIT or sha256_file(upstream["dataset_path"]) != DATASET_SHA256:
++        raise RuntimeError("validation corpus upstream or actual NPZ identity differs")
++    if origin["evaluation_evidence"]["fixture"] or origin["evaluation_evidence"]["config_sha256"] != config_sha256(config):
++        raise RuntimeError("validation corpus is not the original formal configuration")
++    validate_runtime_provenance(origin["evaluation_evidence"]["runtime_provenance"])
++    for source, digest in upstream["inventory"].items():
++        if sha256_file(source) != digest:
++            raise RuntimeError("validation corpus upstream input changed: " + source)
++    for role in ("train", "selection"):
++        if manifest["roles"][role]["name"] != "source_probe_" + role or "source_probe_" + role not in upstream["verified_roles"]:
++            raise RuntimeError("validation corpus role isolation mismatch")
++    with np.load(upstream["dataset_path"], allow_pickle=False) as original_npz:
++        roles = original_npz["scene_roles"]
++        for role in ("train", "selection"):
++            if manifest["roles"][role]["scene_indices"] != np.flatnonzero(roles == "source_probe_" + role).tolist():
++                raise RuntimeError("validation corpus scene role inventory differs from actual NPZ")
++    checkpoint = upstream["checkpoints"][0]
++    if manifest["checkpoint"] != checkpoint:
++        raise RuntimeError("validation corpus checkpoint differs")
++    identity = EvaluationRunIdentity.from_dict(manifest["execution_identity"])
++    store = EvaluationResumeStore(origin_path.parent / "evaluation_state", identity)
++    shard = store.load_completed_shard(_probe_state_identity(identity, checkpoint, 0), suffix=".pt")
++    if shard is None or str(shard.payload_path) != manifest["probe_bundle_path"] or sha256_file(shard.payload_path) != manifest["probe_bundle_sha256"]:
++        raise RuntimeError("validation corpus original completed unit is invalid")
++    bundle = _restore_probe_bundle(shard.payload_path, config, seed=int(checkpoint["seed"]), arm=checkpoint["arm"])
++    arrays = {}
++    for name, record in manifest["arrays"].items():
++        array_path = path.parent / record["path"]
++        if record["path"] != name + ".npy" or array_path.is_symlink() or sha256_file(array_path) != record["sha256"]:
++            raise RuntimeError("validation corpus array identity differs")
++        array = np.load(array_path, mmap_mode="r", allow_pickle=False)
++        if list(array.shape) != record["shape"] or str(array.dtype) != record["dtype"]:
++            raise RuntimeError("validation corpus array schema differs")
++        arrays[name] = array
++    validate_corpus_arrays(arrays)
++    return arrays, manifest, bundle
++
++
+ def main(argv=None):
+     parser = argparse.ArgumentParser(description=__doc__)
+     for name in ("dataset", "config", "output", "upstream-root", "origin-server"):
+@@ -251,7 +359,10 @@ def main(argv=None):
+     parser.add_argument("--stop-after-units", type=int, default=1)
+     parser.add_argument("--probe-build-limit", type=int, choices=(1, 2), default=1)
+     parser.add_argument("--representative-probe", action="store_true")
++    parser.add_argument("--capture-validation-corpus", action="store_true")
+     args = parser.parse_args(argv)
++    if args.capture_validation_corpus and (args.representative_probe or args.stop_after_units != 1):
++        parser.error("validation corpus capture requires exactly one complete original work unit")
+     from .formal_cli import _acquire_output_lock, _acquire_legacy_read_lock
+     from .formal_evaluation_streaming import run_streaming_formal_evaluation
+ 
+@@ -281,6 +392,16 @@ def main(argv=None):
+             "probe_build_limit": args.probe_build_limit,
+         }))
+         write_atomic_json(output / "execution_identity.json", identity.as_dict())
++        captured = {}
++
++        def capture(unit, train, selection):
++            checkpoint = origin.record["upstream"]["checkpoints"][0]
++            if (unit.seed, unit.arm, unit.checkpoint_sha256) != (checkpoint["seed"], checkpoint["arm"], checkpoint["sha256"]):
++                raise RuntimeError("validation corpus capture checkpoint mismatch")
++            for name, rows in (("train", train), ("selection", selection)):
++                for field in ("features", "labels"):
++                    captured[name + "_" + field] = rows[field]
++
+         result = run_streaming_formal_evaluation(
+             config, dataset, output, upstream_root=upstream_root,
+             qualification_gate_path=upstream.qualification_gate,
+@@ -291,7 +412,13 @@ def main(argv=None):
+             batch_size=execution.batch_size, probe_build_limit=args.probe_build_limit,
+             authenticated_origin=origin,
+             stop_after_units=args.stop_after_units or None,
++            validation_corpus_callback=capture if args.capture_validation_corpus else None,
+         )
++        if args.capture_validation_corpus:
++            corpus_manifest = write_validation_corpus(output, captured, origin, config, dataset, identity)
++            result["validation_corpus_manifest"] = str(corpus_manifest)
++            result["validation_corpus_manifest_sha256"] = sha256_file(corpus_manifest)
++            write_atomic_json(output / "bounded_validation_result.json", result)
+         print(json.dumps(result, sort_keys=True))
+         return 0
+     finally:
+diff --git a/code/CSI-PAIRS-v2.0-server/formal_v2/formal_evaluation_streaming.py b/code/CSI-PAIRS-v2.0-server/formal_v2/formal_evaluation_streaming.py
+index 66cb3f4..ba9192a 100644
+--- a/code/CSI-PAIRS-v2.0-server/formal_v2/formal_evaluation_streaming.py
++++ b/code/CSI-PAIRS-v2.0-server/formal_v2/formal_evaluation_streaming.py
+@@ -769,6 +769,7 @@ def _fit_probe_bundle(
+     rng_lock=None,
+     device=None,
+     progress_callback=None,
++    corpus_callback=None,
+ ) -> _ProbeBundle:
+     def report(probe, event=None):
+         if progress_callback is not None:
+@@ -821,6 +822,8 @@ def _fit_probe_bundle(
+         routed=routed_selection,
+         batch_size=batch_size,
+     )
++    if corpus_callback is not None:
++        corpus_callback(compatibility_train, compatibility_selection)
+     compatibility_probe, selection_record = fit_select_compatibility_probe(
+         compatibility_train["features"],
+         compatibility_train["labels"],
+@@ -4179,6 +4182,7 @@ def run_streaming_formal_evaluation(
+     probe_build_limit: int = 1,
+     authenticated_origin=None,
+     stop_after_units: int | None = None,
++    validation_corpus_callback=None,
+ ) -> dict:
+     """Run one identity-bound evaluation with bank-level atomic resume."""
+ 
+@@ -4510,6 +4514,9 @@ def run_streaming_formal_evaluation(
+                         rng_lock=rng_lock,
+                         device=unit.execution_device,
+                         progress_callback=report_probe,
++                        corpus_callback=(
++                            lambda train, selection: validation_corpus_callback(unit, train, selection)
++                        ) if validation_corpus_callback is not None and unit.canonical_index == 0 else None,
+                     )
+                     requires_commit = True
+                 state["probes"] = probes
+diff --git a/code/CSI-PAIRS-v2.0-server/formal_v2/tests/test_evaluation_repair.py b/code/CSI-PAIRS-v2.0-server/formal_v2/tests/test_evaluation_repair.py
+index 2f31c4c..ab37b32 100644
+--- a/code/CSI-PAIRS-v2.0-server/formal_v2/tests/test_evaluation_repair.py
++++ b/code/CSI-PAIRS-v2.0-server/formal_v2/tests/test_evaluation_repair.py
+@@ -1,11 +1,45 @@
+ import tempfile
+ import unittest
+ from pathlib import Path
++import numpy as np
+ 
+-from formal_v2.formal_evaluation_repair import require_execution_only_changes
++from formal_v2.formal_evaluation_repair import require_execution_only_changes, validate_corpus_arrays, load_validation_corpus
+ 
+ 
+ class EvaluationRepairTests(unittest.TestCase):
++    def test_validation_corpus_manifest_must_match_the_D_receipt(self):
++        path = Path(self.temporary.name) / "manifest.json"
++        path.write_text("{}")
++        with self.assertRaisesRegex(RuntimeError, "manifest identity differs"):
++            load_validation_corpus(path, {}, expected_sha256="0" * 64)
++
++    def test_dual_gpu_overlap_uses_real_kernel_interval_intersection(self):
++        from formal_v2.tools.validate_formal_dual_probe import kernel_overlap
++
++        events = [
++            {"cat": "kernel", "args": {"device": 0}, "ts": 1, "dur": 4},
++            {"cat": "kernel", "args": {"device": 0}, "ts": 2, "dur": 2},
++            {"cat": "kernel", "args": {"device": 1}, "ts": 3, "dur": 3},
++            {"cat": "gpu_memcpy", "args": {"device": 1}, "ts": 1, "dur": 50},
++        ]
++        result = kernel_overlap(events)
++        self.assertEqual(result["actual_kernel_overlap_microseconds"], 2)
++        self.assertEqual(result["kernel_counts"], {"0": 2, "1": 1})
++
++    def test_validation_corpus_retains_full_shape_and_original_dtypes(self):
++        arrays = {
++            "train_features": np.ones((4, 3), dtype=np.float64),
++            "train_labels": np.array([0, 1, 0, 1], dtype=np.int64),
++            "selection_features": np.ones((2, 3), dtype=np.float64),
++            "selection_labels": np.array([0, 1], dtype=np.int64),
++        }
++        validate_corpus_arrays(arrays)
++        for replacement in (np.ones((3, 3)), np.ones((4, 3), dtype=np.float32), np.full((4, 3), np.nan)):
++            with self.assertRaises(RuntimeError):
++                validate_corpus_arrays({**arrays, "train_features": replacement})
++        with self.assertRaises(RuntimeError):
++            validate_corpus_arrays({**arrays, "query_features": np.ones((1, 3))})
++
+     def setUp(self):
+         self.temporary = tempfile.TemporaryDirectory()
+         self.addCleanup(self.temporary.cleanup)
+diff --git a/code/CSI-PAIRS-v2.0-server/formal_v2/tests/test_probe_acceleration.py b/code/CSI-PAIRS-v2.0-server/formal_v2/tests/test_probe_acceleration.py
+index fe4721e..e1e9a17 100644
+--- a/code/CSI-PAIRS-v2.0-server/formal_v2/tests/test_probe_acceleration.py
++++ b/code/CSI-PAIRS-v2.0-server/formal_v2/tests/test_probe_acceleration.py
+@@ -173,6 +173,7 @@ class ProbeAccelerationTests(unittest.TestCase):
+         response.update(targets=x[:, :2], source_targets=x[:, :2] * 0)
+         dataset = SimpleNamespace(indices_for_role=lambda role: np.array([0]))
+         events = []
++        corpora = []
+         with (
+             mock.patch("formal_v2.formal_evaluation_streaming.route_dataset", return_value=object()),
+             mock.patch("formal_v2.formal_evaluation_streaming.legacy._compatibility_dataset", return_value=rows),
+@@ -186,9 +187,13 @@ class ProbeAccelerationTests(unittest.TestCase):
+                 {"evaluation": {"probe_steps": 2, "probe_hidden_dim": 8, "probe_learning_rate": 0.001}},
+                 object(), object(), seed=42, batch_size=3, device="cuda:0",
+                 rng_lock=threading.Lock(), progress_callback=events.append,
++                corpus_callback=lambda train, selection: corpora.append((train, selection)),
+             )
+         self.assertEqual(fit_binary.call_count, 1)
+         self.assertEqual(fit_response.call_count, 5)
++        self.assertEqual(len(corpora), 1)
++        self.assertIs(corpora[0][0], rows)
++        self.assertIs(corpora[0][1], rows)
+         for call in (*fit_binary.call_args_list, *fit_response.call_args_list):
+             self.assertEqual(call.kwargs["device"], "cuda:0")
+             self.assertEqual(call.kwargs["train_batch_rows"], PROBE_TRAIN_BATCH_ROWS)

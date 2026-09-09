@@ -1,0 +1,15 @@
+{
+  "check": "C-artifact-validation",
+  "returncode": 0,
+  "git_head_at_check": "1738caea131b9ed0d28994c89d17c3730586d323",
+  "tracked_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "source": "/root/xunlian/Futaoran/formal_external_inputs/supervision/c591701-streaming-gpu-fix-20260908/checks/C-artifact-validation",
+  "files_sha256": {
+    "tracked.patch": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stdout.log": "1057f6404f9d8f75d02e696c44a5172d1a5393da2523c0d5aa29b632dd8b884f",
+    "stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "resources.jsonl": "f102d0f184ff88888612ae93fe9a89280a164142142fbe8bdefd9e1e12b0dfca",
+    "record.json": "10252fe31c2a5c3f5a72f26ba84df90cc8c15fed58bacffb798479e6452a2980"
+  },
+  "note": "A completed command is not necessarily a passed acceptance; inspect exit code and scientific scope."
+}

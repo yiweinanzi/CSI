@@ -1,0 +1,15 @@
+{
+  "check": "regression-before-D",
+  "returncode": 0,
+  "git_head_at_check": "2ce24729814d1d7357fafb280ab10192ee3ace6b",
+  "tracked_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "source": "/root/xunlian/Futaoran/formal_external_inputs/supervision/c591701-streaming-gpu-fix-20260908/checks/regression-before-D",
+  "files_sha256": {
+    "tracked.patch": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stdout.log": "4ef09b77026be8ce71fd7fb895b6bf922ad5c4aa30fe301a2d7a0d8356ce7dd1",
+    "stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "resources.jsonl": "3e851e6de59398c033525b0c6d4f9dcbbc416400b207b8688450a68ec2720590",
+    "record.json": "31cee165cb2737ee375139b54a9940d344bbd685e780eb845c0c69fb7497c109"
+  },
+  "note": "A completed command is not necessarily a passed acceptance; inspect exit code and scientific scope."
+}

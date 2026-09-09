@@ -1,0 +1,215 @@
+{
+  "status": "AUDIT_COMPLETE_NON_CLAIM",
+  "sota_ready": false,
+  "generated_at": "2026-09-08T17:36:25.947535+00:00",
+  "origin_commit": "c5917018610b262f5263ccaeba2f087b2eb96a96",
+  "evaluation_commit": "2ce24729814d1d7357fafb280ab10192ee3ace6b",
+  "original_npz_sha256": "060d8671380acaf43bd0beb2c77ac5c6ec112e4ddc083451ab36a5916b7c9cac",
+  "npz_identity_scope": "Original live-authentication receipt; this summary-only audit does not reread the full NPZ.",
+  "origin_receipt_sha256": "25e8e91a248319c9c69531d06c46470ea54a0dbb1c378caae7e431bf537c28ab",
+  "inputs_sha256": {
+    "manifest.json": "9b5f11fea933570caff2ad12586306d978e8d71875d4cb38937ba6c9a93e766d",
+    "gate.json": "d7e5eaf2fb2fbf2a30b554f9cf65fb975fa53bd5ef638f27fd9b9d96c2fc9fe0",
+    "localization_summary.csv": "e4378bd5e5e352583b7e7baa80b93c352c1bfa74daffb50b42023543a12835d7",
+    "training_summary.csv": "b23868a564ed5795da90c697c56e2e88d983f2052f71a8be88f214a37ed0c838"
+  },
+  "metric": "mean_bank_median_error_m; not pooled median, log utility or significance",
+  "cells": [
+    {
+      "city": "target-boston",
+      "k": 0,
+      "meters": {
+        "endpoint": 12.215381641815107,
+        "alignment": 13.19192742470109,
+        "response": 11.594326273126475,
+        "full": 11.985595121032393
+      },
+      "full_minus_response_m": 0.3912688479059181,
+      "full_strictly_first_among_four_arms": false
+    },
+    {
+      "city": "target-boston",
+      "k": 8,
+      "meters": {
+        "endpoint": 15.17689055230249,
+        "alignment": 16.727958929549022,
+        "response": 15.334705655965655,
+        "full": 16.0371427663667
+      },
+      "full_minus_response_m": 0.7024371104010445,
+      "full_strictly_first_among_four_arms": false
+    },
+    {
+      "city": "target-boston",
+      "k": 32,
+      "meters": {
+        "endpoint": 14.612376129575708,
+        "alignment": 15.75312854913914,
+        "response": 13.70400991984206,
+        "full": 14.398875588793539
+      },
+      "full_minus_response_m": 0.6948656689514792,
+      "full_strictly_first_among_four_arms": false
+    },
+    {
+      "city": "target-boston",
+      "k": 128,
+      "meters": {
+        "endpoint": 13.343995959376663,
+        "alignment": 14.238238996625348,
+        "response": 12.647515404551232,
+        "full": 13.515084122365232
+      },
+      "full_minus_response_m": 0.8675687178140006,
+      "full_strictly_first_among_four_arms": false
+    },
+    {
+      "city": "target-seattle",
+      "k": 0,
+      "meters": {
+        "endpoint": 9.5314282999011,
+        "alignment": 10.08064452198279,
+        "response": 8.775193862508903,
+        "full": 9.1516786851811
+      },
+      "full_minus_response_m": 0.37648482267219663,
+      "full_strictly_first_among_four_arms": false
+    },
+    {
+      "city": "target-seattle",
+      "k": 8,
+      "meters": {
+        "endpoint": 12.860347282065337,
+        "alignment": 13.07246361461609,
+        "response": 11.414612571273839,
+        "full": 13.075027575836053
+      },
+      "full_minus_response_m": 1.6604150045622141,
+      "full_strictly_first_among_four_arms": false
+    },
+    {
+      "city": "target-seattle",
+      "k": 32,
+      "meters": {
+        "endpoint": 11.927112247978597,
+        "alignment": 12.44954815822885,
+        "response": 10.3175189068489,
+        "full": 11.388892057779739
+      },
+      "full_minus_response_m": 1.0713731509308388,
+      "full_strictly_first_among_four_arms": false
+    },
+    {
+      "city": "target-seattle",
+      "k": 128,
+      "meters": {
+        "endpoint": 10.964707554704015,
+        "alignment": 11.613437761474492,
+        "response": 10.235400251799211,
+        "full": 11.097603340993551
+      },
+      "full_minus_response_m": 0.86220308919434,
+      "full_strictly_first_among_four_arms": false
+    }
+  ],
+  "full_strict_first_cell_count": 0,
+  "factorial_gate_vector": {
+    "G0": "NOT_ASSESSED",
+    "G1": "PASS",
+    "G2": "PASS",
+    "G3": "NOT_ASSESSED",
+    "G4": "FAIL",
+    "G5": "FAIL",
+    "G6": "NOT_ASSESSED",
+    "G7": "NOT_ASSESSED",
+    "G8": "NOT_ASSESSED"
+  },
+  "g4_assessed_subgates": {
+    "1_full_beats_both_single_branches": "FAIL",
+    "4_hierarchical_interaction_ci_exceeds_minimum": "FAIL",
+    "5_no_city_k_reverse_regression": "FAIL"
+  },
+  "g4_unassessed_subgates": [
+    "2_cgs_noninferior_to_alignment",
+    "3_native_response_noninferior_to_response",
+    "6_equal_flop_single_branch_superiority",
+    "7_parameter_and_flop_matched_concat_superiority"
+  ],
+  "g5_subgates": {
+    "1_two_target_cities_and_independent_clusters": "PASS",
+    "2_strict_primary_k0_k8_complete": "PASS",
+    "3_every_city_k0_full_vs_endpoint_ci_holm": "FAIL",
+    "4_every_city_k8_full_vs_endpoint_ci_holm": "FAIL"
+  },
+  "full_training_diagnostics": [
+    {
+      "seed": "20270001",
+      "steps": "20000",
+      "checkpoint_rule": "fixed_final_step_no_target_selection",
+      "full_joint_loss": "uncertainty_weighting",
+      "alignment_gradient_norm_mean": "0.005818839564952327",
+      "response_gradient_norm_mean": "0.46292298287153244",
+      "encoder_alignment_response_grad_cosine_mean": "0.00041205581944825045",
+      "encoder_alignment_response_grad_cosine_count": "201",
+      "encoder_grad_cosine_note": "diagnostic cosine of alignment vs response grads on shared encoder parameters; not a conflict-rate proof",
+      "task_log_variance_alignment": "0.00013558633509092033",
+      "task_log_variance_response": "-1.1874914169311523",
+      "final_alignment_active_fixed_loss": "0.09998882561922073",
+      "final_response_loss": "0.14799688756465912"
+    },
+    {
+      "seed": "20270002",
+      "steps": "20000",
+      "checkpoint_rule": "fixed_final_step_no_target_selection",
+      "full_joint_loss": "uncertainty_weighting",
+      "alignment_gradient_norm_mean": "0.0039392154883302055",
+      "response_gradient_norm_mean": "0.4494381994009018",
+      "encoder_alignment_response_grad_cosine_mean": "0.010029478452040406",
+      "encoder_alignment_response_grad_cosine_count": "201",
+      "encoder_grad_cosine_note": "diagnostic cosine of alignment vs response grads on shared encoder parameters; not a conflict-rate proof",
+      "task_log_variance_alignment": "-0.00014269747771322727",
+      "task_log_variance_response": "-1.1932129859924316",
+      "final_alignment_active_fixed_loss": "0.09998725354671478",
+      "final_response_loss": "0.14361430704593658"
+    },
+    {
+      "seed": "20270003",
+      "steps": "20000",
+      "checkpoint_rule": "fixed_final_step_no_target_selection",
+      "full_joint_loss": "uncertainty_weighting",
+      "alignment_gradient_norm_mean": "0.005510962728507707",
+      "response_gradient_norm_mean": "0.3942939192056656",
+      "encoder_alignment_response_grad_cosine_mean": "0.0021065154659984037",
+      "encoder_alignment_response_grad_cosine_count": "201",
+      "encoder_grad_cosine_note": "diagnostic cosine of alignment vs response grads on shared encoder parameters; not a conflict-rate proof",
+      "task_log_variance_alignment": "0.0001926482655107975",
+      "task_log_variance_response": "-1.1855629682540894",
+      "final_alignment_active_fixed_loss": "0.09999245405197144",
+      "final_response_loss": "0.11145278066396713"
+    }
+  ],
+  "diagnostic_boundary": "Gradient norm magnitudes and mean cosine do not establish causality, conflict rates, or a successful remedy. This audit changes no model or gate.",
+  "streaming_snapshot": {
+    "updated_at": "2026-09-08T17:36:19.590395+00:00",
+    "workers": {
+      "cuda:0": {
+        "arm": "endpoint",
+        "checkpoint_index": 0,
+        "completed_training_models": 12,
+        "device": "cuda:0",
+        "last_actual_callback_at": "2026-09-08T16:10:36.651891+00:00",
+        "phase": "preparing",
+        "probe": "response_train_features",
+        "seed": 20270001,
+        "stage_elapsed_seconds": 5142.938493397,
+        "step_note": "optimizer submissions during training; CUDA synchronized at training_complete",
+        "total_training_models": 17,
+        "unit_elapsed_seconds": 26106.954637792005,
+        "unit_index": 0,
+        "updated_at": "2026-09-08T16:10:36.651886+00:00"
+      }
+    }
+  },
+  "external_baseline_boundary": "No Wi-GATr/PMNet meters are inferred from papers or other runs. No assembled same-run comparison is certified by this audit.",
+  "execution_boundary": "The existing evaluator is not interrupted. This command starts no training and buys no resources."
+}

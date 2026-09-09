@@ -24,3 +24,12 @@ v2_0_server_bundle_verification.md
 **/__pycache__/
 **/.ruff_cache/
 *.py[cod]
+
+# Local runtime output and credentials are not part of source publication.
+/runs/
+/formal_envs/
+/formal_inputs/
+/generated_datasets/
+.env
+.env.*
+!.env.example

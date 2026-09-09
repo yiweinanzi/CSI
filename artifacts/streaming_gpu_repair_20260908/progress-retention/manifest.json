@@ -1,0 +1,15 @@
+{
+  "check": "progress-retention",
+  "returncode": 0,
+  "git_head_at_check": "dc001420a1377eb53bdcb97a3ceed1073dcd308e",
+  "tracked_diff_sha256": "62829a3ca83d949af94e30099d314948ea86e67198cf7fdc1ac8186b6581d85f",
+  "source": "/root/xunlian/Futaoran/formal_external_inputs/supervision/c591701-streaming-gpu-fix-20260908/checks/progress-retention",
+  "files_sha256": {
+    "tracked.patch": "62829a3ca83d949af94e30099d314948ea86e67198cf7fdc1ac8186b6581d85f",
+    "stdout.log": "279c51016b528f6b396ec3158f2bda81b9f10e3229620535bf68c4aa3b02f66e",
+    "stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "resources.jsonl": "178b758faae6fdd4ed466c2db804dd18d5d4ef7c544d5ee338b6430a96e26acf",
+    "record.json": "11d469ce7d0153fc3f5b6722b81556b7767ee8919259908fd7964e009184fa3f"
+  },
+  "note": "A completed command is not necessarily a passed acceptance; inspect exit code and scientific scope."
+}

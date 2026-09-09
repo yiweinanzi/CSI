@@ -1,0 +1,155 @@
+{
+  "captured_at_utc": "2026-09-09T03:28:47.341Z",
+  "source_worktree": "/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664",
+  "branch": "archive/cloud-source-20260909",
+  "base_commit": "5d068ff19cb3ab51057d53d27e493bd600b29fbd",
+  "snapshot_commit": "89cd51b9cc6571e6c7fdd26f6b965ffd4dca1c1a",
+  "snapshot_tree": "6ed0caed5f432f41aa3db56fbde0563f11e73dca",
+  "tracked_diff_sha256": "1f9a4c18c2887c944efbc360bc4162d0d162a948a12ccc6f18045b42f7a8201b",
+  "original_index_sha256": "dfcfa6c72d69b61293374e15850536cd541f6eea02ab1139795004eaa8f6a582",
+  "original_index_and_diff_preserved": true,
+  "content_verified_byte_for_byte": true,
+  "tracked_changed_files": 20,
+  "untracked_source_files": 7,
+  "total_bytes": 974817,
+  "maximum_file_bytes": 10485760,
+  "sensitive_pattern_hits": 0,
+  "semantics": "Historical source archive only; not merged into the active method or claimed as validated.",
+  "files": [
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/SHA256SUMS",
+      "bytes": 37083,
+      "sha256": "10993974cc80ae04cd43574024d9d8cc014404bb4825d6061d3676a30888b061"
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/configs/pmnet_official_smoke_v1.json",
+      "bytes": 943,
+      "sha256": "42260f4580ecea0b9c6f2be1ea1f0d6f34ceb243e378f80e8df9fe5924e49438"
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/configs/rfir_controlled_smoke_v1.json",
+      "bytes": 1036,
+      "sha256": "9c860ca2bc4e20bfa723b950b85b81be5de52c68b2ea0ec6227dda436125223a"
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/configs/wigatr_official_smoke_v1.json",
+      "bytes": 1121,
+      "sha256": "b72321b8239cc1266a19d90de970ec636f33798cb691f6993c5fa147fc2efdae"
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/configs/wiser_controlled_smoke_v1.json",
+      "bytes": 1042,
+      "sha256": "7c75ba213afa8886a65855ec7fa5794bc54ab620ada992d1e4f9936de62d0b50"
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/external_adapters/all_map_adapters_smoke_v1.json",
+      "bytes": 7552,
+      "sha256": "c3c58f43a5bb2b82a16fddac08a871926abeb6b13669bc2a37a4b0f8630a74b9"
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/external_adapters/all_map_adapters_v1.json",
+      "bytes": 8122,
+      "sha256": "d699c03768c6558e7d0ff3f3e1efcf47e3499b9e654a4921140d67060b2d0adf"
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/external_adapters/controlled_map_adapter.py",
+      "bytes": 31340,
+      "sha256": "7d3637fd778da9186971f52c87c940b7ea4ece35eb3b574506e28b4ad7d969f5"
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/external_adapters/pmnet_adapter.py",
+      "bytes": 29996,
+      "sha256": "8a75be6edfa93cba435f8f553f3f3e150339b6026e7f65659d8b2324e4a34dcf"
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/external_adapters/scene_id_sigmap.py",
+      "bytes": 9959,
+      "sha256": "cdd9592a431b9fa2a8d8ab9f99a7a087447e73a916e2d5c52eb979e0768a50fc"
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/external_adapters/shuffled_pair_control.py",
+      "bytes": 27597,
+      "sha256": "5d3f159dc401a356195743d775aa6f49a6c07661db61a67b1da04184bfd16acf"
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/external_adapters/shuffled_pair_control_v3.json",
+      "bytes": 570,
+      "sha256": "435982638bec75d762edc9f6a9bfa4938603422294569e983d11c9b9401619ce"
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/external_adapters/wigatr_adapter.py",
+      "bytes": 30275,
+      "sha256": "b537f90746107f8a8bc92010cbfbea68e4f25eb5394c9b6ea169ca8eb8034bf2"
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/external_adapters/wigatr_protocol.py",
+      "bytes": 38618,
+      "sha256": "67f906e6e6e1e5dd3b55968fd0903dee0f29a08a72672af3d39b1efd346924d9"
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/formal_checkpoint_contract.py",
+      "bytes": 699,
+      "sha256": "62fa4f618cf6e98e54ec70f952eee06131528160b2a0b1a0d4b0996ce025bef2"
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/formal_claim_controls.py",
+      "bytes": 55739,
+      "sha256": "2777f96bb06e700c886e37b5eae16412c9c4b32c77a013687d0352be15e596f1"
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/formal_claims.py",
+      "bytes": 59588,
+      "sha256": "4854316d5b5886c24d450b573db5ffb62a4cd14a89f43fd1f9287b39e29e0616"
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/formal_cli.py",
+      "bytes": 36907,
+      "sha256": "f36533382c6b304ee14a2a8340ecadda3842c27e9a793c6de219c20858d55f28"
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/formal_dataset.py",
+      "bytes": 52303,
+      "sha256": "db32357a3186190034c6bc79b90fe554e1a302bc5c8b5e0c8f885450039254e4"
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/formal_evidence.py",
+      "bytes": 45654,
+      "sha256": "b0eb64fcf6d461f6668d65e6375c5319710099f673b781d4de4ef5fa94377f0c"
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/formal_external.py",
+      "bytes": 42809,
+      "sha256": "9a3ba160648aca8972220f2ad88fd8e0df3f32e1f712db3cfbc1762f42744344"
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/formal_factorial.py",
+      "bytes": 106445,
+      "sha256": "c47132801c9bc92f53ad2115db50463f6f18e08fb770bfb7cad55f08d7f32466"
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/formal_fixture.py",
+      "bytes": 18720,
+      "sha256": "7ebd2f658ae14360e64e47b272a69d81a52bdd0603f057cfe506dffc4e527aa6"
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/formal_run_approval.py",
+      "bytes": 66190,
+      "sha256": "383ea497e051c63e6ee5b8bff070aefcfc941e9404e2be009b028745fd357d07"
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/tests/test_evidence_integrity.py",
+      "bytes": 52971,
+      "sha256": "d9274e08b7880f19c96ce9b8317d63ec587460c4f39b8e9cef747315ba6d100f"
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/tests/test_formal_v2.py",
+      "bytes": 195594,
+      "sha256": "9920da817f9b40347b8f2ad4619f856d9b6e95c58582b3a10fc58d0717ce1c10"
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/tests/test_smoke_chain_contracts.py",
+      "bytes": 15944,
+      "sha256": "fdc679820186ac10a7cac092c7477a95f77f7919dd8fba2422b676f69503ea2f"
+    }
+  ]
+}

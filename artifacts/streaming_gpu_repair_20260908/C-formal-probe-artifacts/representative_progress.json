@@ -1,0 +1,11 @@
+{
+  "arm": "endpoint",
+  "device": "cuda:0",
+  "elapsed_seconds": 6201.870417505008,
+  "host_maxrss_bytes": 154314981376,
+  "monotonic": 90646.414513736,
+  "phase": "saved",
+  "seed": 20270001,
+  "stage_elapsed_seconds": 0.0,
+  "unit": "representative_compatibility_probe_not_whole_unit"
+}

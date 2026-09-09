@@ -1,0 +1,121 @@
+...F.F..F.F.FFFF.........F.s............F...........                     [100%]
+=================================== FAILURES ===================================
+_ EvaluationStreamingTests.test_completed_restart_authenticates_finalization_without_rewriting _
+formal_v2/tests/test_evaluation_streaming.py:618: in test_completed_restart_authenticates_finalization_without_rewriting
+    first_gate, first_gate_calls = self._run_empty_streaming(run_root)
+                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+formal_v2/tests/test_evaluation_streaming.py:160: in _run_empty_streaming
+    result = run_streaming_formal_evaluation(
+formal_v2/formal_evaluation_streaming.py:4159: in run_streaming_formal_evaluation
+    require_verified_roles_from_root(output_root, config, dataset, required_roles)
+formal_v2/formal_data_verification.py:307: in require_verified_roles_from_root
+    raise RuntimeError(
+E   RuntimeError: formal stages require a live independent data-verification gate
+_ EvaluationStreamingTests.test_damaged_final_output_invalidates_receipt_and_only_refinalizes _
+formal_v2/tests/test_evaluation_streaming.py:773: in test_damaged_final_output_invalidates_receipt_and_only_refinalizes
+    self._run_empty_streaming(run_root)
+formal_v2/tests/test_evaluation_streaming.py:160: in _run_empty_streaming
+    result = run_streaming_formal_evaluation(
+formal_v2/formal_evaluation_streaming.py:4159: in run_streaming_formal_evaluation
+    require_verified_roles_from_root(output_root, config, dataset, required_roles)
+formal_v2/formal_data_verification.py:307: in require_verified_roles_from_root
+    raise RuntimeError(
+E   RuntimeError: formal stages require a live independent data-verification gate
+_ EvaluationStreamingTests.test_deleted_scene_bundle_recomputes_only_the_deleted_scene _
+formal_v2/tests/test_evaluation_streaming.py:1051: in test_deleted_scene_bundle_recomputes_only_the_deleted_scene
+    gate = run_streaming_formal_evaluation(
+formal_v2/formal_evaluation_streaming.py:4159: in run_streaming_formal_evaluation
+    require_verified_roles_from_root(output_root, config, dataset, required_roles)
+formal_v2/formal_data_verification.py:307: in require_verified_roles_from_root
+    raise RuntimeError(
+E   RuntimeError: formal stages require a live independent data-verification gate
+_ EvaluationStreamingTests.test_final_csv_must_match_authenticated_fragment_merge _
+formal_v2/tests/test_evaluation_streaming.py:756: in test_final_csv_must_match_authenticated_fragment_merge
+    expected_gate, _calls = self._run_empty_streaming(run_root)
+                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+formal_v2/tests/test_evaluation_streaming.py:160: in _run_empty_streaming
+    result = run_streaming_formal_evaluation(
+formal_v2/formal_evaluation_streaming.py:4159: in run_streaming_formal_evaluation
+    require_verified_roles_from_root(output_root, config, dataset, required_roles)
+formal_v2/formal_data_verification.py:307: in require_verified_roles_from_root
+    raise RuntimeError(
+E   RuntimeError: formal stages require a live independent data-verification gate
+_ EvaluationStreamingTests.test_final_output_crash_temporaries_are_preserved_then_retry_succeeds _
+formal_v2/tests/test_evaluation_streaming.py:833: in test_final_output_crash_temporaries_are_preserved_then_retry_succeeds
+    gate, gate_calls = self._run_empty_streaming(run_root)
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+formal_v2/tests/test_evaluation_streaming.py:160: in _run_empty_streaming
+    result = run_streaming_formal_evaluation(
+formal_v2/formal_evaluation_streaming.py:4159: in run_streaming_formal_evaluation
+    require_verified_roles_from_root(output_root, config, dataset, required_roles)
+formal_v2/formal_data_verification.py:307: in require_verified_roles_from_root
+    raise RuntimeError(
+E   RuntimeError: formal stages require a live independent data-verification gate
+_ EvaluationStreamingTests.test_finalization_receipt_recovers_crash_before_progress_completion _
+RuntimeError: formal stages require a live independent data-verification gate
+
+During handling of the above exception, another exception occurred:
+formal_v2/tests/test_evaluation_streaming.py:694: in test_finalization_receipt_recovers_crash_before_progress_completion
+    with self.assertRaisesRegex(RuntimeError, "after finalization receipt"):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   AssertionError: "after finalization receipt" does not match "formal stages require a live independent data-verification gate"
+_ EvaluationStreamingTests.test_finalization_shard_rejects_stale_run_identity __
+formal_v2/tests/test_evaluation_streaming.py:868: in test_finalization_shard_rejects_stale_run_identity
+    self._run_empty_streaming(run_root)
+formal_v2/tests/test_evaluation_streaming.py:160: in _run_empty_streaming
+    result = run_streaming_formal_evaluation(
+formal_v2/formal_evaluation_streaming.py:4159: in run_streaming_formal_evaluation
+    require_verified_roles_from_root(output_root, config, dataset, required_roles)
+formal_v2/formal_data_verification.py:307: in require_verified_roles_from_root
+    raise RuntimeError(
+E   RuntimeError: formal stages require a live independent data-verification gate
+_ EvaluationStreamingTests.test_forged_final_gate_is_rejected_by_strict_scientific_replay _
+formal_v2/tests/test_evaluation_streaming.py:736: in test_forged_final_gate_is_rejected_by_strict_scientific_replay
+    expected_gate, _calls = self._run_empty_streaming(run_root)
+                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+formal_v2/tests/test_evaluation_streaming.py:160: in _run_empty_streaming
+    result = run_streaming_formal_evaluation(
+formal_v2/formal_evaluation_streaming.py:4159: in run_streaming_formal_evaluation
+    require_verified_roles_from_root(output_root, config, dataset, required_roles)
+formal_v2/formal_data_verification.py:307: in require_verified_roles_from_root
+    raise RuntimeError(
+E   RuntimeError: formal stages require a live independent data-verification gate
+_ EvaluationStreamingTests.test_merged_and_scene_probe_predictions_match_on_cpu _
+formal_v2/tests/test_evaluation_streaming.py:2677: in test_merged_and_scene_probe_predictions_match_on_cpu
+    self._assert_merged_and_scene_probe_parity("cpu")
+formal_v2/tests/test_evaluation_streaming.py:2619: in _assert_merged_and_scene_probe_parity
+    np.testing.assert_array_equal(scene_values, merged, err_msg=name)
+E   AssertionError: 
+E   Arrays are not equal
+E   main
+E   Mismatched elements: 5 / 20 (25%)
+E   Max absolute difference among violations: 6.1035156e-05
+E   Max relative difference among violations: 3.8161195e-07
+E    ACTUAL: array([[-326.693  , -363.69257],
+E          [-674.38776, -750.7657 ],
+E          [ 265.648  ,  295.73395],...
+E    DESIRED: array([[-326.69293 , -363.69257 ],
+E          [-674.3877  , -750.7656  ],
+E          [ 265.648   ,  295.73395 ],...
+_ EvaluationStreamingTests.test_runner_rejects_execution_profile_mismatch_before_output_creation _
+formal_v2/tests/test_evaluation_streaming.py:900: in test_runner_rejects_execution_profile_mismatch_before_output_creation
+    self._run_empty_streaming(
+formal_v2/tests/test_evaluation_streaming.py:160: in _run_empty_streaming
+    result = run_streaming_formal_evaluation(
+formal_v2/formal_evaluation_streaming.py:4159: in run_streaming_formal_evaluation
+    require_verified_roles_from_root(output_root, config, dataset, required_roles)
+formal_v2/formal_data_verification.py:307: in require_verified_roles_from_root
+    raise RuntimeError(
+E   RuntimeError: formal stages require a live independent data-verification gate
+=========================== short test summary info ============================
+FAILED formal_v2/tests/test_evaluation_streaming.py::EvaluationStreamingTests::test_completed_restart_authenticates_finalization_without_rewriting
+FAILED formal_v2/tests/test_evaluation_streaming.py::EvaluationStreamingTests::test_damaged_final_output_invalidates_receipt_and_only_refinalizes
+FAILED formal_v2/tests/test_evaluation_streaming.py::EvaluationStreamingTests::test_deleted_scene_bundle_recomputes_only_the_deleted_scene
+FAILED formal_v2/tests/test_evaluation_streaming.py::EvaluationStreamingTests::test_final_csv_must_match_authenticated_fragment_merge
+FAILED formal_v2/tests/test_evaluation_streaming.py::EvaluationStreamingTests::test_final_output_crash_temporaries_are_preserved_then_retry_succeeds
+FAILED formal_v2/tests/test_evaluation_streaming.py::EvaluationStreamingTests::test_finalization_receipt_recovers_crash_before_progress_completion
+FAILED formal_v2/tests/test_evaluation_streaming.py::EvaluationStreamingTests::test_finalization_shard_rejects_stale_run_identity
+FAILED formal_v2/tests/test_evaluation_streaming.py::EvaluationStreamingTests::test_forged_final_gate_is_rejected_by_strict_scientific_replay
+FAILED formal_v2/tests/test_evaluation_streaming.py::EvaluationStreamingTests::test_merged_and_scene_probe_predictions_match_on_cpu
+FAILED formal_v2/tests/test_evaluation_streaming.py::EvaluationStreamingTests::test_runner_rejects_execution_profile_mismatch_before_output_creation
+10 failed, 41 passed, 1 skipped in 7.16s

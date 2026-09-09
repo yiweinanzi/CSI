@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="4" tests="49" time="15.684" timestamp="2026-09-09T11:28:45.604938+08:00" hostname="ubuntu05-ffc8c7d49-jjn78"><testcase classname="formal_v2.tests.test_metrics_auroc.AurocTests" name="test_large_mixed_ties_match_rank_reference" time="0.045" /><testcase classname="formal_v2.tests.test_metrics_auroc.AurocTests" name="test_matches_pairwise_definition_with_ties_and_permutations" time="0.008" /><testcase classname="formal_v2.tests.test_metrics_auroc.AurocTests" name="test_validation_is_preserved" time="0.001" /><testcase classname="formal_v2.tests.test_evaluation_repair.EvaluationRepairTests" name="test_dual_gpu_overlap_uses_real_kernel_interval_intersection" time="0.008" /><testcase classname="formal_v2.tests.test_evaluation_repair.EvaluationRepairTests" name="test_execution_only_change_is_reported_with_both_hashes" time="0.005" /><testcase classname="formal_v2.tests.test_evaluation_repair.EvaluationRepairTests" name="test_model_method_and_configuration_changes_are_rejected" time="0.005" /><testcase classname="formal_v2.tests.test_evaluation_repair.EvaluationRepairTests" name="test_probe_architecture_change_is_rejected" time="0.004" /><testcase classname="formal_v2.tests.test_evaluation_repair.EvaluationRepairTests" name="test_unrelated_metric_or_localization_function_cannot_change" time="0.006" /><testcase classname="formal_v2.tests.test_evaluation_repair.EvaluationRepairTests" name="test_validation_corpus_manifest_must_match_the_D_receipt" time="0.002" /><testcase classname="formal_v2.tests.test_evaluation_repair.EvaluationRepairTests" name="test_validation_corpus_retains_full_shape_and_original_dtypes" time="0.002" /><testcase classname="formal_v2.tests.test_formal_probes_devices.ProbeDeviceTests" name="test_batch_rows_must_be_positive_integer" time="4.326" /><testcase classname="formal_v2.tests.test_formal_probes_devices.ProbeDeviceTests" name="test_chunked_gradient_accumulation_matches_one_full_step" time="0.021" /><testcase classname="formal_v2.tests.test_formal_probes_devices.ProbeDeviceTests" name="test_chunked_response_prediction_preserves_order" time="0.007" /><testcase classname="formal_v2.tests.test_formal_probes_devices.ProbeDeviceTests" name="test_compatibility_probe_supports_device_and_chunking" time="0.014" /><testcase classname="formal_v2.tests.test_formal_probes_devices.ProbeDeviceTests" name="test_concurrent_probe_initialization_matches_serial_and_preserves_rng" time="0.039" /><testcase classname="formal_v2.tests.test_formal_probes_devices.ProbeDeviceTests" name="test_cuda_probe_path_returns_cpu_numpy_in_input_order" time="0.001"><skipped type="pytest.skip" message="CUDA is unavailable">/root/xunlian/Futaoran/CSI_CODE_UPLOAD_20260909/code/CSI-PAIRS-v2.0-server/formal_v2/tests/test_formal_probes_devices.py:363: CUDA is unavailable</skipped></testcase><testcase classname="formal_v2.tests.test_formal_probes_devices.ProbeDeviceTests" name="test_default_cpu_path_is_exactly_preserved" time="0.014" /><testcase classname="formal_v2.tests.test_formal_probes_devices.ProbeDeviceTests" name="test_mock_cuda_training_transfers_only_cpu_backed_batches" time="0.012"><failure message="RuntimeError: No CUDA GPUs are available">self = &lt;formal_v2.tests.test_formal_probes_devices.ProbeDeviceTests testMethod=test_mock_cuda_training_transfers_only_cpu_backed_batches&gt;
+
+    def test_mock_cuda_training_transfers_only_cpu_backed_batches(self):
+        response_transfers = []
+    
+        def record_response_transfer(values, device):
+            response_transfers.append(
+                (int(values.shape[0]), values.device.type, str(device))
+            )
+            return values
+    
+        def keep_response_probe_on_cpu(probe, *_args, **_kwargs):
+            return probe
+    
+        with (
+            mock.patch(
+                "formal_v2.formal_probes._resolve_probe_device",
+                return_value=torch.device("cuda:0"),
+            ),
+            mock.patch.object(
+                ActionResponseProbe,
+                "to",
+                autospec=True,
+                side_effect=keep_response_probe_on_cpu,
+            ),
+            mock.patch(
+                "formal_v2.formal_probes._transfer_float_batch",
+                side_effect=record_response_transfer,
+            ),
+        ):
+            response_probe = fit_action_response_probe(
+                self.features,
+                self.targets,
+                _config(steps=1),
+                seed=48,
+                zero_action_x=self.zero,
+                device="cuda:0",
+                train_batch_rows=6,
+            )
+    
+        self.assertEqual(len(response_transfers), 12)
+        self.assertEqual(
+            [rows for rows, _backing, _device in response_transfers],
+            [6, 6, 6, 6, 6, 6, 6, 6, 6, 1, 1, 1],
+        )
+        self.assertTrue(
+            all(backing == "cpu" for _rows, backing, _device in response_transfers)
+        )
+        self.assertTrue(
+            all(device == "cuda:0" for _rows, _backing, device in response_transfers)
+        )
+    
+        binary_transfers = []
+    
+        def record_binary_transfer(values, device):
+            binary_transfers.append(
+                (int(values.shape[0]), values.device.type, str(device))
+            )
+            return values
+    
+        binary_probe = CompatibilityProbe(
+            self.features.shape[1],
+            "linear",
+            _config()["evaluation"]["probe_hidden_dim"],
+        )
+        with (
+            mock.patch(
+                "formal_v2.formal_probes._module_device",
+                return_value=torch.device("cuda:0"),
+            ),
+            mock.patch(
+                "formal_v2.formal_probes._transfer_float_batch",
+                side_effect=record_binary_transfer,
+            ),
+        ):
+&gt;           _fit_binary(
+                binary_probe,
+                self.features,
+                self.labels,
+                _config(steps=1),
+                train_batch_rows=5,
+            )
+
+formal_v2/tests/test_formal_probes_devices.py:286: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+formal_v2/formal_probes.py:393: in _fit_binary
+    _finish_training(probe, progress_callback, steps, row_count)
+formal_v2/formal_probes.py:78: in _finish_training
+    torch.cuda.synchronize(device)
+../../../CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/lib/python3.12/site-packages/torch/cuda/__init__.py:952: in synchronize
+    _lazy_init()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def _lazy_init():
+        global _initialized, _queued_calls
+        if is_initialized() or hasattr(_tls, "is_initializing"):
+            return
+        with _initialization_lock:
+            # We be double-checked locking, boys!  This is OK because
+            # the above test was GIL protected anyway.  The inner test
+            # is for when a thread blocked on some other thread which was
+            # doing the initialization; when they get the lock, they will
+            # find there is nothing left to do.
+            if is_initialized():
+                return
+            # It is important to prevent other threads from entering _lazy_init
+            # immediately, while we are still guaranteed to have the GIL, because some
+            # of the C calls we make below will release the GIL
+            if _is_in_bad_fork():
+                raise RuntimeError(
+                    "Cannot re-initialize CUDA in forked subprocess. To use CUDA with "
+                    "multiprocessing, you must use the 'spawn' start method"
+                )
+            if not hasattr(torch._C, "_cuda_getDeviceCount"):
+                raise AssertionError("Torch not compiled with CUDA enabled")
+            if _cudart is None:
+                raise AssertionError(
+                    "libcudart functions unavailable. It looks like you have a broken build?"
+                )
+            # This function throws if there's a driver initialization error, no GPUs
+            # are found or any other error occurs
+            if "CUDA_MODULE_LOADING" not in os.environ:
+                os.environ["CUDA_MODULE_LOADING"] = "LAZY"
+&gt;           torch._C._cuda_init()
+E           RuntimeError: No CUDA GPUs are available
+
+../../../CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/lib/python3.12/site-packages/torch/cuda/__init__.py:319: RuntimeError</failure></testcase><testcase classname="formal_v2.tests.test_formal_probes_devices.ProbeDeviceTests" name="test_progress_reports_full_gradient_steps_and_partial_batches" time="0.012" /><testcase classname="formal_v2.tests.test_formal_probes_devices.ProbeDeviceTests" name="test_two_gpu_probes_match_serial_on_each_device" time="0.001"><skipped type="pytest.skip" message="two CUDA devices required">/root/xunlian/Futaoran/CSI_CODE_UPLOAD_20260909/code/CSI-PAIRS-v2.0-server/formal_v2/tests/test_formal_probes_devices.py:95: two CUDA devices required</skipped></testcase><testcase classname="formal_v2.tests.test_probe_acceleration.ProbeAccelerationTests" name="test_all_shortcut_probes_receive_gpu_and_batch_options" time="0.002" /><testcase classname="formal_v2.tests.test_probe_acceleration.ProbeAccelerationTests" name="test_brief_phases_and_lock_timings_survive_later_callbacks" time="0.001" /><testcase classname="formal_v2.tests.test_probe_acceleration.ProbeAccelerationTests" name="test_cli_exposes_probe_telemetry_without_changing_shard_progress" time="0.011" /><testcase classname="formal_v2.tests.test_probe_acceleration.ProbeAccelerationTests" name="test_memory_admission_and_old_checkpoint_timelines_are_retained" time="0.001" /><testcase classname="formal_v2.tests.test_probe_acceleration.ProbeAccelerationTests" name="test_memory_admission_retains_serial_fallback" time="0.000" /><testcase classname="formal_v2.tests.test_probe_acceleration.ProbeAccelerationTests" name="test_memory_probe_applies_cgroup_limit" time="0.003" /><testcase classname="formal_v2.tests.test_probe_acceleration.ProbeAccelerationTests" name="test_streaming_bundle_reaches_real_gpu_and_restores_cpu_payload_contract" time="0.000"><skipped type="pytest.skip" message="CUDA required">/root/xunlian/Futaoran/CSI_CODE_UPLOAD_20260909/code/CSI-PAIRS-v2.0-server/formal_v2/tests/test_probe_acceleration.py:164: CUDA required</skipped></testcase><testcase classname="formal_v2.tests.test_probe_acceleration.ProbeAccelerationTests" name="test_two_admitted_builds_can_overlap" time="0.001" /><testcase classname="formal_v2.tests.test_probe_acceleration.ProbeAccelerationTests" name="test_worker_telemetry_does_not_advance_authenticated_progress" time="0.003" /><testcase classname="formal_v2.tests.test_source_method_pilot" name="test_guard_denies_target_roles_slices_and_unsliced_conversion" time="0.001" /><testcase classname="formal_v2.tests.test_source_method_pilot" name="test_guard_denies_overlapping_source_partitions" time="0.001" /><testcase classname="formal_v2.tests.test_source_method_pilot" name="test_source_split_excludes_ids_and_coordinate_siblings_across_banks" time="0.003" /><testcase classname="formal_v2.tests.test_source_method_pilot" name="test_source_split_rejects_inconsistent_ids_and_insufficient_capacity" time="0.002" /><testcase classname="formal_v2.tests.test_source_method_pilot" name="test_two_recipes_change_only_the_existing_margin_switch" time="0.002" /><testcase classname="formal_v2.tests.test_source_method_pilot" name="test_protocol_mutations_cannot_relax_safety[&lt;lambda&gt;0]" time="0.001" /><testcase classname="formal_v2.tests.test_source_method_pilot" name="test_protocol_mutations_cannot_relax_safety[&lt;lambda&gt;1]" time="0.001" /><testcase classname="formal_v2.tests.test_source_method_pilot" name="test_protocol_mutations_cannot_relax_safety[&lt;lambda&gt;2]" time="0.002" /><testcase classname="formal_v2.tests.test_source_method_pilot" name="test_protocol_mutations_cannot_relax_safety[&lt;lambda&gt;3]" time="0.002" /><testcase classname="formal_v2.tests.test_source_method_pilot" name="test_protocol_mutations_cannot_relax_safety[&lt;lambda&gt;4]" time="0.002" /><testcase classname="formal_v2.tests.test_source_method_pilot" name="test_protocol_mutations_cannot_relax_safety[&lt;lambda&gt;5]" time="0.002" /><testcase classname="formal_v2.tests.test_source_method_pilot" name="test_protocol_mutations_cannot_relax_safety[&lt;lambda&gt;6]" time="0.002" /><testcase classname="formal_v2.tests.test_source_method_pilot" name="test_protocol_mutations_cannot_relax_safety[&lt;lambda&gt;7]" time="0.002" /><testcase classname="formal_v2.tests.test_source_method_pilot" name="test_initial_state_is_actual_shared_state_and_never_overwritten" time="0.008" /><testcase classname="formal_v2.tests.test_source_method_pilot" name="test_completed_arm_requires_authenticated_full_schedule_and_artifacts" time="0.010" /><testcase classname="formal_v2.tests.test_source_method_pilot" name="test_resource_guard_accounts_for_cgroup_headroom_and_explicit_pause" time="0.002" /><testcase classname="formal_v2.tests.test_source_method_pilot" name="test_cli_exposes_only_explicit_research_inputs" time="0.008" /><testcase classname="formal_v2.tests.test_source_method_pilot" name="test_cli_dispatches_to_the_separate_source_runner" time="0.010" /><testcase classname="formal_v2.tests.test_source_method_pilot" name="test_synthetic_source_integration_shared_control_training_and_resume[cpu]" time="4.568" /><testcase classname="formal_v2.tests.test_source_method_pilot" name="test_synthetic_source_integration_shared_control_training_and_resume[cuda:1]" time="0.001"><skipped type="pytest.skip" message="Dedicated GPU 1 is required for this explicitly synthetic smoke">/root/xunlian/Futaoran/CSI_CODE_UPLOAD_20260909/code/CSI-PAIRS-v2.0-server/formal_v2/tests/test_source_method_pilot.py:221: Dedicated GPU 1 is required for this explicitly synthetic smoke</skipped></testcase></testsuite></testsuites>

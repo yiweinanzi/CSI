@@ -1,0 +1,22 @@
+{
+  "started_at": "2026-09-08T10:10:00.822843+00:00",
+  "completed_at": "2026-09-08T10:10:36.574335+00:00",
+  "command": [
+    "/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/bin/python",
+    "-B",
+    "/root/xunlian/Futaoran/formal_external_inputs/supervision/c591701-streaming-gpu-fix-20260908/validate_dual_execution_smoke.py"
+  ],
+  "cwd": "/root/xunlian/Futaoran/CSI_STREAMING_GPU_FIX_20260908/code/CSI-PAIRS-v2.0-server",
+  "returncode": 0,
+  "git_head": "2ce24729814d1d7357fafb280ab10192ee3ace6b",
+  "git_status": "?? ../../runs/\n",
+  "tracked_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "environment": {
+    "OMP_NUM_THREADS": "4",
+    "MKL_NUM_THREADS": "4",
+    "OPENBLAS_NUM_THREADS": "4",
+    "CUDA_VISIBLE_DEVICES": "0,1",
+    "CSI_PAIRS_DEVICES": null,
+    "CUBLAS_WORKSPACE_CONFIG": ":4096:8"
+  }
+}

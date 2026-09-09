@@ -1,0 +1,1 @@
+{"scientific_use": "NON_CLAIM", "input_kind": "synthetic_smoke_not_E", "cuda_overlap": {"kernel_counts": {"1": 92081, "0": 56029}, "actual_kernel_overlap_microseconds": 10721.8642578125}, "comparisons": {"linear": {"passed": true, "max_abs": 0.0}, "mlp2": {"passed": true, "max_abs": 0.0}}}

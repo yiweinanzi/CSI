@@ -152,6 +152,16 @@ def build_parser() -> argparse.ArgumentParser:
         help="read and validate streaming evaluation progress without taking a run lock",
     )
     evaluation_status.add_argument("--output", required=True)
+    repair = subparsers.add_parser("run-evaluation-repair", help="bounded execution-only reevaluation with authenticated original training provenance")
+    for name in ("dataset", "config", "output", "upstream-root", "origin-server"):
+        repair.add_argument("--" + name, required=True)
+    repair.add_argument("--stop-after-units", type=int, default=1)
+    repair.add_argument("--probe-build-limit", type=int, choices=(1, 2), default=1)
+    repair.add_argument("--representative-probe", action="store_true")
+    repair.add_argument("--capture-validation-corpus", action="store_true")
+    source_pilot = subparsers.add_parser("run-source-method-pilot", help="bounded source-only method research, never a formal SOTA run")
+    for name in ("dataset", "config", "protocol", "output", "origin-server", "upstream-root"):
+        source_pilot.add_argument("--" + name, required=True)
 
     for command in (
         "inspect-data",
@@ -354,6 +364,24 @@ def main(argv: list[str] | None = None) -> int:
             return 2
     output_lock: _OutputLock | None = None
     try:
+        if args.command == "run-source-method-pilot":
+            from .formal_source_method_pilot import main as source_pilot_main
+
+            command = []
+            for name in ("dataset", "config", "protocol", "output", "origin-server", "upstream-root"):
+                command.extend(["--" + name, str(getattr(args, name.replace("-", "_")))])
+            return source_pilot_main(command)
+        if args.command == "run-evaluation-repair":
+            from .formal_evaluation_repair import main as repair_main
+
+            command = []
+            for name in ("dataset", "config", "output", "upstream-root", "origin-server", "stop-after-units", "probe-build-limit"):
+                command.extend(["--" + name, str(getattr(args, name.replace("-", "_")))])
+            if args.representative_probe:
+                command.append("--representative-probe")
+            if args.capture_validation_corpus:
+                command.append("--capture-validation-corpus")
+            return repair_main(command)
         if args.command == "make-fixture":
             source_banks_per_role = int(args.source_banks_per_role)
             scene_count = len(SOURCE_ROLES) * source_banks_per_role + 4
@@ -465,6 +493,15 @@ def main(argv: list[str] | None = None) -> int:
                     "status": "NOT_STARTED",
                     "state_root": str(state_root),
                 }
+            detail_path = state_root / "probe_progress.json"
+            if detail_path.is_file():
+                try:
+                    detail = read_strict_json(detail_path)
+                    if not isinstance(detail, dict) or detail.get("schema_version") != "csi-pairs-probe-progress-v1":
+                        raise ValueError("unknown probe telemetry schema")
+                    status["probe_progress"] = detail
+                except (OSError, ValueError) as error:
+                    status["probe_progress_warning"] = str(error)
             print(json.dumps(status, sort_keys=True, ensure_ascii=True))
             return 0
         config = load_formal_config(args.config)

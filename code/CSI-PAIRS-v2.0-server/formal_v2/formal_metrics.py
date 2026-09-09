@@ -13,11 +13,11 @@ def binary_auroc(labels: np.ndarray, scores: np.ndarray) -> float:
     if set(np.unique(y).tolist()) != {0, 1}:
         raise ValueError("AUROC requires aligned labels containing both classes")
     order = np.argsort(s, kind="mergesort")
+    sorted_scores = s[order]
+    starts = np.r_[0, np.flatnonzero(sorted_scores[1:] != sorted_scores[:-1]) + 1]
+    stops = np.r_[starts[1:], s.size]
     ranks = np.empty(s.size, dtype=np.float64)
-    ranks[order] = np.arange(1, s.size + 1, dtype=np.float64)
-    for value in np.unique(s):
-        tied = np.flatnonzero(s == value)
-        ranks[tied] = np.mean(ranks[tied])
+    ranks[order] = np.repeat((starts + 1.0 + stops) / 2.0, stops - starts)
     positive = y == 1
     n_positive = int(np.sum(positive))
     n_negative = int(np.sum(~positive))

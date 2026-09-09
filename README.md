@@ -2,6 +2,10 @@
 
 This repository contains the CSI-PAIRS V2.1 implementation of the frozen V6 research protocol.
 
+The [2026-09-09 source publication index](docs/results/source-publication-20260909.md)
+links the current execution repair, source-only research code, and separate historical
+source archives. This source upload does not change experiment or SOTA conclusions.
+
 The authoritative protocol is
 [`Idea1-CSI-PAIRS-冻结版-零基础阅读稿-v6_VSCode兼容版.md`](Idea1-CSI-PAIRS-冻结版-零基础阅读稿-v6_VSCode兼容版.md).
 The executable server package is under

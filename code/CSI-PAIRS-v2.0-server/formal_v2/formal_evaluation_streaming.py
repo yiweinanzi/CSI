@@ -10,6 +10,8 @@ import os
 import queue
 import tempfile
 import threading
+import time
+from datetime import datetime, timezone
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import nullcontext
 from dataclasses import dataclass
@@ -64,6 +66,138 @@ FINALIZATION_SCHEMA = "csi-pairs-v6-evaluation-finalization-v1"
 STATE_DIRECTORY = "evaluation_state"
 DEFAULT_PROGRESS_HEARTBEAT_SECONDS = 30.0
 DEFAULT_EVALUATION_WORKER_DEVICES = ("cuda:0", "cuda:1")
+PROBE_TRAIN_BATCH_ROWS = 4096
+PROBE_BUILD_RESERVATION_BYTES = 256 * 1024**3
+
+
+def _available_probe_memory() -> int | None:
+    try:
+        fields = dict(line.split(":", 1) for line in Path("/proc/meminfo").read_text().splitlines())
+        available = int(fields["MemAvailable"].split()[0]) * 1024
+        for line in Path("/proc/self/cgroup").read_text().splitlines():
+            _hierarchy, controllers, relative = line.split(":", 2)
+            if not controllers:
+                root = Path("/sys/fs/cgroup")
+                limit_name, usage_name = "memory.max", "memory.current"
+            elif "memory" in controllers.split(","):
+                root = Path("/sys/fs/cgroup/memory")
+                limit_name, usage_name = "memory.limit_in_bytes", "memory.usage_in_bytes"
+            else:
+                continue
+            nested = root / relative.lstrip("/")
+            # A namespaced cgroup mount can already point at the current group.
+            current = nested if (nested / limit_name).is_file() else root
+            for group in (current, *current.parents):
+                if group != root and root not in group.parents:
+                    break
+                limit = (group / limit_name).read_text().strip()
+                if limit != "max":
+                    available = min(available, int(limit) - int((group / usage_name).read_text()))
+        return max(0, available)
+    except (OSError, ValueError, KeyError):
+        return None
+
+
+def _probe_build_capacity(worker_count: int, available_bytes: int | None) -> int:
+    if available_bytes is None:
+        return 1
+    # Reserve headroom for the dataset, scene workers and allocator temporaries.
+    capacity = (available_bytes - 64 * 1024**3) // PROBE_BUILD_RESERVATION_BYTES
+    return max(1, min(worker_count, int(capacity)))
+
+
+class _ProbeProgress:
+    """Workers update memory only; the coordinator heartbeat publishes telemetry."""
+
+    def __init__(self, capacity: int, available_bytes: int | None, *, run_id=None, total_units=None):
+        self._lock = threading.Lock()
+        self._workers = {}
+        self.capacity = capacity
+        self.available_bytes = available_bytes
+        self._started = {}
+        self._phases = {}
+        self._completed = {}
+        self.run_id = run_id
+        self.total_units = total_units
+        self._phase_history = {}
+        self._memory_admissions = {}
+        self._memory_slots = {}
+
+    def callback(self, unit):
+        def update(event):
+            with self._lock:
+                key = (unit.execution_device, unit.checkpoint_index)
+                now = time.monotonic()
+                self._started.setdefault(key, now)
+                phase = (event.get("probe"), event.get("family"), event.get("phase"))
+                if phase[-1] == "accumulating":
+                    phase = (*phase[:-1], "training")
+                previous_phase, phase_start = self._phases.get(key, (phase, now))
+                if previous_phase != phase:
+                    self._phase_history.setdefault(key, []).append({
+                        "probe": previous_phase[0], "family": previous_phase[1],
+                        "phase": previous_phase[2], "seconds": now - phase_start,
+                        "ended_at": datetime.now(timezone.utc).isoformat(),
+                    })
+                    phase_start = now
+                self._phases[key] = (phase, phase_start)
+                if event.get("phase") == "memory_admission":
+                    self._memory_admissions.setdefault(key, {})[(event.get("probe"), event.get("family"))] = dict(event)
+                for field in ("lock_wait_seconds", "lock_held_seconds"):
+                    if field in event:
+                        self._memory_slots.setdefault(key, {})[field] = event[field]
+                completed = self._completed.setdefault(key, set())
+                if event.get("phase") == "training_complete":
+                    completed.add((event.get("probe"), event.get("family")))
+                self._workers[unit.execution_device] = {
+                    "seed": unit.seed, "arm": unit.arm,
+                    "checkpoint_index": unit.checkpoint_index,
+                    "unit_index": getattr(unit, "canonical_index", unit.checkpoint_index),
+                    "device": unit.execution_device,
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                    "last_actual_callback_at": datetime.now(timezone.utc).isoformat(),
+                    "unit_elapsed_seconds": now - self._started[key],
+                    "stage_elapsed_seconds": now - phase_start,
+                    "completed_training_models": len(completed),
+                    "total_training_models": 17,
+                    "step_note": "optimizer submissions during training; CUDA synchronized at training_complete",
+                    **event,
+                }
+        return update
+
+    def snapshot(self):
+        with self._lock:
+            now = time.monotonic()
+            workers = {}
+            for device, value in self._workers.items():
+                key = (device, value["checkpoint_index"])
+                workers[device] = {
+                    **value,
+                    "unit_elapsed_seconds": now - self._started[key],
+                    "stage_elapsed_seconds": now - self._phases[key][1],
+                }
+            # Preserve brief phases and finished checkpoint histories between heartbeats.
+            timelines = {
+                f"{device}/checkpoint-{index:02d}": {
+                    "phase_timings": [dict(row) for row in self._phase_history.get((device, index), ())],
+                    "memory_admissions": [dict(row) for row in self._memory_admissions.get((device, index), {}).values()],
+                    "memory_slot_timing": dict(self._memory_slots.get((device, index), {})),
+                }
+                for device, index in self._started
+            }
+            return {
+                "schema_version": "csi-pairs-probe-progress-v1",
+                "note": "telemetry only; not completed shards or scientific evidence",
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+                "build_capacity": self.capacity,
+                "available_memory_at_start_bytes": self.available_bytes,
+                "reservation_per_build_bytes": PROBE_BUILD_RESERVATION_BYTES,
+                "train_batch_rows": PROBE_TRAIN_BATCH_ROWS,
+                "run_id": self.run_id,
+                "total_units": self.total_units,
+                "workers": workers,
+                "observed_probe_timelines": timelines,
+            }
 
 
 @dataclass(frozen=True)
@@ -633,7 +767,21 @@ def _fit_probe_bundle(
     seed: int,
     batch_size: int,
     rng_lock=None,
+    device=None,
+    progress_callback=None,
+    corpus_callback=None,
 ) -> _ProbeBundle:
+    def report(probe, event=None):
+        if progress_callback is not None:
+            progress_callback({"probe": probe, **(event or {"phase": "preparing"})})
+
+    probe_options = {
+        "device": device,
+        "train_batch_rows": PROBE_TRAIN_BATCH_ROWS if device is not None else None,
+        "rng_lock": rng_lock,
+        "prefer_full_batch": device is not None,
+    }
+    report("routing")
     train_scenes = dataset.indices_for_role("source_probe_train")
     selection_scenes = dataset.indices_for_role("source_probe_selection")
     routed_train = route_dataset(
@@ -650,6 +798,7 @@ def _fit_probe_bundle(
         selection_scenes,
         normalization=route_normalization,
     )
+    report("compatibility_train_features")
     compatibility_train = legacy._compatibility_dataset(
         model,
         dataset,
@@ -661,6 +810,7 @@ def _fit_probe_bundle(
         routed=routed_train,
         batch_size=batch_size,
     )
+    report("compatibility_selection_features")
     compatibility_selection = legacy._compatibility_dataset(
         model,
         dataset,
@@ -672,23 +822,29 @@ def _fit_probe_bundle(
         routed=routed_selection,
         batch_size=batch_size,
     )
-    with (rng_lock if rng_lock is not None else nullcontext()):
-        compatibility_probe, selection_record = fit_select_compatibility_probe(
-            compatibility_train["features"],
-            compatibility_train["labels"],
-            compatibility_selection["features"],
-            compatibility_selection["labels"],
-            config,
-            seed=seed + 31001,
-        )
-        shortcut_probes = legacy._prepare_alignment_shortcut_probes(
-            seed,
-            compatibility_train,
-            compatibility_selection,
-            config,
-        )
+    if corpus_callback is not None:
+        corpus_callback(compatibility_train, compatibility_selection)
+    compatibility_probe, selection_record = fit_select_compatibility_probe(
+        compatibility_train["features"],
+        compatibility_train["labels"],
+        compatibility_selection["features"],
+        compatibility_selection["labels"],
+        config,
+        seed=seed + 31001,
+        **probe_options,
+        progress_callback=lambda event: report("compatibility", event),
+    )
+    shortcut_probes = legacy._prepare_alignment_shortcut_probes(
+        seed,
+        compatibility_train,
+        compatibility_selection,
+        config,
+        **probe_options,
+        progress_callback=lambda event: report("shortcut", event),
+    )
     del compatibility_train, compatibility_selection, routed_selection
     gc.collect()
+    report("response_train_features")
     response_train = legacy._response_probe_dataset(
         model,
         dataset,
@@ -702,32 +858,44 @@ def _fit_probe_bundle(
         batch_size=batch_size,
     )
     response_target = response_train["targets"] - response_train["source_targets"]
-    with (rng_lock if rng_lock is not None else nullcontext()):
-        response_probe = fit_action_response_probe(
-            response_train["features"],
+    response_probe = fit_action_response_probe(
+        response_train["features"],
+        response_target,
+        config,
+        seed=seed + 32001,
+        zero_action_x=response_train["no_action_features"],
+        **probe_options,
+        progress_callback=lambda event: report("response", event),
+    )
+    variants: dict[str, ActionResponseProbe] = {}
+    contrast_variants = {"without_map", "edit_only", "oracle_x"}
+    for offset, name in enumerate(
+        ("without_map", "edit_only", "csi_only", "oracle_x"), start=1
+    ):
+        variants[name] = fit_action_response_probe(
+            response_train[f"{name}_features"],
             response_target,
             config,
-            seed=seed + 32001,
-            zero_action_x=response_train["no_action_features"],
+            seed=seed + 32001 + offset,
+            zero_action_x=(
+                response_train[f"{name}_zero_action_features"]
+                if name in contrast_variants
+                else None
+            ),
+            **probe_options,
+            progress_callback=lambda event, name=name: report(name, event),
         )
-        variants: dict[str, ActionResponseProbe] = {}
-        contrast_variants = {"without_map", "edit_only", "oracle_x"}
-        for offset, name in enumerate(
-            ("without_map", "edit_only", "csi_only", "oracle_x"), start=1
-        ):
-            variants[name] = fit_action_response_probe(
-                response_train[f"{name}_features"],
-                response_target,
-                config,
-                seed=seed + 32001 + offset,
-                zero_action_x=(
-                    response_train[f"{name}_zero_action_features"]
-                    if name in contrast_variants
-                    else None
-                ),
-            )
     del response_train, response_target, routed_train
     gc.collect()
+    if device is not None:
+        # Preserve identical scene evaluation placement on fresh and resumed bundles.
+        for probe in (
+            compatibility_probe, response_probe, *variants.values(),
+            *(record["probe"] for record in shortcut_probes.values()),
+        ):
+            if probe is not None:
+                probe.cpu()
+    report("bundle", {"phase": "ready_to_commit"})
     return _ProbeBundle(
         compatibility_probe=compatibility_probe,
         compatibility_selection=selection_record,
@@ -738,10 +906,20 @@ def _fit_probe_bundle(
 
 
 def _fit_probe_bundle_exclusive(probe_build_lock, *args, **kwargs) -> _ProbeBundle:
-    """Keep the two device workers from materializing probe corpora together."""
+    """Admit only the number of full probe corpora allowed by the memory budget."""
 
+    callback = kwargs.get("progress_callback")
+    if callback is not None:
+        callback({"phase": "waiting_for_memory_slot", "probe": "bundle"})
+    waiting_since = time.monotonic()
     with probe_build_lock:
-        return _fit_probe_bundle(*args, **kwargs)
+        acquired_at = time.monotonic()
+        if callback is not None:
+            callback({"phase": "memory_slot_acquired", "probe": "bundle", "lock_wait_seconds": acquired_at - waiting_since})
+        result = _fit_probe_bundle(*args, **kwargs)
+        if callback is not None:
+            callback({"phase": "ready_to_commit", "probe": "bundle", "lock_wait_seconds": acquired_at - waiting_since, "lock_held_seconds": time.monotonic() - acquired_at})
+        return result
 
 
 def _require_prediction_shape(
@@ -3226,6 +3404,7 @@ class _ProgressHeartbeat:
         substage: str | None,
         shard: str | None,
         interval_seconds: float = DEFAULT_PROGRESS_HEARTBEAT_SECONDS,
+        probe_progress=None,
     ) -> None:
         if (
             isinstance(interval_seconds, bool)
@@ -3243,6 +3422,7 @@ class _ProgressHeartbeat:
         self.substage = substage
         self.shard = shard
         self.interval_seconds = float(interval_seconds)
+        self.probe_progress = probe_progress
         self._stop = threading.Event()
         self._errors: list[BaseException] = []
         self._thread: threading.Thread | None = None
@@ -3260,6 +3440,11 @@ class _ProgressHeartbeat:
             substage=self.substage,
             shard=self.shard,
         )
+        if self.probe_progress is not None:
+            write_atomic_json(
+                Path(self.store.root) / "probe_progress.json",
+                self.probe_progress.snapshot(),
+            )
 
     def _run(self) -> None:
         while not self._stop.wait(self.interval_seconds):
@@ -3994,25 +4179,36 @@ def run_streaming_formal_evaluation(
     run_identity: EvaluationRunIdentity,
     execution_devices: Iterable[str],
     batch_size: int = 1,
+    probe_build_limit: int = 1,
+    authenticated_origin=None,
+    stop_after_units: int | None = None,
+    validation_corpus_callback=None,
 ) -> dict:
     """Run one identity-bound evaluation with bank-level atomic resume."""
 
     from .formal_data_verification import require_verified_roles_from_root
 
-    require_verified_roles_from_root(
-        output_root,
-        config,
-        dataset,
-        (
-            "source_encoder_train",
-            "source_probe_train",
-            "source_probe_selection",
-            "source_final_unseen_bank",
-            "target",
-        ),
+    required_roles = (
+        "source_encoder_train",
+        "source_probe_train",
+        "source_probe_selection",
+        "source_final_unseen_bank",
+        "target",
     )
+    if authenticated_origin is None:
+        require_verified_roles_from_root(output_root, config, dataset, required_roles)
+    else:
+        from .formal_evaluation_repair import AuthenticatedEvaluationOrigin
+
+        if not isinstance(authenticated_origin, AuthenticatedEvaluationOrigin):
+            raise TypeError("evaluation origin must be authenticated")
+        authenticated_origin.require_compatible(config, dataset, upstream_root, required_roles)
+    if stop_after_units is not None and (type(stop_after_units) is not int or stop_after_units < 1):
+        raise ValueError("stop_after_units must be positive or None")
     if type(batch_size) is not int or batch_size < 1:
         raise ValueError("streaming evaluation batch_size must be positive")
+    if type(probe_build_limit) is not int or probe_build_limit not in (1, 2):
+        raise ValueError("probe_build_limit must be one or two")
     worker_devices = _validated_worker_devices(execution_devices)
     actual_execution_profile = EvaluationExecutionProfile(
         execution_devices=worker_devices,
@@ -4228,7 +4424,13 @@ def run_streaming_formal_evaluation(
             for device in worker_devices
         }
         rng_lock = threading.Lock()
-        probe_build_lock = threading.Lock()
+        available_probe_memory = _available_probe_memory()
+        probe_capacity = min(probe_build_limit, _probe_build_capacity(len(worker_devices), available_probe_memory))
+        probe_build_lock = threading.BoundedSemaphore(probe_capacity)
+        probe_progress = _ProbeProgress(
+            probe_capacity, available_probe_memory,
+            run_id=run_identity.run_nonce, total_units=total_units,
+        )
 
         def ensure_common_state(device: str, state: dict[str, object]) -> None:
             if state["teacher"] is not None:
@@ -4273,6 +4475,8 @@ def run_streaming_formal_evaluation(
             checkpoint = checkpoint_rows[unit.checkpoint_index]
             state = worker_states[unit.execution_device]
             if unit.substage == "probe_state":
+                report_probe = probe_progress.callback(unit)
+                report_probe({"probe": "model", "phase": "loading"})
                 previous_scenes = state["scene_evaluations"]
                 if isinstance(previous_scenes, dict) and previous_scenes:
                     raise RuntimeError(
@@ -4308,6 +4512,11 @@ def run_streaming_formal_evaluation(
                         seed=unit.seed,
                         batch_size=unit.batch_size,
                         rng_lock=rng_lock,
+                        device=unit.execution_device,
+                        progress_callback=report_probe,
+                        corpus_callback=(
+                            lambda train, selection: validation_corpus_callback(unit, train, selection)
+                        ) if validation_corpus_callback is not None and unit.canonical_index == 0 else None,
                     )
                     requires_commit = True
                 state["probes"] = probes
@@ -4455,6 +4664,7 @@ def run_streaming_formal_evaluation(
                     if unit.canonical_index in fragments[table]:
                         raise RuntimeError("evaluation fragment was published twice")
                     fragments[table][unit.canonical_index] = fragment.payload_path
+                probe_progress.callback(unit)({"probe": "bundle", "phase": "committed"})
             else:
                 if not isinstance(result, _SceneWorkResult):
                     raise RuntimeError("evaluation scene worker result is invalid")
@@ -4523,16 +4733,25 @@ def run_streaming_formal_evaluation(
                 arm=unit.arm,
                 substage=unit.substage,
                 shard=unit.shard,
+                probe_progress=probe_progress,
             )
 
         run_evaluation_worker_coordinator(
-            work_plan,
+            work_plan if stop_after_units is None else work_plan[:stop_after_units],
             compute_work_unit,
             commit_work_unit,
             wait_context_factory=wait_context,
         )
         worker_states.clear()
         gc.collect()
+        if stop_after_units is not None and stop_after_units < len(work_plan):
+            status = {
+                "status": "PAUSED_AT_UNIT_BOUNDARY", "completed_units": completed_units,
+                "total_units": total_units, "sota_ready": False,
+                "note": "bounded execution validation; no final evaluation gate or ETA",
+            }
+            write_atomic_json(output_dir / "bounded_execution_status.json", status)
+            return status
         if completed_units != len(work_plan):
             raise RuntimeError("streaming evaluation did not complete every work unit")
 

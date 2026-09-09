@@ -1,0 +1,16 @@
+{
+  "check": "C-representative-formal",
+  "returncode": 0,
+  "git_head_at_check": "1738caea131b9ed0d28994c89d17c3730586d323",
+  "tracked_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "source": "/root/xunlian/Futaoran/formal_external_inputs/supervision/c591701-streaming-gpu-fix-20260908/checks/C-representative-formal",
+  "files_sha256": {
+    "tracked.patch": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stdout.log": "9108f1c8b894a45339a8d51c055aa535f713f4de0399ab3032a7c6b9552da835",
+    "stderr.log": "83caf859d55380a72bcd9edd52057f7b8e75576695e8d492df62c72ffa2c1fdb",
+    "resources.jsonl": "897b75ff08d59864b1e68818e1ca72c0e0a21ea166190826e8d11a5f10173b97",
+    "host_resources_from_0854Z.jsonl": "f5f7b193e1c6790500211fc0626f840436e5570aed3cc85194f2158c7e9503a7",
+    "record.json": "88f8b6605c27d8e2c0fd1ed1d5106b123656501c8a89ad44d156da8ae52a72ff"
+  },
+  "note": "A completed command is not necessarily a passed acceptance; inspect exit code and scientific scope."
+}

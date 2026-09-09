@@ -1,0 +1,28 @@
+{
+  "started_at": "2026-09-08T18:59:23.421132+00:00",
+  "completed_at": "2026-09-08T18:59:28.473698+00:00",
+  "command": [
+    "/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/bin/python",
+    "-B",
+    "artifacts/streaming_gpu_repair_20260908/tools/audit_source_pilot_progress.py",
+    "--server",
+    "/root/xunlian/Futaoran/CSI_METHOD_SOURCE_PILOT_20260909/code/CSI-PAIRS-v2.0-server",
+    "--run",
+    "/root/xunlian/Futaoran/CSI_METHOD_SOURCE_PILOT_20260909/runs/source-pilot-e270230-01",
+    "--output",
+    "/root/xunlian/Futaoran/formal_external_inputs/supervision/c591701-streaming-gpu-fix-20260908/checks/source-pilot-first-arm-audit.json"
+  ],
+  "cwd": "/root/xunlian/Futaoran/CSI_STREAMING_GPU_REPAIR_EVIDENCE_20260908",
+  "returncode": 0,
+  "git_head": "c8a61146eb3c9ef87c6165cc76a437b582b609eb",
+  "git_status": "?? artifacts/streaming_gpu_repair_20260908/source-pilot-e270230-freeze/\n?? artifacts/streaming_gpu_repair_20260908/tools/audit_source_pilot_progress.py\n?? artifacts/streaming_gpu_repair_20260908/tools/test_validate_complete_D.py\n?? artifacts/streaming_gpu_repair_20260908/tools/validate_complete_D.py\n",
+  "tracked_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "environment": {
+    "OMP_NUM_THREADS": "4",
+    "MKL_NUM_THREADS": "4",
+    "OPENBLAS_NUM_THREADS": "4",
+    "CUDA_VISIBLE_DEVICES": "0,1",
+    "CSI_PAIRS_DEVICES": null,
+    "CUBLAS_WORKSPACE_CONFIG": null
+  }
+}

@@ -1,0 +1,230 @@
+{
+  "captured_at_utc": "2026-09-09T03:28:46.959Z",
+  "source_worktree": "/root/xunlian/Futaoran/CSI",
+  "branch": "archive/local-main-source-20260909",
+  "base_commit": "11595f168f9fcf36dc178aaee927b348d7c6402a",
+  "snapshot_commit": "d8e2974f436caca7ca4f558a17f8641d72daf2f4",
+  "snapshot_tree": "a434e0d92aaa419e6a8efe26ece0080557ea40fb",
+  "tracked_diff_sha256": "68f32617cb77a6ced84d3df68e1eddc50dc0060a31b037cf9e8e488328f54e63",
+  "original_index_sha256": "28c596fa12b930a2bfd9cbbb6204819d37cc685e6fc89dab487a8ada1106dca8",
+  "original_index_and_diff_preserved": true,
+  "content_verified_byte_for_byte": true,
+  "tracked_changed_files": 21,
+  "untracked_source_files": 21,
+  "total_bytes": 2817195,
+  "maximum_file_bytes": 10485760,
+  "sensitive_pattern_hits": 0,
+  "semantics": "Historical source archive only; not merged into the active method or claimed as validated.",
+  "files": [
+    {
+      "path": "artifacts/formal_readiness/tools/audit_datasets.py",
+      "bytes": 14025,
+      "sha256": "6b803b95ee07fe0212274718d9d90e8e2a56451867e2556b7d582b8852b1a0c5"
+    },
+    {
+      "path": "artifacts/formal_readiness/tools/audit_rt_visibility.py",
+      "bytes": 7705,
+      "sha256": "572f3270e10330fc2a6a7f22539a63dc7e9f53f33ec60e25dca7eb3318e4c93c"
+    },
+    {
+      "path": "artifacts/formal_readiness/tools/compare_sionna_regeneration.py",
+      "bytes": 11416,
+      "sha256": "9d46304e039e755290bf3079508b7587d015e53123904c6a507f75388cc267be"
+    },
+    {
+      "path": "artifacts/formal_readiness/tools/compare_sionna_shard_replay.py",
+      "bytes": 3551,
+      "sha256": "4dbc491654c49babd5682b4cf080e7f80e1aaafab7e5e3121261127f82e2e279"
+    },
+    {
+      "path": "artifacts/formal_readiness/tools/diagnose_sionna_process_determinism.py",
+      "bytes": 5405,
+      "sha256": "102b3f1eab991f24fc7d9faa3eaf0350c9ee100cf76d412683f0ff025270f643"
+    },
+    {
+      "path": "artifacts/formal_readiness/tools/diagnose_sionna_single_receiver_backend.py",
+      "bytes": 10486,
+      "sha256": "67feaf4e3458e3abfbf934bdc2b54eab09e255eef974c2c992661abaa8e0413b"
+    },
+    {
+      "path": "artifacts/formal_readiness/tools/diagnose_sionna_visibility.py",
+      "bytes": 8977,
+      "sha256": "ded439c4f4399d2f6217f4c95753f76502bc4921f47459244d57fd8380130cee"
+    },
+    {
+      "path": "artifacts/formal_readiness/tools/dual_gpu_training_probe.py",
+      "bytes": 6121,
+      "sha256": "ef1a15e347684e3477bdea93d28008b0bb91cb264598cb203dd0ef11a6ee5145"
+    },
+    {
+      "path": "artifacts/formal_readiness/tools/factorial_dual_gpu_probe.py",
+      "bytes": 3842,
+      "sha256": "13533834ed1d7222a17270d4e43015f511d890759039587cabc4f0f5ee1db700"
+    },
+    {
+      "path": "artifacts/formal_readiness/tools/independent_metric_validation.py",
+      "bytes": 4301,
+      "sha256": "51a3600235ffba5a3f2602ebc61d8ef2c220bbe1921548eaa2dcd5152d4b84a9"
+    },
+    {
+      "path": "artifacts/formal_readiness/tools/render_sionna_bank_backend_diagnostic.py",
+      "bytes": 3986,
+      "sha256": "295c18c8e56841366b6552ee519749b9ec6d97771c71ac4bf017701e2f59f947"
+    },
+    {
+      "path": "artifacts/formal_readiness/tools/runtime_probe.py",
+      "bytes": 4738,
+      "sha256": "37efa81d800536ecac5c38afdff235693e884f4405e060df4acfb0b51cd7eee4"
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/SHA256SUMS",
+      "bytes": 23116,
+      "sha256": "de77db5aa14c658a5a4f79c7464b2bb8006192420063d3ca8349ccbed0894e8c"
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/artifacts/v6_atomic_requirement_matrix_2026-08-08.csv",
+      "bytes": 1780607,
+      "sha256": "6fae2f351195c532e817a45d2862cb4c37b2314641fa12c46c27c88137493d28"
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/configs/sionna_osm_formal_candidate_v1.json",
+      "bytes": 2148,
+      "sha256": "8f4a3df13888b90da8f16088ede66c72d8e2f6f902d908f0db9423b9b185372f"
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/external_adapters/setup_sionna.sh",
+      "bytes": 4431,
+      "sha256": "adea1c9edfbfb62e0285d81d81efe0ca5cf81a72664902de83879b7fb50a1d65"
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/external_adapters/setup_wigatr.sh",
+      "bytes": 2081,
+      "sha256": "bf9090c5b266f298bc2b485ecc049e2be1c60a00924ed6b7e7c008c85bc3e475"
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/formal_cli.py",
+      "bytes": 30317,
+      "sha256": "1a552318a38d6b2991c05038299d2962f707d14f16f0799c88e8dea2a5c1b19a"
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/formal_dataset.py",
+      "bytes": 50846,
+      "sha256": "0922d83fb7891782b6fc7fe0f5aaaae510926914648bfa4ac86b68a639abb177"
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/formal_evaluation.py",
+      "bytes": 111857,
+      "sha256": "2583ce0fe2f16265e251dcd20361bab4096c06ca7cdf63544c88e9f6b6f95c88"
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/formal_evidence.py",
+      "bytes": 46347,
+      "sha256": "bdde3f9085961ae7decbf6cd26758a0f00189a459c0df8fdd0a289a64385c1af"
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/formal_external_runtime.py",
+      "bytes": 16791,
+      "sha256": "903df33bca8678934723c9ab590ee0cd7abb27a63a07950e49d748a0718abdec"
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/formal_factorial.py",
+      "bytes": 79339,
+      "sha256": "e77295b30beec3aa68b7306d0e9c6068cbe431a02da9f54fc3016d2e80d8ade5"
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/formal_metrics.py",
+      "bytes": 5838,
+      "sha256": "2ee51c0c0984114c5b6ce91b7a2124bbb84efe14994b231aacda98ecd8a374bd"
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/formal_model.py",
+      "bytes": 15546,
+      "sha256": "687574c5c2b32436908a0f496e3a919fe57eef2eb9491786afc5782e73481191"
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/formal_qualification.py",
+      "bytes": 45656,
+      "sha256": "7af6653da0d2193527f4d019860fdb40348df0fce29b4d63435f33679e47b5c0"
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/formal_risk.py",
+      "bytes": 132773,
+      "sha256": "0862704f7a0345fdc10343bfc01d218fb88c961f9c5263036a06dafcead99da2"
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/formal_runtime_integrity.py",
+      "bytes": 19135,
+      "sha256": "23ce8388d84ab8f853f21afc1b35ccee9e5d99135668da48ae89fe7bac4caeab"
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/formal_sionna_osm_verifier.py",
+      "bytes": 792,
+      "sha256": "025981b7b6c7006b16c4a1addae35f5b2d748bceda4cbf4e23e2fea48d53b420"
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/formal_teacher.py",
+      "bytes": 15472,
+      "sha256": "850dc16a5fe40da67f0682603be8dee0350dcb23865e1b803a8a3a147b277d33"
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/requirements-lock-linux-x86_64-cu121.txt",
+      "bytes": 2843,
+      "sha256": "89ffeeeb95e22df90947956b1cf2898b9f3052c9cd97543785c880c17f38d141"
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/scripts/run_formal_v2_dry_run.sh",
+      "bytes": 2947,
+      "sha256": "8cc5c58646f080ea9853583b460a0d90c2b04d0824004615c6d673474005bb43"
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/scripts/setup_cuda_compat_13.sh",
+      "bytes": 1927,
+      "sha256": "3606f71bc31be08c0037e5f5a2821bad4891f1ddfc3419e35de8b49fb2b92036"
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/scripts/setup_formal_v2.sh",
+      "bytes": 4294,
+      "sha256": "14a83a85ec03df598a8367b8cc4a49b7e6117fd3b79af302a8edae9e9fbc534a"
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/sionna_osm_candidate.py",
+      "bytes": 74766,
+      "sha256": "53238d2522102e5a677d4b2ad09a53d1493a1af4f2a76d4b1a9105c5b73dbaeb"
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/tests/test_audit_artifacts.py",
+      "bytes": 21904,
+      "sha256": "e6e18864580e75a06f629118fcda9ac2b286a0d8c0b34e3f7ad51b439d0d2561"
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/tests/test_formal_v2.py",
+      "bytes": 155797,
+      "sha256": "a3803ab506d25c2fe11c999e192e11a3f3cffd321df7bafb62e40e27827a33e8"
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/tests/test_pre_run_regressions.py",
+      "bytes": 12662,
+      "sha256": "b93e66f897fdfb994fd6e867df61d23c92c3d1dad7c0e8a4c6bfa21d9db3a753"
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/tests/test_runtime_integrity.py",
+      "bytes": 14337,
+      "sha256": "c2d9615085b2dac1d127adb8c4d69c162365b384a965e1c621b54aa3345b5efc"
+    },
+    {
+      "path": "generated_datasets/tools/generate_full_synthetic.py",
+      "bytes": 8774,
+      "sha256": "d2daf44abea68d83a0b3a7a0bf934f666886409a6c8e29b835b2555bbc30ccdf"
+    },
+    {
+      "path": "generated_datasets/tools/generate_sionna_gpu_shard.py",
+      "bytes": 27072,
+      "sha256": "65c30cd870acfc51c48d254a1bd12eb7f541652fcd3d2f6c8ace09c647a78fcd"
+    },
+    {
+      "path": "generated_datasets/tools/merge_sionna_gpu_shards.py",
+      "bytes": 22227,
+      "sha256": "780b518f48b6ae92eccbd15ec2f6d8e15004790aad23ddd044760155c6a1f125"
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+..................                                                       [100%]
+=============================== warnings summary ===============================
+formal_v2/tests/test_source_method_pilot.py::test_synthetic_source_integration_shared_control_training_and_resume
+formal_v2/tests/test_source_method_pilot.py::test_synthetic_source_integration_shared_control_training_and_resume
+  /root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/lib/python3.12/site-packages/torch/nn/modules/transformer.py:379: UserWarning: enable_nested_tensor is True, but self.use_nested_tensor is False because encoder_layer.norm_first was True
+    warnings.warn(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+18 passed, 2 warnings in 12.38s

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="8.233" timestamp="2026-09-09T11:30:12.396900+08:00" hostname="ubuntu05-ffc8c7d49-jjn78"><testcase classname="formal_v2.tests.test_formal_probes_devices.ProbeDeviceTests" name="test_mock_cuda_training_transfers_only_cpu_backed_batches" time="4.393"><failure message="RuntimeError: No CUDA GPUs are available">formal_v2/tests/test_formal_probes_devices.py:286: in test_mock_cuda_training_transfers_only_cpu_backed_batches
+    _fit_binary(
+formal_v2/formal_probes.py:393: in _fit_binary
+    _finish_training(probe, progress_callback, steps, row_count)
+formal_v2/formal_probes.py:78: in _finish_training
+    torch.cuda.synchronize(device)
+../../../CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/lib/python3.12/site-packages/torch/cuda/__init__.py:952: in synchronize
+    _lazy_init()
+../../../CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/lib/python3.12/site-packages/torch/cuda/__init__.py:319: in _lazy_init
+    torch._C._cuda_init()
+E   RuntimeError: No CUDA GPUs are available</failure></testcase></testsuite></testsuites>

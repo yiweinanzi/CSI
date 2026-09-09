@@ -1,0 +1,291 @@
+..F.F............F                                                       [100%]
+=================================== FAILURES ===================================
+_____ test_source_split_excludes_ids_and_coordinate_siblings_across_banks ______
+
+    def test_source_split_excludes_ids_and_coordinate_siblings_across_banks():
+        raw = small_dataset()
+        raw.position_ids[2] = ["alias-" + str(index) for index in range(8)]
+        guarded = SourceOnlyDataset(raw)
+        config = protocol()
+        config["validation"]["label_budgets"] = [0, 2, 4]
+>       split = source_validation_split(guarded, config)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+formal_v2/tests/test_source_method_pilot.py:86: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+dataset = <formal_v2.formal_source_guard.SourceOnlyDataset object at 0x7f2222aff740>
+protocol = {'allowed_roles': ['source_encoder_train', 'source_method_selection'], 'arms': ['endpoint', 'alignment', 'response', '...re; no paid resources.', 'base_config_sha256': '3424a269a751f219f4897b969db7cc13d2236fc72e8e2ccb663dec8d7f8f477c', ...}
+
+    def source_validation_split(dataset, protocol):
+        scenes = [int(value) for value in dataset.indices_for_role("source_method_selection")]
+        cities = sorted({str(dataset.city_ids[scene]) for scene in scenes})
+        output = {}
+        maximum_budget = max(protocol["validation"]["label_budgets"])
+        for city in cities:
+            city_scenes = [scene for scene in scenes if str(dataset.city_ids[scene]) == city]
+            rows = sorted(((str(dataset.position_ids[scene, position]), scene, position) for scene in city_scenes for position in range(dataset.position_count)))
+            unique, ids, coordinates, id_coordinates = [], set(), [], {}
+            for identifier, scene, position in rows:
+                coordinate = np.asarray(dataset.positions[scene, position], dtype=np.float64)
+                if not np.isfinite(coordinate).all():
+                    raise RuntimeError("Source position is nonfinite")
+                if identifier in id_coordinates and not np.all(np.abs(id_coordinates[identifier] - coordinate) <= PHYSICAL_POSITION_ATOL_M):
+>                   raise RuntimeError("Source physical position ID has inconsistent coordinates")
+E                   RuntimeError: Source physical position ID has inconsistent coordinates
+
+formal_v2/formal_source_method_pilot.py:131: RuntimeError
+___________ test_two_recipes_change_only_the_existing_margin_switch ____________
+
+    def test_two_recipes_change_only_the_existing_margin_switch():
+        base = load_formal_config(ROOT / "configs/formal_v2.json")
+>       configs = recipe_configs(base, protocol())
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+formal_v2/tests/test_source_method_pilot.py:115: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+formal_v2/formal_source_method_pilot.py:112: in recipe_configs
+    validate_formal_config(config)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+config = {'_config_path': '/root/xunlian/Futaoran/CSI_METHOD_SOURCE_PILOT_20260909/code/CSI-PAIRS-v2.0-server/formal_v2/configs... 'bootstrap_resamples': 2000, 'c1_active_error_minimum_m': 0.05, 'c1_null_error_equivalence_margin_m': 0.05, ...}, ...}
+
+    def validate_formal_config(config: object) -> None:
+        if not isinstance(config, dict):
+            raise ValueError("formal configuration root must be an object")
+        _apply_forward_recipe_defaults(config)
+        public = {key for key in config if not key.startswith("_")}
+        _exact_keys("configuration", public, TOP_LEVEL_KEYS)
+        if config["schema_version"] != SCHEMA_VERSION:
+            raise ValueError(f"schema_version must be {SCHEMA_VERSION!r}")
+        if not isinstance(config["artifact_label"], str) or not config["artifact_label"].strip():
+            raise ValueError("artifact_label must be a nonempty string")
+        seeds = config["seeds"]
+        if not _unique_nonnegative_int_list(seeds) or len(seeds) < 3:
+            raise ValueError("seeds must contain at least three unique nonnegative integers")
+    
+        sections = (
+            ("data", config["data"], DATA_KEYS),
+            ("qualification", config["qualification"], QUALIFICATION_KEYS),
+            ("teacher", config["teacher"], TEACHER_KEYS),
+            ("model", config["model"], MODEL_KEYS),
+            ("factorial", config["factorial"], FACTORIAL_KEYS),
+            ("localization", config["localization"], LOCALIZATION_KEYS),
+            ("evaluation", config["evaluation"], EVALUATION_KEYS),
+            ("risk", config["risk"], RISK_KEYS),
+            ("path", config["path"], PATH_KEYS),
+            ("external_validity", config["external_validity"], EXTERNAL_VALIDITY_KEYS),
+            ("literature", config["literature"], LITERATURE_KEYS),
+        )
+        for name, section, expected in sections:
+            if not isinstance(section, dict):
+                raise ValueError(f"{name} must be an object")
+            _exact_keys(name, set(section), expected)
+    
+        data = config["data"]
+        if not isinstance(data["dataset"], str) or not data["dataset"].strip():
+            raise ValueError("data.dataset must be a nonempty path")
+        _positive_int(data["minimum_repeats"], "data.minimum_repeats", minimum=2)
+        if data["require_clean_csi"] is not True:
+            raise ValueError("V6 requires data.require_clean_csi=true")
+        _positive_int(data["minimum_target_cities"], "data.minimum_target_cities", minimum=2)
+        _positive_int(data["minimum_source_cities"], "data.minimum_source_cities", minimum=2)
+        _positive_int(
+            data["minimum_banks_per_target_city"],
+            "data.minimum_banks_per_target_city",
+            minimum=2,
+        )
+        _positive_int(
+            data["minimum_independent_base_map_clusters_per_target_city"],
+            "data.minimum_independent_base_map_clusters_per_target_city",
+            minimum=2,
+        )
+        _positive_int(
+            data["minimum_banks_per_source_role"],
+            "data.minimum_banks_per_source_role",
+            minimum=1,
+        )
+        _positive_int(
+            data["minimum_independent_source_final_unseen_clusters"],
+            "data.minimum_independent_source_final_unseen_clusters",
+            minimum=1,
+        )
+        _positive_int(
+            data["minimum_independent_external_validation_clusters"],
+            "data.minimum_independent_external_validation_clusters",
+            minimum=0,
+        )
+    
+        qualification = config["qualification"]
+        _finite_number(
+            qualification["noise_floor_quantile"],
+            "qualification.noise_floor_quantile",
+            minimum=0.0,
+            maximum=1.0,
+        )
+        if not 0.0 < float(qualification["noise_floor_quantile"]) < 1.0:
+            raise ValueError("qualification.noise_floor_quantile must be strictly between 0 and 1")
+        for key in (
+            "repeat_noise_nmse_max",
+            "clean_repeat_nmse_max",
+            "physical_null_rms_max",
+            "physical_active_rms_min",
+            "latent_null_rms_max",
+            "latent_active_rms_min",
+            "response_physical_null_rms_max",
+            "response_physical_active_rms_min",
+            "response_latent_null_rms_max",
+            "response_latent_active_rms_min",
+            "teacher_reconstruction_nmse_max",
+            "oracle_min_relative_improvement",
+            "no_x_min_relative_improvement",
+            "null_violation_rate_max",
+            "shortcut_relative_improvement_max",
+            "ridge",
+        ):
+            _finite_number(qualification[key], f"qualification.{key}", minimum=0.0)
+        if qualification["physical_null_rms_max"] >= qualification["physical_active_rms_min"]:
+            raise ValueError("physical null threshold must be below the active threshold")
+        if qualification["latent_null_rms_max"] >= qualification["latent_active_rms_min"]:
+            raise ValueError("latent null threshold must be below the active threshold")
+        if qualification["response_physical_null_rms_max"] >= qualification["response_physical_active_rms_min"]:
+            raise ValueError("response physical null threshold must be below the active threshold")
+        if qualification["response_latent_null_rms_max"] >= qualification["response_latent_active_rms_min"]:
+            raise ValueError("response latent null threshold must be below the active threshold")
+        for key in ("null_violation_rate_max", "shortcut_relative_improvement_max"):
+            if float(qualification[key]) > 1.0:
+                raise ValueError(f"qualification.{key} must not exceed 1")
+        _positive_int(
+            qualification["minimum_active_units_per_bank"],
+            "qualification.minimum_active_units_per_bank",
+        )
+        _positive_int(
+            qualification["minimum_null_units_per_bank"],
+            "qualification.minimum_null_units_per_bank",
+        )
+        _positive_int(qualification["bootstrap_resamples"], "qualification.bootstrap_resamples", minimum=100)
+        for key in (
+            "alignment_noop_quantile",
+            "teacher_physical_active_agreement_min",
+            "teacher_physical_null_agreement_min",
+            "minimum_active_branching_fraction",
+            "minimum_geometry_matched_wrong_action_fraction",
+        ):
+            _finite_number(qualification[key], f"qualification.{key}", minimum=0.0, maximum=1.0)
+    
+        teacher = config["teacher"]
+        for key in ("steps", "batch_size", "latent_dim", "encoder_layers", "decoder_layers"):
+            _positive_int(teacher[key], f"teacher.{key}")
+        _finite_number(teacher["learning_rate"], "teacher.learning_rate", minimum=1e-12)
+        _finite_number(teacher["mask_fraction"], "teacher.mask_fraction", minimum=0.0, maximum=0.95)
+        if float(teacher["mask_fraction"]) != FROZEN_RANDOM_MASK_FRACTION:
+            raise ValueError(
+                f"teacher.mask_fraction must equal the frozen V6 value {FROZEN_RANDOM_MASK_FRACTION}"
+            )
+    
+        model = config["model"]
+        for key in ("state_dim", "map_dim", "hidden_dim"):
+            _positive_int(model[key], f"model.{key}", minimum=4)
+        _finite_number(model["mask_fraction"], "model.mask_fraction", minimum=0.0, maximum=0.95)
+        if float(model["mask_fraction"]) != FROZEN_RANDOM_MASK_FRACTION:
+            raise ValueError(
+                "model.mask_fraction is the frozen mask-bank contract and must equal "
+                f"{FROZEN_RANDOM_MASK_FRACTION}"
+            )
+        _finite_number(model["learning_rate"], "model.learning_rate", minimum=1e-12)
+        _finite_number(model["weight_decay"], "model.weight_decay", minimum=0.0)
+        _positive_int(model["attention_heads"], "model.attention_heads")
+        _positive_int(model["mask_bank_seed"], "model.mask_bank_seed", minimum=0)
+        if int(model["state_dim"]) % int(model["attention_heads"]):
+            raise ValueError("model.state_dim must be divisible by model.attention_heads")
+        if int(teacher["latent_dim"]) != int(model["state_dim"]):
+            raise ValueError("teacher.latent_dim must equal model.state_dim for shared CSI initialization")
+    
+        factorial = config["factorial"]
+        if factorial["arms"] != list(ARMS):
+            raise ValueError(f"factorial.arms must be exactly {list(ARMS)}")
+        _positive_int(factorial["steps"], "factorial.steps")
+        _positive_int(factorial["batch_size"], "factorial.batch_size", minimum=2)
+        for key in (
+            "alignment_weight",
+            "response_weight",
+            "active_margin",
+            "effect_margin_scale",
+            "effect_margin_cap",
+            "minimum_interaction_effect",
+        ):
+            _finite_number(factorial[key], f"factorial.{key}", minimum=0.0)
+        if factorial["alignment_primary_margin"] != "fixed":
+>           raise ValueError("V6 P0 requires factorial.alignment_primary_margin='fixed'")
+E           ValueError: V6 P0 requires factorial.alignment_primary_margin='fixed'
+
+formal_v2/formal_config.py:365: ValueError
+_____ test_synthetic_source_integration_shared_control_training_and_resume _____
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_synthetic_source_integrat0')
+
+    def test_synthetic_source_integration_shared_control_training_and_resume(tmp_path):
+        torch.set_num_threads(2)
+        config = load_formal_config(ROOT / "configs/formal_v2_smoke.json")
+        raw = FormalDataset.load(write_nonscientific_fixture(tmp_path / "synthetic.npz"))
+        guarded = SourceOnlyDataset(raw)
+        scenes = guarded.indices_for_role("source_encoder_train")
+        spec = PatchSpec.from_metadata(guarded.metadata)
+        teacher = train_teacher_bundle(guarded.csi[scenes], spec, config, seed=12031)
+        route_norm = fit_route_normalization(guarded, teacher)
+        norm = factorial._training_normalization(guarded, scenes, route_norm, spec)
+        train = factorial._build_corpus(guarded, scenes, teacher, config, route_norm, norm)
+        selection = factorial._build_corpus(guarded, guarded.indices_for_role("source_method_selection"), teacher, config, route_norm, norm)
+        settings = protocol()
+        settings["device"] = "cpu"
+        settings["validation"]["label_budgets"] = config["localization"]["label_budgets"]
+        progress = PilotProgress(tmp_path, settings)
+        guard = SimpleNamespace(is_set=lambda: False)
+        calibration = calibrate_scales(config, train, selection, settings, tmp_path, progress, guard, {"test": "synthetic"})
+        assert calibrate_scales(config, train, selection, settings, tmp_path, progress, guard, {"test": "synthetic"}) == calibration
+        with pytest.raises(RuntimeError, match="identity"):
+            calibrate_scales(config, train, selection, settings, tmp_path, progress, guard, {"test": "changed"})
+        template = factorial._new_model(config, train, 37, device="cpu")
+        initial = state_hash(template.state_dict())
+        plan = factorial._make_plan(train, config["factorial"]["batch_size"], 37, 0)
+        assert json_hash(asdict(plan)) == json_hash(asdict(factorial._make_plan(train, config["factorial"]["batch_size"], 37, 0)))
+        states = {}
+        for recipe, margin in (("fixed_margin", "fixed"), ("effect_aware_margin", "effect_aware")):
+            config["factorial"]["alignment_primary_margin"] = margin
+            pilot = {"alignment_scale": calibration["alignment_scales"][recipe], "response_scale": calibration["response_scale"], "alignment_null_tolerance": calibration["alignment_null_tolerance"]}
+            for arm in ARMS:
+                model = copy.deepcopy(template)
+                assert state_hash(model.state_dict()) == initial
+                trace = []
+                checkpoint = tmp_path / (recipe + "-" + arm)
+                context = {"test": "synthetic", "recipe": recipe}
+                model, training = factorial._train_arm(config, train, 37, arm, pilot, step_count=2, prepared_model=model, loss_trace=trace, checkpoint_path=checkpoint, checkpoint_context=context, checkpoint_interval_steps=1)
+                states[recipe, arm] = state_hash(model.state_dict())
+                assert states[recipe, arm] != initial
+                assert training["steps"] == 2 and len(trace) == 2
+                resumed, receipt = factorial._train_arm(config, train, 37, arm, pilot, step_count=2, prepared_model=copy.deepcopy(template), loss_trace=[], checkpoint_path=checkpoint, checkpoint_context=context, checkpoint_interval_steps=1)
+                assert state_hash(resumed.state_dict()) == states[recipe, arm]
+>               assert receipt == training
+E               AssertionError: assert {'alignment_g... a seed', ...} == {'alignment_g... a seed', ...}
+E                 
+E                 Omitting 45 identical items, use -vv to show
+E                 Differing items:
+E                 {'elapsed_seconds': 0.07929847699415404} != {'elapsed_seconds': 0.09174077099305578}
+E                 Use -v to get more diff
+
+formal_v2/tests/test_source_method_pilot.py:246: AssertionError
+----------------------------- Captured stdout call -----------------------------
+{"utc": "2026-09-08T18:33:26.250427+00:00", "stage": "starting_calibration", "elapsed_seconds": 9.078299626708031e-05, "completed_arm_jobs": 0, "total_arm_jobs": 8, "device": "cpu", "scientific_use": "NON_CLAIM", "formal_units_added": 0, "sota_ready": false, "resume_policy": "Incomplete calibration restarts from its original initialization; arm checkpoints remain resumable"}
+{"utc": "2026-09-08T18:33:26.443475+00:00", "stage": "reused_authenticated_calibration", "elapsed_seconds": 0.19314206700073555, "completed_arm_jobs": 0, "total_arm_jobs": 8, "device": "cpu", "scientific_use": "NON_CLAIM", "formal_units_added": 0, "sota_ready": false}
+=============================== warnings summary ===============================
+formal_v2/tests/test_source_method_pilot.py::test_synthetic_source_integration_shared_control_training_and_resume
+formal_v2/tests/test_source_method_pilot.py::test_synthetic_source_integration_shared_control_training_and_resume
+  /root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/lib/python3.12/site-packages/torch/nn/modules/transformer.py:379: UserWarning: enable_nested_tensor is True, but self.use_nested_tensor is False because encoder_layer.norm_first was True
+    warnings.warn(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED formal_v2/tests/test_source_method_pilot.py::test_source_split_excludes_ids_and_coordinate_siblings_across_banks
+FAILED formal_v2/tests/test_source_method_pilot.py::test_two_recipes_change_only_the_existing_margin_switch
+FAILED formal_v2/tests/test_source_method_pilot.py::test_synthetic_source_integration_shared_control_training_and_resume
+3 failed, 15 passed, 2 warnings in 9.06s

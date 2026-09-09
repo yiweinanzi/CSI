@@ -1,0 +1,30 @@
+{
+  "started_at": "2026-09-08T18:44:48.689041+00:00",
+  "completed_at": "2026-09-08T18:45:18.967437+00:00",
+  "command": [
+    "/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/bin/python",
+    "-B",
+    "-m",
+    "pytest",
+    "-q",
+    "-s",
+    "-p",
+    "no:cacheprovider",
+    "formal_v2/tests/test_source_method_pilot.py",
+    "formal_v2/tests/test_factorial_integrity.py",
+    "formal_v2/tests/test_cli_evaluation_defaults.py"
+  ],
+  "cwd": "/root/xunlian/Futaoran/CSI_METHOD_SOURCE_PILOT_20260909/code/CSI-PAIRS-v2.0-server",
+  "returncode": 0,
+  "git_head": "e270230fa950337469f3f25340c22874767d2ac2",
+  "git_status": "",
+  "tracked_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "environment": {
+    "OMP_NUM_THREADS": "4",
+    "MKL_NUM_THREADS": "4",
+    "OPENBLAS_NUM_THREADS": "4",
+    "CUDA_VISIBLE_DEVICES": "0,1",
+    "CSI_PAIRS_DEVICES": "cuda:1",
+    "CUBLAS_WORKSPACE_CONFIG": ":4096:8"
+  }
+}

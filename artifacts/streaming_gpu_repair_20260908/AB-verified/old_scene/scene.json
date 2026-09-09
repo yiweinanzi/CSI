@@ -1,0 +1,159 @@
+{
+  "utc": "2026-09-08T07:51:22.596902+00:00",
+  "pid": 6306,
+  "proc_start_ticks": "3095033",
+  "descendant_pids": [],
+  "command": [
+    "/root/xunlian/Futaoran/CSI_CLOUD_LATEST_3183664/code/CSI-PAIRS-v2.0-server/.venv-core-formal-20260819T091049Z/bin/python",
+    "-B",
+    "-m",
+    "formal_v2.formal_cli",
+    "all",
+    "--config",
+    "formal_v2/configs/formal_v2.json",
+    "--dataset",
+    "/root/xunlian/Futaoran/\u6b63\u5f0f\u5f00\u59cb\u8bad\u7ec3/CSI-PAIRS-V6-WIDEBAND-FORMAL-227-20260819T105509Z/dataset.npz",
+    "--output",
+    "/root/xunlian/Futaoran/CSI_MAIN_C591701_20260901/runs/c591701-formal-prepare-20260902T2040",
+    "--adapter-manifest",
+    "formal_v2/external_adapters/all_map_adapters_v1.json",
+    "--verifier-manifest",
+    "formal_v2/configs/sionna_osm_verifier_v2.json",
+    "--approval-manifest",
+    "/root/xunlian/Futaoran/formal_external_inputs/run_approvals/c591701-formal-prepare-20260902T2040/LLM_JUDGE_APPROVAL.json",
+    "--continue-on-stage-fail"
+  ],
+  "cwd": "/root/xunlian/Futaoran/CSI_MAIN_C591701_20260901/code/CSI-PAIRS-v2.0-server",
+  "python_executable": "/root/miniconda3/envs/csi-pairs-formal/bin/python3.12",
+  "environment": {
+    "OMP_NUM_THREADS": "4",
+    "MKL_NUM_THREADS": "4",
+    "OPENBLAS_NUM_THREADS": "4",
+    "CUDA_VISIBLE_DEVICES": "0,1",
+    "CSI_PAIRS_DEVICES": "cuda:0,cuda:1",
+    "CUBLAS_WORKSPACE_CONFIG": ":4096:8"
+  },
+  "git_head": "c5917018610b262f5263ccaeba2f087b2eb96a96",
+  "git_status": "## HEAD (no branch)\n?? .inspection_v6_20260901T.csi-pairs-operation.lock.guard\n?? artifacts/formal_factorial_c591701_20260902T2040/\n?? code/CSI-PAIRS-v2.0-server/formal_v2/external_adapters/.runtime-differt\n?? code/CSI-PAIRS-v2.0-server/formal_v2/external_adapters/.runtime-sionna-shared-link-20260901\n?? code/CSI-PAIRS-v2.0-server/formal_v2/external_adapters/.venv-wigatr\n?? inspection_v6_20260901T/\n?? operator_preflight_20260901T/\n?? runs/\n",
+  "config_path": "/root/xunlian/Futaoran/CSI_MAIN_C591701_20260901/code/CSI-PAIRS-v2.0-server/formal_v2/configs/formal_v2.json",
+  "config_raw_sha256": "6adadb5c17b2c583b856b206fb1daccb361f5a847e59fe21fb77c84318ed2658",
+  "dataset_path": "/root/xunlian/Futaoran/\u6b63\u5f0f\u5f00\u59cb\u8bad\u7ec3/CSI-PAIRS-V6-WIDEBAND-FORMAL-227-20260819T105509Z/dataset.npz",
+  "dataset_sha256": "060d8671380acaf43bd0beb2c77ac5c6ec112e4ddc083451ab36a5916b7c9cac",
+  "checkpoints": [
+    {
+      "path": "/root/xunlian/Futaoran/CSI_MAIN_C591701_20260901/runs/c591701-formal-prepare-20260902T2040/factorial/checkpoints/seed_20270001/endpoint.pt",
+      "sha256": "010d54fae4eacf41459b1595e6216162b5e93edff28368f65f0991049dccbc87",
+      "seed": 20270001,
+      "arm": "endpoint"
+    },
+    {
+      "path": "/root/xunlian/Futaoran/CSI_MAIN_C591701_20260901/runs/c591701-formal-prepare-20260902T2040/factorial/checkpoints/seed_20270001/alignment.pt",
+      "sha256": "484f94d8be558ee8739c9bc4d55aad91262767f5848eb82d5448e56edeca82be",
+      "seed": 20270001,
+      "arm": "alignment"
+    },
+    {
+      "path": "/root/xunlian/Futaoran/CSI_MAIN_C591701_20260901/runs/c591701-formal-prepare-20260902T2040/factorial/checkpoints/seed_20270001/response.pt",
+      "sha256": "9734c2d4e60373505e5bc789bfbab43d6111f7139c47d6d0c23f96079152d88a",
+      "seed": 20270001,
+      "arm": "response"
+    },
+    {
+      "path": "/root/xunlian/Futaoran/CSI_MAIN_C591701_20260901/runs/c591701-formal-prepare-20260902T2040/factorial/checkpoints/seed_20270001/full.pt",
+      "sha256": "2ea0a0698ab910987ba6f26f30d7c08c3e749d31807d1a21691955b8274ef866",
+      "seed": 20270001,
+      "arm": "full"
+    },
+    {
+      "path": "/root/xunlian/Futaoran/CSI_MAIN_C591701_20260901/runs/c591701-formal-prepare-20260902T2040/factorial/checkpoints/seed_20270002/endpoint.pt",
+      "sha256": "19fd309307a25d52ed9f3dc0728591ed25a6e580d2c2af86156b1dd195c28f25",
+      "seed": 20270002,
+      "arm": "endpoint"
+    },
+    {
+      "path": "/root/xunlian/Futaoran/CSI_MAIN_C591701_20260901/runs/c591701-formal-prepare-20260902T2040/factorial/checkpoints/seed_20270002/alignment.pt",
+      "sha256": "f08762a1fb42863954dfbd131a70366ceaf6e96e3f013cf196c6152bf914e29d",
+      "seed": 20270002,
+      "arm": "alignment"
+    },
+    {
+      "path": "/root/xunlian/Futaoran/CSI_MAIN_C591701_20260901/runs/c591701-formal-prepare-20260902T2040/factorial/checkpoints/seed_20270002/response.pt",
+      "sha256": "ff0de5461fc49ad33111f1845aaece791695027dd0e384b21ed6480bafbb8bf3",
+      "seed": 20270002,
+      "arm": "response"
+    },
+    {
+      "path": "/root/xunlian/Futaoran/CSI_MAIN_C591701_20260901/runs/c591701-formal-prepare-20260902T2040/factorial/checkpoints/seed_20270002/full.pt",
+      "sha256": "bdfb5c522945a568ff068de6e26f9d098e0e832a2aaf782666a1ae3067380e6a",
+      "seed": 20270002,
+      "arm": "full"
+    },
+    {
+      "path": "/root/xunlian/Futaoran/CSI_MAIN_C591701_20260901/runs/c591701-formal-prepare-20260902T2040/factorial/checkpoints/seed_20270003/endpoint.pt",
+      "sha256": "07c75be4faa693c64ed0313c7431294aabf78fe296e0e37204a4903107e8aa9b",
+      "seed": 20270003,
+      "arm": "endpoint"
+    },
+    {
+      "path": "/root/xunlian/Futaoran/CSI_MAIN_C591701_20260901/runs/c591701-formal-prepare-20260902T2040/factorial/checkpoints/seed_20270003/alignment.pt",
+      "sha256": "b11248dd1b2efe7f582d34940848add2911fe1acc8060c6e2473a13eb3aa7bfb",
+      "seed": 20270003,
+      "arm": "alignment"
+    },
+    {
+      "path": "/root/xunlian/Futaoran/CSI_MAIN_C591701_20260901/runs/c591701-formal-prepare-20260902T2040/factorial/checkpoints/seed_20270003/response.pt",
+      "sha256": "6bde922c761d7a189ebcc0c15573a0159183f5b1cd5ede49aee3985e2d02af77",
+      "seed": 20270003,
+      "arm": "response"
+    },
+    {
+      "path": "/root/xunlian/Futaoran/CSI_MAIN_C591701_20260901/runs/c591701-formal-prepare-20260902T2040/factorial/checkpoints/seed_20270003/full.pt",
+      "sha256": "baad92d0239a74c5dc9b9aee5ad9f1e6e9d118bdba7c95e4230749de9225f65a",
+      "seed": 20270003,
+      "arm": "full"
+    }
+  ],
+  "snapshots": {
+    "factorial/gate.json": "d7e5eaf2fb2fbf2a30b554f9cf65fb975fa53bd5ef638f27fd9b9d96c2fc9fe0",
+    "factorial/checkpoint_index.json": "59cd2dc08632bc197285983efb2d6c59d4367ac161ef250c2166e72c2c743acd",
+    "factorial/resume_index.json": "acb9bec774b4b358bf80c1a98507afa6b3cb891ec959f7d5d9731ce6f90b5299",
+    "factorial/localization_summary.csv": "e4378bd5e5e352583b7e7baa80b93c352c1bfa74daffb50b42023543a12835d7",
+    "factorial/normalization.json": "13e5921d79efccfbfc22c2eee7d1ca0f22cd79e0d1e1f9631c3a5d311490c95f",
+    "factorial/frozen_pilot.json": "657b583abbdaca2fe9ad7068971a8ff80e041afb8a9943dcb5c91c18c36d3a01",
+    "qualification/gate.json": "d13fb43c7717ef5d1a668b29b2d8e989d02fa4633ce856b2de3867161f776be2",
+    "qualification/manifest.json": "5402e41a06d33290ff97a0f50129025a63eb01937746116bd52a965a60b6c09a",
+    "data_verification/gate.json": "f79668bb41f56018cf195f8bc4247181aedb6b558f4e7478a795073ceee24bc7",
+    "evaluation/status.json": "360e2cfe63ecfff84c725f562f6ccb59cf199ac47ed8ccc45bce15e0dcf31fec",
+    "evaluation_state/evaluation_progress.json": "17bc0edcbbf2421b929af7a5b675b21ecdbcf829734049478ae989479d140d90",
+    "approval/accepted.json": "b3e9e08f7abd0e52173f45306b1e19295adabb2e50ad624db8ee72e26c2f68f9"
+  },
+  "samples": [
+    {
+      "utc": "2026-09-08T07:51:16.461793+00:00",
+      "processes": "    PID    PPID                  STARTED     ELAPSED     TIME STAT %CPU   RSS\n   6306    6265 Tue Sep  8 01:29:45 2026    14:21:31 1-21:42:14 Sl  318 45993636\n",
+      "threads": "    TID STAT %CPU     TIME WCHAN\n   6306 Sl   19.5 02:48:32 -\n   6308 Sl   14.7 02:07:04 -\n   6309 Sl   14.7 02:07:03 -\n   6310 Sl   14.7 02:07:03 -\n   6410 Sl    0.0 00:00:00 x64_sys_poll\n   6412 Sl    8.1 01:09:40 hrtimer_nanosleep\n   6413 Sl    0.0 00:00:19 -\n   6414 Sl    0.0 00:00:19 -\n   6592 Sl    3.4 00:29:29 -\n   6593 Sl    3.4 00:29:29 -\n   6594 Sl    3.4 00:29:29 -\n   7877 Sl    0.0 00:00:04 -\n   7878 Sl    0.0 00:00:00 -\n   9795 Sl    0.0 00:00:18 -\n   9796 Rl   99.0 11:06:21 -\n   9797 Sl    0.0 00:00:04 -\n   9798 Sl    0.0 00:00:00 -\n   9799 Sl    0.0 00:00:00 -\n   9800 Sl    0.0 00:00:00 -\n   9801 Sl   65.4 07:20:18 -\n   9802 Sl   65.5 07:20:36 -\n   9803 Sl   65.4 07:19:46 -\n",
+      "io": "rchar: 88017753875\nwchar: 3689500607\nsyscr: 273795\nsyscw: 412902\nread_bytes: 8921939968\nwrite_bytes: 3723587584\ncancelled_write_bytes: 8192\n",
+      "status": "Name:\tpython\nUmask:\t0000\nState:\tS (sleeping)\nTgid:\t6306\nNgid:\t0\nPid:\t6306\nPPid:\t6265\nTracerPid:\t0\nUid:\t0\t0\t0\t0\nGid:\t0\t0\t0\t0\nFDSize:\t128\nGroups:\t0 \nNStgid:\t6306\nNSpid:\t6306\nNSpgid:\t6265\nNSsid:\t6265\nVmPeak:\t271075104 kB\nVmSize:\t72633780 kB\nVmLck:\t       0 kB\nVmPin:\t       0 kB\nVmHWM:\t244427400 kB\nVmRSS:\t45993636 kB\nRssAnon:\t45453068 kB\nRssFile:\t  502160 kB\nRssShmem:\t   38408 kB\nVmData:\t46183100 kB\nVmStk:\t     208 kB\nVmExe:\t    3404 kB\nVmLib:\t 2395016 kB\nVmPTE:\t   92200 kB\nVmSwap:\t       0 kB\nHugetlbPages:\t       0 kB\nCoreDumping:\t0\nTHP_enabled:\t1\nThreads:\t22\nSigQ:\t0/2981667\nSigPnd:\t0000000000000000\nShdPnd:\t0000000000000000\nSigBlk:\t0000000000000000\nSigIgn:\t0000000001001000\nSigCgt:\t0000000180000a02\nCapInh:\t0000000000000000\nCapPrm:\t00000000a80425fb\nCapEff:\t00000000a80425fb\nCapBnd:\t00000000a80425fb\nCapAmb:\t0000000000000000\nNoNewPrivs:\t0\nSeccomp:\t0\nSpeculation_Store_Bypass:\tvulnerable\nCpus_allowed:\tffffffff,ffffffff,ffffffff,ffffffff\nCpus_allowed_list:\t0-127\nMems_allowed:\t00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000001\nMems_allowed_list:\t0\nvoluntary_ctxt_switches:\t69030\nnonvoluntary_ctxt_switches:\t19684\n",
+      "gpu": "index, uuid, pci.bus_id, name, utilization.gpu [%], memory.used [MiB], memory.total [MiB]\n0, GPU-0e31845b-99e5-7784-4b0d-d37446c79176, 00000000:00:0E.0, NVIDIA A100-SXM4-40GB, 0 %, 8289 MiB, 40960 MiB\n1, GPU-826ef21b-33e6-41a7-7a7b-c2e15cd2b96d, 00000000:00:0F.0, NVIDIA A100-SXM4-40GB, 0 %, 1789 MiB, 40960 MiB\n"
+    },
+    {
+      "utc": "2026-09-08T07:51:18.509265+00:00",
+      "processes": "    PID    PPID                  STARTED     ELAPSED     TIME STAT %CPU   RSS\n   6306    6265 Tue Sep  8 01:29:45 2026    14:21:33 1-21:42:16 Sl  318 45993712\n",
+      "threads": "    TID STAT %CPU     TIME WCHAN\n   6306 Sl   19.5 02:48:32 -\n   6308 Sl   14.7 02:07:04 -\n   6309 Sl   14.7 02:07:03 -\n   6310 Sl   14.7 02:07:03 -\n   6410 Sl    0.0 00:00:00 x64_sys_poll\n   6412 Sl    8.1 01:09:40 hrtimer_nanosleep\n   6413 Sl    0.0 00:00:19 -\n   6414 Sl    0.0 00:00:19 -\n   6592 Sl    3.4 00:29:29 -\n   6593 Sl    3.4 00:29:29 -\n   6594 Sl    3.4 00:29:29 -\n   7877 Sl    0.0 00:00:04 -\n   7878 Sl    0.0 00:00:00 -\n   9795 Sl    0.0 00:00:18 -\n   9796 Rl   99.0 11:06:23 -\n   9797 Sl    0.0 00:00:04 -\n   9798 Sl    0.0 00:00:00 -\n   9799 Sl    0.0 00:00:00 -\n   9800 Sl    0.0 00:00:00 -\n   9801 Sl   65.4 07:20:18 -\n   9802 Sl   65.5 07:20:36 -\n   9803 Sl   65.3 07:19:46 -\n",
+      "io": "rchar: 88017753875\nwchar: 3689500607\nsyscr: 273795\nsyscw: 412902\nread_bytes: 8921939968\nwrite_bytes: 3723587584\ncancelled_write_bytes: 8192\n",
+      "status": "Name:\tpython\nUmask:\t0000\nState:\tS (sleeping)\nTgid:\t6306\nNgid:\t0\nPid:\t6306\nPPid:\t6265\nTracerPid:\t0\nUid:\t0\t0\t0\t0\nGid:\t0\t0\t0\t0\nFDSize:\t128\nGroups:\t0 \nNStgid:\t6306\nNSpid:\t6306\nNSpgid:\t6265\nNSsid:\t6265\nVmPeak:\t271075104 kB\nVmSize:\t72633780 kB\nVmLck:\t       0 kB\nVmPin:\t       0 kB\nVmHWM:\t244427400 kB\nVmRSS:\t45993712 kB\nRssAnon:\t45453144 kB\nRssFile:\t  502160 kB\nRssShmem:\t   38408 kB\nVmData:\t46183100 kB\nVmStk:\t     208 kB\nVmExe:\t    3404 kB\nVmLib:\t 2395016 kB\nVmPTE:\t   92200 kB\nVmSwap:\t       0 kB\nHugetlbPages:\t       0 kB\nCoreDumping:\t0\nTHP_enabled:\t1\nThreads:\t22\nSigQ:\t0/2981667\nSigPnd:\t0000000000000000\nShdPnd:\t0000000000000000\nSigBlk:\t0000000000000000\nSigIgn:\t0000000001001000\nSigCgt:\t0000000180000a02\nCapInh:\t0000000000000000\nCapPrm:\t00000000a80425fb\nCapEff:\t00000000a80425fb\nCapBnd:\t00000000a80425fb\nCapAmb:\t0000000000000000\nNoNewPrivs:\t0\nSeccomp:\t0\nSpeculation_Store_Bypass:\tvulnerable\nCpus_allowed:\tffffffff,ffffffff,ffffffff,ffffffff\nCpus_allowed_list:\t0-127\nMems_allowed:\t00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000001\nMems_allowed_list:\t0\nvoluntary_ctxt_switches:\t69030\nnonvoluntary_ctxt_switches:\t19684\n",
+      "gpu": "index, uuid, pci.bus_id, name, utilization.gpu [%], memory.used [MiB], memory.total [MiB]\n0, GPU-0e31845b-99e5-7784-4b0d-d37446c79176, 00000000:00:0E.0, NVIDIA A100-SXM4-40GB, 0 %, 8289 MiB, 40960 MiB\n1, GPU-826ef21b-33e6-41a7-7a7b-c2e15cd2b96d, 00000000:00:0F.0, NVIDIA A100-SXM4-40GB, 0 %, 1789 MiB, 40960 MiB\n"
+    },
+    {
+      "utc": "2026-09-08T07:51:20.547813+00:00",
+      "processes": "    PID    PPID                  STARTED     ELAPSED     TIME STAT %CPU   RSS\n   6306    6265 Tue Sep  8 01:29:45 2026    14:21:35 1-21:42:18 Sl  318 46018568\n",
+      "threads": "    TID STAT %CPU     TIME WCHAN\n   6306 Sl   19.5 02:48:32 -\n   6308 Sl   14.7 02:07:04 -\n   6309 Sl   14.7 02:07:03 -\n   6310 Sl   14.7 02:07:03 -\n   6410 Sl    0.0 00:00:00 x64_sys_poll\n   6412 Sl    8.1 01:09:40 hrtimer_nanosleep\n   6413 Sl    0.0 00:00:19 -\n   6414 Sl    0.0 00:00:19 -\n   6592 Sl    3.4 00:29:29 -\n   6593 Sl    3.4 00:29:29 -\n   6594 Sl    3.4 00:29:29 -\n   7877 Sl    0.0 00:00:04 -\n   7878 Sl    0.0 00:00:00 -\n   9795 Sl    0.0 00:00:18 -\n   9796 Rl   99.0 11:06:25 -\n   9797 Sl    0.0 00:00:04 -\n   9798 Sl    0.0 00:00:00 -\n   9799 Sl    0.0 00:00:00 -\n   9800 Sl    0.0 00:00:00 -\n   9801 Sl   65.4 07:20:18 -\n   9802 Sl   65.5 07:20:36 -\n   9803 Sl   65.3 07:19:46 -\n",
+      "io": "rchar: 88017753875\nwchar: 3689500607\nsyscr: 273795\nsyscw: 412902\nread_bytes: 8921939968\nwrite_bytes: 3723587584\ncancelled_write_bytes: 8192\n",
+      "status": "Name:\tpython\nUmask:\t0000\nState:\tS (sleeping)\nTgid:\t6306\nNgid:\t0\nPid:\t6306\nPPid:\t6265\nTracerPid:\t0\nUid:\t0\t0\t0\t0\nGid:\t0\t0\t0\t0\nFDSize:\t128\nGroups:\t0 \nNStgid:\t6306\nNSpid:\t6306\nNSpgid:\t6265\nNSsid:\t6265\nVmPeak:\t271075104 kB\nVmSize:\t72699316 kB\nVmLck:\t       0 kB\nVmPin:\t       0 kB\nVmHWM:\t244427400 kB\nVmRSS:\t46018568 kB\nRssAnon:\t45478000 kB\nRssFile:\t  502160 kB\nRssShmem:\t   38408 kB\nVmData:\t46207876 kB\nVmStk:\t     208 kB\nVmExe:\t    3404 kB\nVmLib:\t 2395016 kB\nVmPTE:\t   92252 kB\nVmSwap:\t       0 kB\nHugetlbPages:\t       0 kB\nCoreDumping:\t0\nTHP_enabled:\t1\nThreads:\t22\nSigQ:\t0/2981667\nSigPnd:\t0000000000000000\nShdPnd:\t0000000000000000\nSigBlk:\t0000000000000000\nSigIgn:\t0000000001001000\nSigCgt:\t0000000180000a02\nCapInh:\t0000000000000000\nCapPrm:\t00000000a80425fb\nCapEff:\t00000000a80425fb\nCapBnd:\t00000000a80425fb\nCapAmb:\t0000000000000000\nNoNewPrivs:\t0\nSeccomp:\t0\nSpeculation_Store_Bypass:\tvulnerable\nCpus_allowed:\tffffffff,ffffffff,ffffffff,ffffffff\nCpus_allowed_list:\t0-127\nMems_allowed:\t00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000001\nMems_allowed_list:\t0\nvoluntary_ctxt_switches:\t69030\nnonvoluntary_ctxt_switches:\t19684\n",
+      "gpu": "index, uuid, pci.bus_id, name, utilization.gpu [%], memory.used [MiB], memory.total [MiB]\n0, GPU-0e31845b-99e5-7784-4b0d-d37446c79176, 00000000:00:0E.0, NVIDIA A100-SXM4-40GB, 0 %, 8289 MiB, 40960 MiB\n1, GPU-826ef21b-33e6-41a7-7a7b-c2e15cd2b96d, 00000000:00:0F.0, NVIDIA A100-SXM4-40GB, 0 %, 1789 MiB, 40960 MiB\n"
+    }
+  ],
+  "sampling_scope": "Three procfs/process/resource observations over six seconds; no debugger attachment or signal. Does not reconstruct historical function timings.",
+  "old_task_action": "PRESERVED_RUNNING",
+  "reuse": "Completed upstream weights, qualification and factorial results retain original identity. No completed streaming probe bundle or optimizer state exists in captured evaluation_state; unfinished probe fitting cannot resume at its former step."
+}

@@ -1335,6 +1335,12 @@ def _prepare_alignment_shortcut_probes(
     source_train,
     source_selection,
     config,
+    *,
+    device=None,
+    train_batch_rows=None,
+    rng_lock=None,
+    progress_callback=None,
+    prefer_full_batch=False,
 ):
     prepared = {}
     for offset, (name, (field, _input_class)) in enumerate(
@@ -1345,6 +1351,9 @@ def _prepare_alignment_shortcut_probes(
             probe = None
             selected_family = "constant"
         else:
+            def report(event, name=name):
+                if progress_callback is not None:
+                    progress_callback({**event, "probe": name})
             probe, selection = fit_select_compatibility_probe(
                 source_train[field],
                 source_train["labels"],
@@ -1352,9 +1361,18 @@ def _prepare_alignment_shortcut_probes(
                 source_selection["labels"],
                 config,
                 seed=int(seed) + 33001 + offset,
+                device=device,
+                train_batch_rows=train_batch_rows,
+                rng_lock=rng_lock,
+                progress_callback=report,
+                prefer_full_batch=prefer_full_batch,
             )
-            source_scores = predict_binary_probe(probe, source_train[field])
+            report({"phase": "prediction", "partition": "source_train"})
+            source_scores = predict_binary_probe(
+                probe, source_train[field], batch_rows=train_batch_rows
+            )
             selected_family = selection["selected_family"]
+            report({"phase": "statistics", "metric": "source_train_auroc"})
         prepared[name] = {
             "probe": probe,
             "selected_family": selected_family,

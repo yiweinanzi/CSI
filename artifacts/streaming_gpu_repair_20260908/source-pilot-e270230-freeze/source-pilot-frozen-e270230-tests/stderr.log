@@ -1,0 +1,5 @@
+usage: __main__.py [-h]
+                   {make-fixture,verify-waibu-resources,export-sionna-scenes,create-run-approval,accept-migration-request,operator-preflight,evaluation-status,run-evaluation-repair,run-source-method-pilot,inspect-data,verify-data,qualify,run-wrong-map,run-factorial,run-evaluation,run-risk,run-path,run-external-baselines,run-representation-baselines,run-resource-controls,run-scene-id-audit,run-external-validity,run-literature-resources,run-rt-calibration,run-shuffled-pair-control,run-retention-audit,assemble-claims,export-data-verification,prepare-full-run,all}
+                   ...
+__main__.py: error: unrecognized arguments: --legacy-evaluator
+warning: engineering stage failed; continuing because --continue-on-stage-fail (engineering stage produced incomplete or invalid engineering output)
