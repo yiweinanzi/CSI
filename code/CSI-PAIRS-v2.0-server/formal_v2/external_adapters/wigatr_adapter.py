@@ -73,6 +73,8 @@ def run_adapter(args) -> dict:
 
     config = load_wigatr_config(args.config)
     dataset = FormalDataset.load(args.dataset)
+    if not dataset.is_fixture and config["profile"] != "formal-paper-dose":
+        raise RuntimeError("scientific Wi-GATr execution requires the formal paper-dose profile")
     validate_fixed_radio_contract(dataset)
     output = Path(args.output).resolve()
     output.mkdir(parents=True, exist_ok=True)
@@ -93,6 +95,7 @@ def run_adapter(args) -> dict:
         formal_config,
         dataset,
         allow_nonscientific_fixture=True,
+        evidence_runtime=qualification.get("runtime_provenance"),
     )
 
     runtime = _load_official_runtime()
@@ -201,10 +204,25 @@ def _load_official_runtime() -> dict:
         from torch_geometric.data import Batch
         from torch_geometric.loader import DataLoader
         from wigatr.data.geometric import tokenize_scene
+        from wigatr.models import regression_gatr, regression_transformer
     except ImportError as error:
         raise RuntimeError(
             "official Wi-GATr dependencies are unavailable; run setup_wigatr.sh"
         ) from error
+
+    def deterministic_attention_mask(inputs, causal=False, multiply_batch_sizes=1):
+        return _deterministic_pyg_attention_mask(
+            inputs,
+            torch,
+            causal=causal,
+            multiply_batch_sizes=multiply_batch_sizes,
+        )
+
+    torch.backends.cuda.enable_flash_sdp(False)
+    torch.backends.cuda.enable_mem_efficient_sdp(False)
+    torch.backends.cuda.enable_math_sdp(True)
+    regression_gatr.build_pyg_attention_mask = deterministic_attention_mask
+    regression_transformer.build_pyg_attention_mask = deterministic_attention_mask
     return {
         "torch": torch,
         "instantiate": instantiate,
@@ -214,6 +232,28 @@ def _load_official_runtime() -> dict:
         "tokenize_scene": tokenize_scene,
         "vendor": vendor,
     }
+
+
+def _deterministic_pyg_attention_mask(
+    inputs,
+    torch,
+    *,
+    causal=False,
+    multiply_batch_sizes=1,
+):
+    """Return the official block mask as a deterministic PyTorch SDPA tensor."""
+    if type(multiply_batch_sizes) is not int or multiply_batch_sizes <= 0:
+        raise RuntimeError("Wi-GATr attention batch multiplier must be positive")
+    batch_ids = inputs.batch
+    if multiply_batch_sizes > 1:
+        batch_count = int(batch_ids.detach().max().cpu()) + 1
+        batch_ids = torch.cat(
+            [batch_ids + repeat * batch_count for repeat in range(multiply_batch_sizes)]
+        )
+    mask = batch_ids[:, None] == batch_ids[None, :]
+    if causal:
+        mask = mask & torch.ones_like(mask, dtype=torch.bool).tril()
+    return mask
 
 
 def _build_official_model(runtime, config, num_materials, target_mean, target_std):

@@ -71,6 +71,8 @@ def run_adapter(args) -> dict:
 
     config = load_pmnet_config(args.config)
     dataset = FormalDataset.load(args.dataset)
+    if not dataset.is_fixture and config["profile"] != "formal-paper-dose":
+        raise RuntimeError("scientific PMNet execution requires the formal paper-dose profile")
     validate_fixed_radio_contract(dataset)
     if not dataset.is_fixture:
         _require_formal_resources(config)
@@ -210,8 +212,8 @@ def load_pmnet_config(path: str | Path) -> dict:
         raise ValueError("PMNet adapter config fields must be exact")
     if config["schema_version"] != PMNET_CONFIG_SCHEMA:
         raise ValueError("PMNet adapter config schema mismatch")
-    if config["profile"] != "formal-paper-dose":
-        raise ValueError("scientific PMNet execution requires the formal paper-dose profile")
+    if config["profile"] not in {"formal-paper-dose", "software-smoke-only"}:
+        raise ValueError("PMNet adapter profile is invalid")
     if config["source_revision"] != PMNET_SOURCE_REVISION:
         raise ValueError("PMNet source revision is not the frozen official snapshot")
     if config["source_roles"] != {
@@ -261,17 +263,23 @@ def load_pmnet_config(path: str | Path) -> dict:
         _positive_integer(training[key], f"training.{key}")
     for key in ("learning_rate", "lr_decay"):
         _positive_number(training[key], f"training.{key}")
-    if training["epochs"] != 30 or training["batch_size"] != 16:
+    if config["profile"] == "formal-paper-dose" and (
+        training["epochs"] != 30 or training["batch_size"] != 16
+    ):
         raise ValueError("PMNet formal dose must retain the official 30-epoch batch-16 schedule")
     if training["batch_size"] % training["microbatch_size"]:
         raise ValueError("PMNet microbatch size must divide the effective batch size")
-    if training["microbatch_size"] != 2:
+    if config["profile"] == "formal-paper-dose" and training["microbatch_size"] != 2:
         raise ValueError("formal PMNet requires the frozen microbatch size of two")
-    if training["precision"] != "bf16":
+    if training["precision"] not in {"float32", "bf16"}:
+        raise ValueError("PMNet precision must be float32 or bf16")
+    if config["profile"] == "formal-paper-dose" and training["precision"] != "bf16":
         raise ValueError("formal PMNet training requires the frozen BF16 precision")
-    if training["learning_rate"] != 1e-4:
+    if config["profile"] == "formal-paper-dose" and training["learning_rate"] != 1e-4:
         raise ValueError("PMNet formal dose must retain the official Adam learning rate")
-    if training["lr_decay"] != 0.5 or training["lr_decay_every_epochs"] != 10:
+    if config["profile"] == "formal-paper-dose" and (
+        training["lr_decay"] != 0.5 or training["lr_decay_every_epochs"] != 10
+    ):
         raise ValueError("PMNet formal dose must retain the official StepLR schedule")
 
     resources = config["resources"]

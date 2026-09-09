@@ -103,12 +103,7 @@ def write_nonscientific_fixture(
         primitive_ids[scene] = np.asarray([0, 1] if scene % 2 == 0 else [1, 0])
         anchor_bits[scene] = np.asarray([(scene // 2) % 2, scene % 2])
         natural[scene] = next(index for index, row in enumerate(bits) if np.array_equal(row, anchor_bits[scene]))
-        grid_centers_rc = np.asarray(
-            [
-                [1.5 + (scene % 2), 1.5 + ((scene // 2) % 2)],
-                [5.5 - (scene % 2), 5.5 - ((scene // 2) % 2)],
-            ]
-        )
+        grid_centers_rc = _fixture_primitive_centers_rc(scene)
         centers_xy = grid_centers_rc[:, ::-1] + map_origin
         base_occupancy = np.zeros((map_size, map_size), dtype=np.float64)
         base_occupancy[0, :] = 1.0
@@ -146,9 +141,14 @@ def write_nonscientific_fixture(
         free_cells = np.argwhere(common_free)
         if positions > len(free_cells):
             raise ValueError("fixture positions exceed common-free map cells")
-        order = rng.permutation(len(free_cells))[:positions]
-        selected = free_cells[order]
-        jitter = 0.1 + 0.8 * (scene + 1) / (scene_count + 1)
+        jitter = 0.25 + 0.5 * (scene + 1) / (scene_count + 1)
+        selected = _stratified_fixture_cells(
+            free_cells,
+            grid_centers_rc,
+            positions,
+            jitter,
+            rng,
+        )
         coordinates[scene] = map_origin + np.stack(
             (selected[:, 1] + jitter, selected[:, 0] + jitter), axis=1
         )
@@ -189,7 +189,7 @@ def write_nonscientific_fixture(
                 for bit_index, enabled in enumerate(world_bits):
                     primitive = int(primitive_ids[scene, bit_index])
                     distance = float(np.linalg.norm(coordinate - centers_xy[primitive]))
-                    amplitude = max(0.0, 1.0 - distance / 3.0)
+                    amplitude = max(1e-4, 1.0 - distance / 3.0)
                     value = value + float(enabled) * amplitude * primitive_channel[primitive]
                 complex_value = value[: channels // 2] + 1j * value[channels // 2 :]
                 reference = phase_reference_values[scene, position_index]
@@ -326,3 +326,73 @@ def write_nonscientific_fixture(
     except FileExistsError as error:
         raise FileExistsError(f"refusing to overwrite fixture: {target}") from error
     return target
+
+
+def _stratified_fixture_cells(
+    free_cells: np.ndarray,
+    primitive_centers_rc: np.ndarray,
+    position_count: int,
+    jitter: float,
+    rng: np.random.Generator,
+) -> np.ndarray:
+    """Keep both fixture support halves sensitive to both edit primitives."""
+    cells = np.asarray(free_cells, dtype=np.int64)
+    centers = np.asarray(primitive_centers_rc, dtype=np.float64)
+    if cells.ndim != 2 or cells.shape[1] != 2 or centers.shape != (2, 2):
+        raise ValueError("fixture cell geometry is malformed")
+    if position_count < 8 or position_count > cells.shape[0]:
+        raise ValueError("fixture position count is incompatible with free cells")
+
+    selected: list[int] = []
+    available = np.ones(cells.shape[0], dtype=np.bool_)
+    block_sizes = (position_count // 2, position_count - position_count // 2)
+    cell_centers = cells.astype(np.float64) + float(jitter)
+    distances = np.linalg.norm(
+        cell_centers[:, None, :] - centers[None, :, :], axis=-1
+    )
+    reserved_per_block = 2
+    reserved: dict[int, list[int]] = {}
+    primitive_order = sorted(
+        range(centers.shape[0]),
+        key=lambda primitive: int(np.sum(distances[:, primitive] < 3.0)),
+    )
+    for primitive in primitive_order:
+        candidates = np.flatnonzero(available)
+        ranked = candidates[np.argsort(distances[candidates, primitive], kind="stable")]
+        chosen = ranked[: reserved_per_block * len(block_sizes)]
+        if (
+            chosen.size != reserved_per_block * len(block_sizes)
+            or np.any(distances[chosen, primitive] >= 3.0)
+        ):
+            raise ValueError(
+                "fixture geometry cannot cover both position halves for every primitive"
+            )
+        reserved[primitive] = chosen.astype(np.int64).tolist()
+        available[chosen] = False
+
+    for block_index, block_size in enumerate(block_sizes):
+        block = [
+            reserved[primitive][block_index * reserved_per_block + offset]
+            for primitive in range(centers.shape[0])
+            for offset in range(reserved_per_block)
+        ]
+        remaining = block_size - len(block)
+        if remaining:
+            candidates = np.flatnonzero(available)
+            filler = rng.permutation(candidates)[:remaining].astype(np.int64).tolist()
+            available[np.asarray(filler, dtype=np.int64)] = False
+            block.extend(filler)
+        selected.extend(block)
+    return cells[np.asarray(selected, dtype=np.int64)]
+
+
+def _fixture_primitive_centers_rc(scene: int) -> np.ndarray:
+    scene_index = int(scene)
+    foundation_variant = (scene_index % 2) ^ ((scene_index // 2) % 2)
+    return np.asarray(
+        [
+            [2.0, 2.0 + float(scene_index % 2)],
+            [5.0, 5.0 - float(foundation_variant)],
+        ],
+        dtype=np.float64,
+    )

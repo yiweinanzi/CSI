@@ -855,7 +855,24 @@ def _validate_shuffled_evaluation_binding(gate_path, payload, config, dataset):
         schema_version="csi-pairs-v6-evaluation-gate-v3",
     )
     audit = evaluation_gate.get("alignment_shortcut_audit")
-    if not isinstance(audit, dict) or audit.get("passed") is not True:
+    if not isinstance(audit, dict):
+        raise RuntimeError("bound evaluation shortcut audit is malformed")
+    audit_passed = audit.get("passed") is True
+    if (
+        payload.get("evaluation_alignment_shortcut_audit_verified") is not True
+        or type(payload.get("evaluation_alignment_shortcut_audit_passed")) is not bool
+        or payload["evaluation_alignment_shortcut_audit_passed"] != audit_passed
+    ):
+        raise RuntimeError("shuffled-pair gate misstates the bound shortcut audit")
+    fixture_support_failure = (
+        dataset.is_fixture
+        and payload.get("software_status") == "COMPLETE"
+        and payload.get("scientific_status")
+        == "NOT_ASSESSED_FIXTURE_INSUFFICIENT_DERANGEMENT_SUPPORT"
+        and payload.get("training_status") == "NOT_EXECUTED_INSUFFICIENT_SUPPORT"
+        and payload.get("scientific_use") == "FORBIDDEN"
+    )
+    if not audit_passed and not fixture_support_failure:
         raise RuntimeError("bound evaluation shortcut audit did not pass")
 
 

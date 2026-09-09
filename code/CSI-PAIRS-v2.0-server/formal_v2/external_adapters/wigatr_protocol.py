@@ -54,8 +54,8 @@ def load_wigatr_config(path: str | Path) -> dict:
         raise ValueError("Wi-GATr adapter config fields must be exact")
     if config["schema_version"] != WIGATR_CONFIG_SCHEMA:
         raise ValueError("Wi-GATr adapter config schema mismatch")
-    if config["profile"] != "formal-paper-dose":
-        raise ValueError("scientific Wi-GATr execution requires the formal paper-dose profile")
+    if config["profile"] not in {"formal-paper-dose", "software-smoke-only"}:
+        raise ValueError("Wi-GATr adapter profile is invalid")
     if config["source_revision"] != WIGATR_SOURCE_REVISION:
         raise ValueError("Wi-GATr source revision is not the frozen official snapshot")
     if config["source_roles"] != {

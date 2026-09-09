@@ -74,6 +74,7 @@ def run_external_baselines(config, dataset, manifest_path, output_root):
     )
     manifest = read_strict_json(manifest_path)
     _validate_manifest(manifest)
+    require_dataset_adapter_profiles(manifest, dataset)
     output_dir = Path(output_root) / "external_baselines"
     output_dir.mkdir(parents=True, exist_ok=True)
     adapter_manifest_copy = output_dir / "adapter_manifest.json"
@@ -360,6 +361,18 @@ def _validate_manifest(manifest):
             raise ValueError("executed literature baseline must reference an adapter")
         if row["status"] != "executed" and row["adapter_id"] != "":
             raise ValueError("unexecuted literature baseline may not claim an adapter")
+
+
+def require_dataset_adapter_profiles(manifest, dataset):
+    expected = "software-smoke-only" if dataset.is_fixture else "formal-paper-dose"
+    project_root = Path(__file__).resolve().parents[1]
+    for adapter in manifest["adapters"]:
+        config = read_strict_json(project_root / adapter["adapter_config_path"])
+        if config.get("profile") != expected:
+            raise RuntimeError(
+                f"{adapter['model_name']} adapter profile must be {expected} for this dataset"
+            )
+    return expected
 
 
 def _command_executes_adapter_source(command, adapter_source_path):

@@ -560,7 +560,11 @@ def main(argv: list[str] | None = None) -> int:
             },
         )
         print(json.dumps({"status": result.get("status", "success"), "output": str(output.resolve())}, sort_keys=True))
-        return _result_exit_code(result)
+        return _authorized_chain_exit_code(
+            result,
+            dataset,
+            allow_nonscientific_fixture=bool(args.allow_nonscientific_fixture),
+        ) if args.command == "all" else _result_exit_code(result)
     except Exception as error:
         print(f"error: {error}", file=sys.stderr)
         return 2
@@ -916,6 +920,24 @@ def _result_exit_code(result: object) -> int:
         ):
             return 1
     return 0
+
+
+def _authorized_chain_exit_code(
+    result: object,
+    dataset: object,
+    *,
+    allow_nonscientific_fixture: bool,
+) -> int:
+    if (
+        allow_nonscientific_fixture
+        and getattr(dataset, "is_fixture", False)
+        and isinstance(result, dict)
+        and result.get("status") == "COMPLETE"
+        and result.get("fixture") is True
+        and result.get("scientific_use") == "FORBIDDEN"
+    ):
+        return 0
+    return _result_exit_code(result)
 
 
 if __name__ == "__main__":

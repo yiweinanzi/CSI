@@ -3,6 +3,7 @@ from __future__ import annotations
 import csv
 import hashlib
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -10,6 +11,13 @@ from pathlib import Path
 
 import numpy as np
 
+from .formal_checkpoint_contract import (
+    CHECKPOINT_EVIDENCE_FIELDS,
+    FORMAL_CHECKPOINT_FIELDS,
+    FORMAL_CHECKPOINT_SCHEMA,
+    SHUFFLED_CHECKPOINT_FIELDS,
+    SHUFFLED_CHECKPOINT_SCHEMA,
+)
 from .formal_evidence import evidence_context
 from .formal_io import artifact_manifest, read_strict_json, sha256_file, write_json
 from .formal_statistics import (
@@ -33,6 +41,26 @@ SHUFFLED_SYSTEMS = (
 SHUFFLED_METRICS = ("alignment_cgs", "response_probe")
 PAIR_LABELS = ("positive", "negative")
 RETENTION_CONDITIONS = ("correct", "map_swap", "map_removed")
+SHUFFLED_FIXTURE_SUPPORT_RESULT_SCHEMA = (
+    "csi-pairs-v6-shuffled-pair-fixture-support-result-v1"
+)
+SHUFFLED_FIXTURE_SUPPORT_STATUS = (
+    "NOT_ASSESSED_FIXTURE_INSUFFICIENT_DERANGEMENT_SUPPORT"
+)
+SHUFFLED_FIXTURE_SUPPORT_RESULT_FIELDS = {
+    "schema_version",
+    "status",
+    "dataset_sha256",
+    "config_sha256",
+    "fixture",
+    "scientific_use",
+    "reason",
+    "failed_branch",
+    "required_pairing_strata",
+    "pair_registry_sha256",
+    "checkpoint_index_sha256",
+    "adapter_source_sha256",
+}
 
 
 def run_shuffled_pair_control(config, dataset, manifest_path, output_root):
@@ -53,6 +81,18 @@ def run_shuffled_pair_control(config, dataset, manifest_path, output_root):
         "csi-pairs-v6-shuffled-pair-adapter-v3",
         "results.json",
     )
+    if (
+        isinstance(result, dict)
+        and result.get("schema_version") == SHUFFLED_FIXTURE_SUPPORT_RESULT_SCHEMA
+    ):
+        return _write_fixture_support_failure_gate(
+            config,
+            dataset,
+            output_root,
+            output_dir,
+            result,
+            source_hash,
+        )
     required = {
         "schema_version", "dataset_sha256", "config_sha256", "fixture",
         "per_unit_results_path", "per_unit_results_sha256",
@@ -103,6 +143,89 @@ def run_shuffled_pair_control(config, dataset, manifest_path, output_root):
     write_json(output_dir / "gate.json", gate)
     _write_manifest(output_dir, evidence)
     return gate
+
+
+def _write_fixture_support_failure_gate(
+    config, dataset, output_root, output_dir, result, source_hash
+):
+    _validate_fixture_support_result(result, dataset)
+    evidence = _validate_result_evidence(config, dataset, result)
+    if result["adapter_source_sha256"] != source_hash:
+        raise RuntimeError(
+            "shuffled fixture support result is not bound to the authenticated adapter source"
+        )
+    _verify_checkpoint_index_binding(config, dataset, output_root, result)
+    registry = _read_active_pair_registry(
+        output_root, result, evidence, dataset
+    )
+    shortcut_binding = _validate_evaluation_shortcut_binding(
+        config,
+        dataset,
+        output_root,
+        evidence,
+        require_pass=False,
+    )
+    gate = {
+        "schema_version": "csi-pairs-v6-shuffled-pair-gate-v3",
+        "status": "FAIL",
+        "passed": False,
+        **evidence,
+        "claim": "C4",
+        "software_status": "COMPLETE",
+        "scientific_status": result["status"],
+        "failure_reason": result["reason"],
+        "failed_branch": result["failed_branch"],
+        "required_pairing_strata": result["required_pairing_strata"],
+        "training_status": "NOT_EXECUTED_INSUFFICIENT_SUPPORT",
+        "pair_registry_sha256": result["pair_registry_sha256"],
+        "active_pair_count": len(registry),
+        "checkpoint_hashes_verified": True,
+        "per_unit_rows_verified": False,
+        "independently_trained_shuffled_checkpoints_verified": False,
+        "alignment_and_response_pairing_breaks_verified": False,
+        "adapter_source_sha256": source_hash,
+        **shortcut_binding,
+        "input_manifest_path": "adapter_manifest.json",
+        "input_manifest_sha256": sha256_file(output_dir / "adapter_manifest.json"),
+    }
+    write_json(output_dir / "gate.json", gate)
+    _write_manifest(output_dir, evidence)
+    return gate
+
+
+def _validate_fixture_support_result(result, dataset):
+    if (
+        not isinstance(result, dict)
+        or set(result) != SHUFFLED_FIXTURE_SUPPORT_RESULT_FIELDS
+        or result.get("schema_version") != SHUFFLED_FIXTURE_SUPPORT_RESULT_SCHEMA
+        or result.get("status") != SHUFFLED_FIXTURE_SUPPORT_STATUS
+    ):
+        raise RuntimeError("shuffled fixture support result fields are not exact")
+    if not dataset.is_fixture or result["fixture"] is not True:
+        raise RuntimeError("insufficient shuffled support may only be reported for a fixture")
+    if result["scientific_use"] != "FORBIDDEN":
+        raise RuntimeError("shuffled fixture support result scientific use must be forbidden")
+    if result["failed_branch"] not in {
+        "alignment_h_map_edge",
+        "response_action_target",
+    }:
+        raise RuntimeError("shuffled fixture support result branch is invalid")
+    if result["required_pairing_strata"] != [
+        "scene",
+        "edit_family",
+        "route",
+        "effect_bucket",
+    ]:
+        raise RuntimeError("shuffled fixture support strata differ from the frozen protocol")
+    if not isinstance(result["reason"], str) or not result["reason"].strip():
+        raise RuntimeError("shuffled fixture support result reason is missing")
+    for key in (
+        "pair_registry_sha256",
+        "checkpoint_index_sha256",
+        "adapter_source_sha256",
+    ):
+        if not _lower_sha256(result[key]):
+            raise RuntimeError(f"shuffled fixture support result {key} is invalid")
 
 
 def run_retention_audit(config, dataset, manifest_path, output_root):
@@ -229,13 +352,31 @@ def _run_adapter(config, dataset, manifest_path, output_dir, schema, result_name
         )
         for value in manifest["command"]
     ]
-    completed = subprocess.run(command, check=False, capture_output=True, text=True)
+    project_root = Path(__file__).resolve().parents[1]
+    completed = subprocess.run(
+        command,
+        check=False,
+        capture_output=True,
+        text=True,
+        cwd=project_root,
+        env=_claim_control_environment(project_root),
+    )
     (output_dir / "stdout.txt").write_text(completed.stdout, encoding="utf-8")
     (output_dir / "stderr.txt").write_text(completed.stderr, encoding="utf-8")
     path = output_dir / result_name
     if completed.returncode != 0 or not path.is_file():
         raise RuntimeError("claim-control adapter failed")
     return read_strict_json(path), manifest, source_hash
+
+
+def _claim_control_environment(project_root):
+    root = str(Path(project_root).resolve())
+    existing = os.environ.get("PYTHONPATH", "")
+    return {
+        **os.environ,
+        "PYTHONPATH": root if not existing else root + os.pathsep + existing,
+        "PYTHONDONTWRITEBYTECODE": "1",
+    }
 
 
 def _validate_result_evidence(config, dataset, result):
@@ -473,16 +614,10 @@ def _validate_shuffled_checkpoint(path, row, evidence, provenance_sha256):
         payload = torch.load(path, map_location="cpu", weights_only=False)
     except Exception as error:
         raise RuntimeError("shuffled checkpoint is unreadable") from error
-    required = {
-        "schema_version", "arm", "seed", "model_spec", "normalization",
-        "teacher_checkpoint_sha256", "checkpoint_rule", "state_dict",
-        "dataset_sha256", "config_sha256", "fixture", "artifact_label",
-        "scientific_use", "pairing_breaks", "training_provenance_sha256",
-    }
-    if not isinstance(payload, dict) or set(payload) != required:
+    if not isinstance(payload, dict) or set(payload) != SHUFFLED_CHECKPOINT_FIELDS:
         raise RuntimeError("shuffled checkpoint fields are not exact")
     if (
-        payload["schema_version"] != "csi-pairs-v6-shuffled-formal-checkpoint-v1"
+        payload["schema_version"] != SHUFFLED_CHECKPOINT_SCHEMA
         or payload["arm"] != "full"
         or int(payload["seed"]) != int(row["seed"])
         or payload["checkpoint_rule"] != "fixed_final_step_no_target_selection"
@@ -491,7 +626,7 @@ def _validate_shuffled_checkpoint(path, row, evidence, provenance_sha256):
         or payload["training_provenance_sha256"] != provenance_sha256
     ):
         raise RuntimeError("shuffled checkpoint identity mismatch")
-    for key in ("dataset_sha256", "config_sha256", "fixture"):
+    for key in CHECKPOINT_EVIDENCE_FIELDS:
         if payload[key] != evidence[key]:
             raise RuntimeError(f"shuffled checkpoint {key} mismatch")
     try:
@@ -645,21 +780,16 @@ def _validate_formal_checkpoint(path, row, evidence):
         payload = torch.load(path, map_location="cpu", weights_only=False)
     except Exception as error:
         raise RuntimeError("claim-control checkpoint is unreadable") from error
-    required = {
-        "schema_version", "arm", "seed", "model_spec", "normalization",
-        "teacher_checkpoint_sha256", "checkpoint_rule", "state_dict",
-        "dataset_sha256", "config_sha256", "fixture", "artifact_label", "scientific_use",
-    }
-    if not isinstance(payload, dict) or set(payload) != required:
+    if not isinstance(payload, dict) or set(payload) != FORMAL_CHECKPOINT_FIELDS:
         raise RuntimeError("claim-control checkpoint fields are not the frozen F/P contract")
     if (
-        payload["schema_version"] != "csi-pairs-formal-checkpoint-v2.1-v6"
+        payload["schema_version"] != FORMAL_CHECKPOINT_SCHEMA
         or payload["arm"] != "full"
         or int(payload["seed"]) != int(row["seed"])
         or payload["checkpoint_rule"] != "fixed_final_step_no_target_selection"
     ):
         raise RuntimeError("claim-control checkpoint identity mismatch")
-    for key in ("dataset_sha256", "config_sha256", "fixture"):
+    for key in CHECKPOINT_EVIDENCE_FIELDS:
         if payload[key] != evidence[key]:
             raise RuntimeError(f"claim-control checkpoint {key} mismatch")
     try:
@@ -724,7 +854,14 @@ def _read_active_pair_registry(output_root, result, evidence, dataset):
     return registry
 
 
-def _validate_evaluation_shortcut_binding(config, dataset, output_root, evidence):
+def _validate_evaluation_shortcut_binding(
+    config,
+    dataset,
+    output_root,
+    evidence,
+    *,
+    require_pass=True,
+):
     from .formal_evidence import require_stage_manifested_gate
 
     evaluation_dir = Path(output_root) / "evaluation"
@@ -744,11 +881,13 @@ def _validate_evaluation_shortcut_binding(config, dataset, output_root, evidence
     required_baselines = set(SHUFFLED_SYSTEMS[2:])
     if (
         not isinstance(audit, dict)
-        or audit.get("passed") is not True
         or audit.get("complete") is not True
         or set(audit.get("required_baselines", [])) != required_baselines
     ):
-        raise RuntimeError("evaluation alignment shortcut audit is incomplete or failed")
+        raise RuntimeError("evaluation alignment shortcut audit is incomplete")
+    audit_passed = audit.get("passed") is True
+    if require_pass and not audit_passed:
+        raise RuntimeError("evaluation alignment shortcut audit failed")
     with rows_path.open(newline="", encoding="utf-8") as handle:
         rows = list(csv.DictReader(handle))
     if not rows or {row.get("baseline") for row in rows} != required_baselines:
@@ -762,6 +901,7 @@ def _validate_evaluation_shortcut_binding(config, dataset, output_root, evidence
             raise RuntimeError("evaluation shortcut AUROC must be finite")
     return {
         "evaluation_alignment_shortcut_audit_verified": True,
+        "evaluation_alignment_shortcut_audit_passed": audit_passed,
         "evaluation_gate_sha256": sha256_file(gate_path),
         "alignment_shortcut_rows_sha256": sha256_file(rows_path),
     }

@@ -12,6 +12,7 @@ from pathlib import Path
 import numpy as np
 
 from .formal_config import ARMS, public_formal_config
+from .formal_checkpoint_contract import FORMAL_CHECKPOINT_FIELDS, FORMAL_CHECKPOINT_SCHEMA
 from .formal_dataset import FormalDataset, same_physical_position
 from .formal_evidence import (
     FACTORIAL_SCHEMA,
@@ -499,7 +500,7 @@ def run_formal_factorial(
         checkpoint.parent.mkdir(parents=True, exist_ok=True)
         torch.save(
             {
-                "schema_version": "csi-pairs-formal-checkpoint-v2.1-v6",
+                "schema_version": FORMAL_CHECKPOINT_SCHEMA,
                 "arm": arm,
                 "seed": int(seed),
                 "model_spec": _model_spec(config, train_corpus),
@@ -513,7 +514,9 @@ def run_formal_factorial(
         )
         reloaded = torch.load(checkpoint, map_location="cpu", weights_only=False)
         if (
-            reloaded.get("schema_version") != "csi-pairs-formal-checkpoint-v2.1-v6"
+            not isinstance(reloaded, dict)
+            or set(reloaded) != FORMAL_CHECKPOINT_FIELDS
+            or reloaded.get("schema_version") != FORMAL_CHECKPOINT_SCHEMA
             or reloaded.get("arm") != arm
             or int(reloaded.get("seed", -1)) != int(seed)
         ):

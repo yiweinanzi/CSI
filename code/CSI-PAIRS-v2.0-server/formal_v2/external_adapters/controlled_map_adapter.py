@@ -35,6 +35,31 @@ from formal_v2.formal_teacher import load_teacher_bundle
 
 CONFIG_SCHEMA = "csi-pairs-v6-controlled-map-adapter-v2"
 EXECUTION_SCHEMA = "csi-pairs-v6-external-execution-v2"
+CHECKPOINT_SCHEMA = "csi-pairs-v6-controlled-map-checkpoint-v2"
+CHECKPOINT_FIELDS = frozenset(
+    {
+        "schema_version",
+        "model_name",
+        "method",
+        "implementation_status",
+        "source_revision",
+        "dataset_sha256",
+        "train_role",
+        "selection_role",
+        "target_roles_read",
+        "selected_step",
+        "selection_loss",
+        "normalizer",
+        "model_metadata",
+        "effective_batch_size",
+        "microbatch_size",
+        "gradient_accumulation_steps",
+        "configured_precision",
+        "executed_precision",
+        "autocast_enabled",
+        "state_dict",
+    }
+)
 METHODS = {"sigmap", "wiser", "rfir"}
 
 
@@ -321,31 +346,30 @@ def _train(model, config, dataset, normalizer, output, model_metadata):
     model.to(device).eval()
     checkpoint = output / "checkpoints" / f"{config['method']}_source_selected.pt"
     checkpoint.parent.mkdir(parents=True, exist_ok=True)
-    torch.save(
-        {
-            "schema_version": "csi-pairs-v6-controlled-map-checkpoint-v2",
-            "model_name": config["model_name"],
-            "method": config["method"],
-            "implementation_status": config["implementation_status"],
-            "source_revision": config["source_revision"],
-            "dataset_sha256": sha256_file(dataset.source_path),
-            "train_role": "source_encoder_train",
-            "selection_role": "source_method_selection",
-            "target_roles_read": [],
-            "selected_step": best_step,
-            "selection_loss": best_selection,
-            "normalizer": {key: value.tolist() for key, value in normalizer.items()},
-            "model_metadata": model_metadata,
-            "effective_batch_size": effective_batch_size,
-            "microbatch_size": microbatch_size,
-            "gradient_accumulation_steps": effective_batch_size // microbatch_size,
-            "configured_precision": configured_precision,
-            "executed_precision": executed_precision,
-            "autocast_enabled": use_autocast,
-            "state_dict": best_state,
-        },
-        checkpoint,
-    )
+    checkpoint_payload = {
+        "schema_version": CHECKPOINT_SCHEMA,
+        "model_name": config["model_name"],
+        "method": config["method"],
+        "implementation_status": config["implementation_status"],
+        "source_revision": config["source_revision"],
+        "dataset_sha256": sha256_file(dataset.source_path),
+        "train_role": "source_encoder_train",
+        "selection_role": "source_method_selection",
+        "target_roles_read": [],
+        "selected_step": best_step,
+        "selection_loss": best_selection,
+        "normalizer": {key: value.tolist() for key, value in normalizer.items()},
+        "model_metadata": model_metadata,
+        "effective_batch_size": effective_batch_size,
+        "microbatch_size": microbatch_size,
+        "gradient_accumulation_steps": effective_batch_size // microbatch_size,
+        "configured_precision": configured_precision,
+        "executed_precision": executed_precision,
+        "autocast_enabled": use_autocast,
+        "state_dict": best_state,
+    }
+    validate_controlled_map_checkpoint(checkpoint_payload)
+    torch.save(checkpoint_payload, checkpoint)
     record = {
         "schema_version": "csi-pairs-v6-controlled-map-training-record-v2",
         "method": config["method"],
@@ -369,6 +393,68 @@ def _train(model, config, dataset, normalizer, output, model_metadata):
         "task_schedule": schedule_counts,
     }
     return checkpoint, record
+
+
+def validate_controlled_map_checkpoint(payload):
+    if not isinstance(payload, dict) or set(payload) != CHECKPOINT_FIELDS:
+        raise RuntimeError("controlled-map checkpoint fields must be exact")
+    if payload["schema_version"] != CHECKPOINT_SCHEMA:
+        raise RuntimeError("controlled-map checkpoint schema mismatch")
+    if payload["method"] not in METHODS:
+        raise RuntimeError("controlled-map checkpoint method is invalid")
+    if (
+        not isinstance(payload["model_name"], str)
+        or not payload["model_name"]
+        or not isinstance(payload["implementation_status"], str)
+        or not payload["implementation_status"]
+        or not isinstance(payload["source_revision"], str)
+        or not payload["source_revision"]
+        or not _lower_sha256(payload["dataset_sha256"])
+        or payload["train_role"] != "source_encoder_train"
+        or payload["selection_role"] != "source_method_selection"
+        or payload["target_roles_read"] != []
+    ):
+        raise RuntimeError("controlled-map checkpoint provenance is invalid")
+    for key in (
+        "selected_step",
+        "effective_batch_size",
+        "microbatch_size",
+        "gradient_accumulation_steps",
+    ):
+        _positive_integer(payload[key], f"checkpoint.{key}")
+    if (
+        not isinstance(payload["selection_loss"], (int, float))
+        or isinstance(payload["selection_loss"], bool)
+        or not math.isfinite(payload["selection_loss"])
+    ):
+        raise RuntimeError("controlled-map checkpoint selection loss is invalid")
+    if (
+        payload["effective_batch_size"] % payload["microbatch_size"]
+        or payload["gradient_accumulation_steps"]
+        != payload["effective_batch_size"] // payload["microbatch_size"]
+    ):
+        raise RuntimeError("controlled-map checkpoint accumulation contract is invalid")
+    if (
+        payload["configured_precision"] not in {"float32", "bf16"}
+        or payload["executed_precision"] not in {"float32", "bf16"}
+        or type(payload["autocast_enabled"]) is not bool
+        or not isinstance(payload["normalizer"], dict)
+        or set(payload["normalizer"])
+        != {
+            "csi_mean",
+            "csi_std",
+            "map_mean",
+            "map_std",
+            "context_mean",
+            "context_std",
+        }
+        or not isinstance(payload["model_metadata"], dict)
+        or not payload["model_metadata"]
+        or not isinstance(payload["state_dict"], dict)
+        or not payload["state_dict"]
+    ):
+        raise RuntimeError("controlled-map checkpoint execution contract is invalid")
+    return payload
 
 
 def _evaluate(model, config, dataset, routed, normalizer):

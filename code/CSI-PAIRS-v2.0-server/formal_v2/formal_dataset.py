@@ -579,13 +579,17 @@ class FormalDataset:
         for role in SOURCE_ROLES:
             if len(self.independent_units_for_role(role)) < minimum_banks_per_source_role:
                 raise FormalDatasetError(f"role {role!r} has too few independent base-map clusters")
+        source_final_canonical_clusters = {
+            self.canonical_base_map_digest(int(scene))
+            for scene in self.indices_for_role("source_final_unseen_bank")
+        }
         if (
-            len(self.independent_units_for_role("source_final_unseen_bank"))
+            len(source_final_canonical_clusters)
             < minimum_independent_source_final_unseen_clusters
         ):
             raise FormalDatasetError(
-                "source_final_unseen_bank has too few independent clusters for the "
-                "registered G3 family"
+                "source_final_unseen_bank has too few independent canonical base-map "
+                "clusters for the registered G3 family"
             )
         if (
             len(self.independent_units_for_role("external_validation"))

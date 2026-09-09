@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import json
+import os
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -12,13 +15,16 @@ import numpy as np
 from formal_v2.formal_claims import (
     _semantic_status,
     _validate_external_manifest_binding,
+    _validate_shuffled_evaluation_binding,
 )
 from formal_v2.formal_claim_controls import (
     SHUFFLED_SYSTEMS,
+    _claim_control_environment,
     _require_distinct_checkpoint_hash,
     _retention_assessment,
     _run_adapter as run_claim_control_adapter,
     _shuffled_assessment,
+    _validate_evaluation_shortcut_binding,
     _validate_pairing_permutations,
     _validate_retention_probe_checkpoint,
 )
@@ -726,6 +732,169 @@ class EvidenceIntegrityTests(unittest.TestCase):
                 run_claim_control_adapter(
                     {}, object(), manifest, root / "out", "csi-pairs-v6-shuffled-pair-adapter-v2", "results.json"
                 )
+
+    def test_claim_control_rejects_tampered_authenticated_source(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = root / "adapter.py"
+            source.write_text("raise SystemExit(0)\n", encoding="utf-8")
+            digest = sha256_file(source)
+            manifest = root / "manifest.json"
+            write_json(
+                manifest,
+                {
+                    "schema_version": "csi-pairs-v6-shuffled-pair-adapter-v2",
+                    "command": ["{python}", "{adapter_source}"],
+                    "implementation_revision": digest,
+                    "control_seed": 1,
+                    "adapter_source_path": source.name,
+                    "adapter_source_sha256": digest,
+                },
+            )
+            source.write_text("raise SystemExit(1)\n", encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "source hash mismatch"):
+                run_claim_control_adapter(
+                    {}, object(), manifest, root / "out",
+                    "csi-pairs-v6-shuffled-pair-adapter-v2", "results.json",
+                )
+
+    def test_claim_control_adapters_import_from_isolated_cwd(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            isolated_cwd = Path(temporary)
+            with patch.dict(os.environ, {"PYTHONPATH": ""}):
+                environment = _claim_control_environment(ROOT)
+            self.assertEqual(environment["PYTHONPATH"], str(ROOT.resolve()))
+            for source_name in ("shuffled_pair_control.py", "retention_control.py"):
+                with self.subTest(source=source_name):
+                    source = ROOT / "formal_v2/external_adapters" / source_name
+                    completed = subprocess.run(
+                        [sys.executable, str(source), "--help"],
+                        check=False,
+                        capture_output=True,
+                        text=True,
+                        cwd=isolated_cwd,
+                        env=environment,
+                    )
+                    self.assertEqual(completed.returncode, 0, completed.stderr)
+                    self.assertIn("--dataset", completed.stdout)
+
+    def test_claim_control_environment_prepends_authenticated_project_root(self):
+        with patch.dict(os.environ, {"PYTHONPATH": "/outside/runtime"}):
+            environment = _claim_control_environment(ROOT)
+        self.assertEqual(
+            environment["PYTHONPATH"].split(os.pathsep),
+            [str(ROOT.resolve()), "/outside/runtime"],
+        )
+        self.assertEqual(environment["PYTHONDONTWRITEBYTECODE"], "1")
+
+    def test_fixture_support_fallback_preserves_failed_shortcut_audit(self):
+        dataset_sha256 = "a" * 64
+        config_sha256 = "b" * 64
+        evidence = {
+            "dataset_sha256": dataset_sha256,
+            "config_sha256": config_sha256,
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary)
+            evaluation = output / "evaluation"
+            evaluation.mkdir()
+            write_json(
+                evaluation / "gate.json",
+                {
+                    "alignment_shortcut_audit": {
+                        "complete": True,
+                        "passed": False,
+                        "required_baselines": list(SHUFFLED_SYSTEMS[2:]),
+                    }
+                },
+            )
+            write_csv(
+                evaluation / "alignment_shortcut_baselines.csv",
+                [
+                    {
+                        "baseline": baseline,
+                        "auroc": "0.5",
+                        "dataset_sha256": dataset_sha256,
+                        "config_sha256": config_sha256,
+                    }
+                    for baseline in SHUFFLED_SYSTEMS[2:]
+                ],
+            )
+            with patch(
+                "formal_v2.formal_evidence.require_stage_manifested_gate"
+            ), patch("formal_v2.formal_claim_controls._require_stage_artifact"):
+                binding = _validate_evaluation_shortcut_binding(
+                    {},
+                    SimpleNamespace(is_fixture=True),
+                    output,
+                    evidence,
+                    require_pass=False,
+                )
+                self.assertTrue(
+                    binding["evaluation_alignment_shortcut_audit_verified"]
+                )
+                self.assertFalse(
+                    binding["evaluation_alignment_shortcut_audit_passed"]
+                )
+                with self.assertRaisesRegex(RuntimeError, "audit failed"):
+                    _validate_evaluation_shortcut_binding(
+                        {},
+                        SimpleNamespace(is_fixture=False),
+                        output,
+                        evidence,
+                    )
+
+    def test_claims_authenticate_fixture_support_failure_without_promoting_pass(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            evaluation = root / "evaluation"
+            shuffled = root / "controls" / "shuffled_pair"
+            evaluation.mkdir()
+            shuffled.mkdir(parents=True)
+            evaluation_gate = evaluation / "gate.json"
+            shortcut_rows = evaluation / "alignment_shortcut_baselines.csv"
+            write_json(
+                evaluation_gate,
+                {"alignment_shortcut_audit": {"passed": False}},
+            )
+            shortcut_rows.write_text("baseline,auroc\nraw,0.5\n", encoding="utf-8")
+            payload = {
+                "evaluation_gate_sha256": sha256_file(evaluation_gate),
+                "alignment_shortcut_rows_sha256": sha256_file(shortcut_rows),
+                "evaluation_alignment_shortcut_audit_verified": True,
+                "evaluation_alignment_shortcut_audit_passed": False,
+                "software_status": "COMPLETE",
+                "scientific_status": (
+                    "NOT_ASSESSED_FIXTURE_INSUFFICIENT_DERANGEMENT_SUPPORT"
+                ),
+                "training_status": "NOT_EXECUTED_INSUFFICIENT_SUPPORT",
+                "scientific_use": "FORBIDDEN",
+            }
+            gate_path = shuffled / "gate.json"
+            with patch("formal_v2.formal_claims.require_stage_manifested_gate"):
+                _validate_shuffled_evaluation_binding(
+                    gate_path,
+                    payload,
+                    {},
+                    SimpleNamespace(is_fixture=True),
+                )
+                with self.assertRaisesRegex(RuntimeError, "did not pass"):
+                    _validate_shuffled_evaluation_binding(
+                        gate_path,
+                        payload,
+                        {},
+                        SimpleNamespace(is_fixture=False),
+                    )
+                with self.assertRaisesRegex(RuntimeError, "misstates"):
+                    _validate_shuffled_evaluation_binding(
+                        gate_path,
+                        {
+                            **payload,
+                            "evaluation_alignment_shortcut_audit_passed": True,
+                        },
+                        {},
+                        SimpleNamespace(is_fixture=True),
+                    )
 
     def test_claim_control_statistics_use_canonical_hierarchy(self):
         registry = {}

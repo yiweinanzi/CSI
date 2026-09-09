@@ -976,7 +976,10 @@ def _validate_static_manifests(
         _resolve_verifier_source,
         _validate_manifest as validate_verifier,
     )
-    from .formal_external import _validate_manifest as validate_external
+    from .formal_external import (
+        _validate_manifest as validate_external,
+        require_dataset_adapter_profiles,
+    )
     from .formal_external_validity import (
         _execution_mode as external_validity_execution_mode,
         _probe_independent_runtime,
@@ -1020,6 +1023,7 @@ def _validate_static_manifests(
 
     external = payloads["adapter_manifest"]
     validate_external(external)
+    require_dataset_adapter_profiles(external, dataset)
     licenses.update(row["license_id"] for row in external["adapters"])
     if not dataset.is_fixture:
         eligible = {

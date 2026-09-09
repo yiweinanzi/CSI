@@ -9,6 +9,7 @@ import torch
 from formal_v2.external_adapters.controlled_map_adapter import (
     _build_model,
     load_controlled_map_config,
+    validate_controlled_map_checkpoint,
 )
 from formal_v2.formal_dataset import FormalDataset
 from formal_v2.formal_evidence import evidence_context
@@ -55,8 +56,6 @@ def run_scene_id_sigmap(dataset_path, output_root, checkpoint_path, run_root):
     checkpoint_path = Path(checkpoint_path).resolve()
     if (
         checkpoint_path != expected_checkpoint
-        or not checkpoint_path.is_file()
-        or sha256_file(checkpoint_path) != execution["checkpoint_sha256"]
     ):
         raise RuntimeError("scene-ID SigMap checkpoint differs from external-baseline evidence")
     config_path = adapter_root / execution["adapter_config_path"]
@@ -65,7 +64,7 @@ def run_scene_id_sigmap(dataset_path, output_root, checkpoint_path, run_root):
     model_config = load_controlled_map_config(config_path)
     if model_config["method"] != "sigmap":
         raise RuntimeError("built-in scene-ID audit only accepts the frozen SigMap control")
-    payload = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
+    payload = _load_authenticated_checkpoint(checkpoint_path, execution)
     _validate_checkpoint(payload, dataset, execution)
     model, _ = _build_model(model_config, dataset)
     model.load_state_dict(payload["state_dict"], strict=True)
@@ -81,21 +80,25 @@ def run_scene_id_sigmap(dataset_path, output_root, checkpoint_path, run_root):
     return path
 
 
-def _validate_checkpoint(payload, dataset, execution):
-    required = {
-        "schema_version", "model_name", "method", "implementation_status",
-        "source_revision", "dataset_sha256", "train_role", "selection_role",
-        "target_roles_read", "selected_step", "selection_loss", "normalizer",
-        "model_metadata", "state_dict",
-    }
-    if not isinstance(payload, dict) or set(payload) != required:
-        raise RuntimeError("scene-ID SigMap checkpoint fields must be exact")
+def _load_authenticated_checkpoint(checkpoint_path, execution):
+    path = Path(checkpoint_path)
     if (
-        payload["schema_version"] != "csi-pairs-v6-controlled-map-checkpoint-v1"
-        or payload["model_name"] != "SigMap"
+        path.is_symlink()
+        or not path.is_file()
+        or sha256_file(path) != execution.get("checkpoint_sha256")
+    ):
+        raise RuntimeError("scene-ID SigMap checkpoint differs from external-baseline evidence")
+    return torch.load(path, map_location="cpu", weights_only=False)
+
+
+def _validate_checkpoint(payload, dataset, execution):
+    validate_controlled_map_checkpoint(payload)
+    if (
+        payload["model_name"] != "SigMap"
         or payload["method"] != "sigmap"
         or payload["implementation_status"] != "style-controlled-implementation"
         or payload["source_revision"] != execution["source_revision"]
+        or payload["dataset_sha256"] != execution["dataset_sha256"]
         or payload["dataset_sha256"] != sha256_file(dataset.source_path)
         or payload["train_role"] != "source_encoder_train"
         or payload["selection_role"] != "source_method_selection"

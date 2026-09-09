@@ -34,6 +34,7 @@ from formal_v2.formal_cli import (
     DEFAULT_SHUFFLED_PAIR_MANIFEST,
     SELF_RESERVING_DIRECTORY_COMMANDS,
     _acquire_output_lock,
+    _authorized_chain_exit_code,
     _reserve_command_output,
     _reserve_full_run_output,
     _result_exit_code,
@@ -52,6 +53,7 @@ from formal_v2.formal_evidence import (
     complete_gate_vector,
     configure_reproducible_runtime,
     evidence_context,
+    require_manifested_formal_qualification,
     require_formal_qualification,
     require_stage_manifested_gate,
     runtime_provenance,
@@ -110,7 +112,10 @@ from formal_v2.external_adapters.wigatr_protocol import (
     require_compact_mesh_matches_map_surface,
     require_surface_ledger_equivalence,
 )
-from formal_v2.formal_fixture import write_nonscientific_fixture
+from formal_v2.formal_fixture import (
+    _fixture_primitive_centers_rc,
+    write_nonscientific_fixture,
+)
 from formal_v2.formal_io import (
     StrictJsonError,
     artifact_manifest,
@@ -282,6 +287,37 @@ class ConfigTests(unittest.TestCase):
                     {"source-a", "source-b"},
                 )
 
+    def test_minimum_fixture_covers_canonical_evaluation_clusters(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = write_nonscientific_fixture(
+                Path(temporary) / "minimum.npz",
+                positions=8,
+            )
+            dataset = FormalDataset.load(path)
+            source_final = dataset.indices_for_role("source_final_unseen_bank")
+            self.assertGreaterEqual(
+                len(
+                    {
+                        dataset.canonical_base_map_digest(int(scene))
+                        for scene in source_final
+                    }
+                ),
+                2,
+            )
+            for city in sorted(
+                set(dataset.city_ids[dataset.scene_roles == "target"].tolist())
+            ):
+                self.assertGreaterEqual(
+                    len(
+                        {
+                            dataset.canonical_base_map_digest(int(scene))
+                            for scene in dataset.indices_for_role("target")
+                            if dataset.city_ids[int(scene)] == city
+                        }
+                    ),
+                    2,
+                )
+
     def test_fixture_receivers_remain_inside_common_free_cells(self):
         with tempfile.TemporaryDirectory() as temporary:
             path = write_nonscientific_fixture(
@@ -305,6 +341,32 @@ class ConfigTests(unittest.TestCase):
                 rows = cells[scene, :, 1]
                 values = dataset.maps[scene, :, occupancy][:, rows, columns]
                 self.assertTrue(np.all(values < 0.5))
+
+    def test_minimum_fixture_stratifies_both_target_halves_by_edit_primitive(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = write_nonscientific_fixture(
+                Path(temporary) / "minimum.npz",
+                positions=8,
+            )
+            dataset = FormalDataset.load(path)
+            origin = np.asarray(dataset.metadata["representation"]["map_origin_xy_m"])
+            for scene_value in dataset.indices_for_role("target"):
+                scene = int(scene_value)
+                primitive_centers_rc = _fixture_primitive_centers_rc(scene)
+                primitive_centers_xy = primitive_centers_rc[:, ::-1] + origin
+                for half in np.array_split(dataset.positions[scene], 2):
+                    distances = np.linalg.norm(
+                        half[:, None, :] - primitive_centers_xy[None, :, :],
+                        axis=-1,
+                    )
+                    self.assertTrue(np.all(np.sum(distances < 3.0, axis=0) >= 2))
+                for edge in dataset.directed_edges(scene):
+                    changed = np.any(
+                        dataset.csi[scene, edge.source_world]
+                        != dataset.csi[scene, edge.target_world],
+                        axis=-1,
+                    )
+                    self.assertTrue(np.all(changed))
 
     def test_rejects_teacher_state_initialization_mismatch(self):
         config = load_formal_config(SMOKE_CONFIG)
@@ -1541,6 +1603,40 @@ class StatisticsTests(unittest.TestCase):
             1,
         )
 
+    def test_complete_fixture_chain_exits_zero_without_promoting_scientific_gates(self):
+        result = {
+            "status": "COMPLETE",
+            "fixture": True,
+            "scientific_use": "FORBIDDEN",
+            "gate_vector": {"G1": "FAIL", "G2": "FAIL"},
+        }
+        fixture = SimpleNamespace(is_fixture=True)
+        self.assertEqual(
+            _authorized_chain_exit_code(
+                result,
+                fixture,
+                allow_nonscientific_fixture=True,
+            ),
+            0,
+        )
+        self.assertEqual(result["gate_vector"], {"G1": "FAIL", "G2": "FAIL"})
+        self.assertEqual(
+            _authorized_chain_exit_code(
+                {**result, "status": "INCOMPLETE_FAIL_CLOSED"},
+                fixture,
+                allow_nonscientific_fixture=True,
+            ),
+            1,
+        )
+        self.assertEqual(
+            _authorized_chain_exit_code(
+                result,
+                fixture,
+                allow_nonscientific_fixture=False,
+            ),
+            1,
+        )
+
     def test_splitting_identical_bank_rows_inside_one_cluster_does_not_reweight_j(self):
         rows = _factorial_rows()
         original = exact_factorial_utilities(rows, [0, 8])
@@ -2150,6 +2246,48 @@ class EvidenceAndPathTests(unittest.TestCase):
             require_formal_qualification(
                 gate, self.config, self.dataset, allow_nonscientific_fixture=True
             )
+
+    def test_manifested_qualification_can_authenticate_recorded_main_runtime(self):
+        stage = self.root / "cross-interpreter-qualification"
+        checkpoint = stage / "checkpoints" / "teacher.pt"
+        checkpoint.parent.mkdir(parents=True)
+        checkpoint.write_bytes(b"recorded-main-runtime-teacher")
+        context = evidence_context(self.config, self.dataset, "FORBIDDEN")
+        gate = {
+            "schema_version": QUALIFICATION_SCHEMA,
+            "passed": True,
+            **context,
+            "upstream_gates": complete_gate_vector({"G1": "PASS", "G2": "PASS"}),
+            "teacher_checkpoint": str(checkpoint),
+            "teacher_checkpoint_sha256": sha256_file(checkpoint),
+            "primary_route_contract": PRIMARY_ROUTE_CONTRACT,
+            "physical_response": {
+                "status": "NOT_ASSESSED_FIXTURE_FORBIDDEN",
+                "formal_physical_response_required_for_nonfixture": True,
+            },
+        }
+        write_json(stage / "gate.json", gate)
+        write_json(
+            stage / "manifest.json",
+            {
+                "schema_version": "csi-pairs-formal-stage-manifest-v2.1-v6",
+                **context,
+                "files": artifact_manifest(stage, evidence=context),
+            },
+        )
+
+        with patch(
+            "formal_v2.formal_evidence.evidence_context",
+            side_effect=AssertionError("must not inspect the adapter interpreter as main"),
+        ):
+            authenticated = require_manifested_formal_qualification(
+                gate,
+                self.config,
+                self.dataset,
+                allow_nonscientific_fixture=True,
+                evidence_runtime=context["runtime_provenance"],
+            )
+        self.assertIs(authenticated, gate)
 
     def test_failed_fixture_qualification_only_allows_explicit_software_execution(self):
         checkpoint = self.root / "software-teacher.pt"

@@ -9,8 +9,14 @@ import torch
 
 from formal_v2.formal_claim_controls import (
     SHUFFLED_SYSTEMS,
+    SHUFFLED_FIXTURE_SUPPORT_RESULT_SCHEMA,
+    SHUFFLED_FIXTURE_SUPPORT_STATUS,
     _registry_action_sha256,
     _validate_formal_checkpoint,
+)
+from formal_v2.formal_checkpoint_contract import (
+    SHUFFLED_CHECKPOINT_FIELDS,
+    SHUFFLED_CHECKPOINT_SCHEMA,
 )
 from formal_v2.formal_dataset import FormalDataset
 from formal_v2.formal_evaluation import _compatibility_dataset, _response_probe_dataset
@@ -41,6 +47,14 @@ SHORTCUT_FEATURES = {
     "edit_status_xor": "edit_status_xor_shortcut_features",
     "variant_id_matcher": "variant_id_match_shortcut_features",
 }
+
+
+class InsufficientDerangementSupport(RuntimeError):
+    def __init__(self, branch: str):
+        self.branch = branch
+        super().__init__(
+            f"{branch} has no within-scene/edit-family/route/effect-bucket derangement"
+        )
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -157,10 +171,21 @@ def run_shuffled_pair_control(
 
     pairing_by_seed = {}
     permutation_rows = []
-    for seed in map(int, config["seeds"]):
-        pairing, rows = _build_pairing_break(corpus, seed, int(control_seed))
-        pairing_by_seed[seed] = pairing
-        permutation_rows.extend(rows)
+    try:
+        for seed in map(int, config["seeds"]):
+            pairing, rows = _build_pairing_break(corpus, seed, int(control_seed))
+            pairing_by_seed[seed] = pairing
+            permutation_rows.extend(rows)
+    except InsufficientDerangementSupport as error:
+        if not dataset.is_fixture:
+            raise
+        return _write_fixture_support_result(
+            output,
+            root,
+            evidence,
+            checkpoint_index_path,
+            error,
+        )
     permutation_path = output / "pairing_permutations.csv"
     write_csv(permutation_path, permutation_rows)
 
@@ -210,7 +235,7 @@ def run_shuffled_pair_control(
         path.parent.mkdir(parents=True, exist_ok=True)
         torch.save(
             {
-                "schema_version": "csi-pairs-v6-shuffled-formal-checkpoint-v1",
+                "schema_version": SHUFFLED_CHECKPOINT_SCHEMA,
                 "arm": "full",
                 "seed": seed,
                 "model_spec": _model_spec(config, corpus),
@@ -229,6 +254,14 @@ def run_shuffled_pair_control(
             },
             path,
         )
+        reloaded = torch.load(path, map_location="cpu", weights_only=False)
+        if (
+            not isinstance(reloaded, dict)
+            or set(reloaded) != SHUFFLED_CHECKPOINT_FIELDS
+            or reloaded.get("schema_version") != SHUFFLED_CHECKPOINT_SCHEMA
+            or int(reloaded.get("seed", -1)) != seed
+        ):
+            raise RuntimeError("shuffled checkpoint changed during serialization")
         shuffled_checkpoint_rows.append(
             {
                 "seed": seed,
@@ -311,9 +344,44 @@ def _validate_pilot(pilot):
         or pilot.get("checkpoint_reused_for_final_training") is not False
     ):
         raise RuntimeError("shuffled control pilot is not the frozen source-only pilot")
-    for key in ("alignment_scale", "response_scale", "alignment_null_tolerance"):
+    for key in ("alignment_scale", "response_scale"):
         if not np.isfinite(float(pilot.get(key, np.nan))) or float(pilot[key]) <= 0:
             raise RuntimeError("shuffled control pilot scale is invalid")
+    null_tolerance = float(pilot.get("alignment_null_tolerance", np.nan))
+    if not np.isfinite(null_tolerance) or null_tolerance < 0:
+        raise RuntimeError("shuffled control pilot scale is invalid")
+
+
+def _write_fixture_support_result(
+    output, run_root, evidence, checkpoint_index_path, error
+):
+    registry_path = Path(run_root) / "evaluation" / "compatibility_pair_effects.csv"
+    if not registry_path.is_file() or not checkpoint_index_path.is_file():
+        raise RuntimeError("shuffled fixture support preflight inputs are missing")
+    result_path = Path(output) / "results.json"
+    write_json(
+        result_path,
+        {
+            "schema_version": SHUFFLED_FIXTURE_SUPPORT_RESULT_SCHEMA,
+            "status": SHUFFLED_FIXTURE_SUPPORT_STATUS,
+            "dataset_sha256": evidence["dataset_sha256"],
+            "config_sha256": evidence["config_sha256"],
+            "fixture": evidence["fixture"],
+            "scientific_use": evidence["scientific_use"],
+            "reason": str(error),
+            "failed_branch": error.branch,
+            "required_pairing_strata": [
+                "scene",
+                "edit_family",
+                "route",
+                "effect_bucket",
+            ],
+            "pair_registry_sha256": sha256_file(registry_path),
+            "checkpoint_index_sha256": sha256_file(checkpoint_index_path),
+            "adapter_source_sha256": sha256_file(Path(__file__).resolve()),
+        },
+    )
+    return result_path
 
 
 def _model_from_payload(payload):
@@ -421,9 +489,7 @@ def _bucket_count(values, branch):
         ]
         if all(_group_can_derange(chunk, branch) for chunk in chunks):
             return count
-    raise RuntimeError(
-        f"{branch} has no within-scene/edit-family/effect-bucket derangement"
-    )
+    raise InsufficientDerangementSupport(branch)
 
 
 def _group_can_derange(values, branch):
