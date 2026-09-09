@@ -1,0 +1,11 @@
+{
+  "schema_version": "csi-pairs-v6-data-verifier-v1",
+  "command": ["{python}", "{verifier_source}", "--dataset", "{dataset}", "--output", "{output}"],
+  "verifier_source_path": "../formal_fixture_verifier.py",
+  "verifier_source_sha256": "8abefbfe7a5204a7c9ed354e427f772c28a43875016fa7e0d6a27f6aae7324b4",
+  "engine_source_revision": "fixture-source-revision",
+  "engine_license_id": "GENERATED-FIXTURE-NO-EXTERNAL-ASSET",
+  "asset_license_ids": ["GENERATED-FIXTURE-NO-EXTERNAL-ASSET"],
+  "rtol": 0.0,
+  "atol": 0.0
+}

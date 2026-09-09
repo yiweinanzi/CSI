@@ -1,0 +1,217 @@
+{
+  "schema_version": "csi-pairs-a100-dataset-suite-config-v1",
+  "package_id": "CSI-PAIRS-A100-DATASETS-v2",
+  "archive_root": "CSI-PAIRS-A100-DATASETS-v2",
+  "target_platform": "Linux x86_64 with NVIDIA A100 GPUs",
+  "package_distribution": "INTERNAL_RESEARCH_TEAM_TRANSFER_ONLY",
+  "fixed_zip_timestamp": "2026-08-10T00:00:00Z",
+  "external_payload": {
+    "source_root": "datasets/external_wireless",
+    "destination_root": "external_public_datasets/external_wireless",
+    "source_checksum_manifest": "artifacts/dataset_suite_v6/external_wireless_metadata/SHA256SUMS",
+    "expected_file_count": 133,
+    "expected_groups": [
+      {
+        "group_id": "deepmimo_core",
+        "source_prefix": "DeepMIMO/",
+        "expected_file_count": 2,
+        "source_status": "PUBLIC_ORIGINAL_CORE_COMPLETE"
+      },
+      {
+        "group_id": "urbanmimomap_map0",
+        "source_prefix": "UrbanMIMOMap/",
+        "expected_file_count": 121,
+        "source_status": "PUBLIC_ONE_MAP_CORE_COMPLETE_NOT_FULL_350_MAP_SET"
+      },
+      {
+        "group_id": "radiomapseer_public_core",
+        "source_prefix": "RadioMapSeer/",
+        "expected_file_count": 5,
+        "source_status": "PUBLIC_CORE_COMPLETE_WITH_3D_SUBSTITUTE"
+      },
+      {
+        "group_id": "deepsense_public_wwm_substitute",
+        "source_prefix": "WWM/",
+        "expected_file_count": 5,
+        "source_status": "PUBLIC_NON_EQUIVALENT_SUBSTITUTE_COMPLETE"
+      }
+    ]
+  },
+  "workspace_components": [
+    {
+      "component_id": "primary_raw_inputs",
+      "source": "deliveries/CSI-PAIRS-A100-input-v2",
+      "destination": "primary_raw_inputs/CSI-PAIRS-A100-input-v2",
+      "expected_file_count": 8,
+      "scientific_use": "AUTHORITATIVE_REGENERATION_INPUT",
+      "exclude": []
+    },
+    {
+      "component_id": "cpu_llvm22_34bank_candidate",
+      "source": "deliveries/CSI-PAIRS-2xA100-FORMAL-HANDOFF-c1b4419d/formal_candidate",
+      "destination": "cpu_llvm22_34bank_candidate",
+      "expected_file_count": 266,
+      "required_files": [
+        {
+          "path": "dataset.npz",
+          "sha256": "e89034302d6c4a64c838c244a60ad7c42b081e760ef2c9fc548440b0d5458d2e"
+        }
+      ],
+      "scientific_use": "CANDIDATE_NOT_CLAIM",
+      "exclude": []
+    },
+    {
+      "component_id": "cpu_same_engine_verification_evidence",
+      "source": "deliveries/CSI-PAIRS-2xA100-FORMAL-HANDOFF-c1b4419d/mac_live_verification",
+      "destination": "cpu_same_engine_verification_evidence",
+      "expected_file_count": 12,
+      "scientific_use": "ENGINEERING_EVIDENCE_NOT_PAPER_RESULT",
+      "exclude": [
+        "live_regeneration/data_verification/regenerated.npz"
+      ]
+    },
+    {
+      "component_id": "a100_sionna_fixture",
+      "source": "CSI_PAIRS_DATASET_SUITE_V6/04_FIXTURES_SOFTWARE_ONLY/csi_pairs_v2_1_v6_sionna_rt_dual_a100",
+      "destination": "a100_sionna_fixture/csi_pairs_v2_1_v6_sionna_rt_dual_a100",
+      "expected_file_count": 9,
+      "required_files": [
+        {
+          "path": "csi_pairs_v2_1_v6_sionna_rt_dual_a100.npz",
+          "sha256": "ae3445739fa3415f7676f544bab28b102459d9819c40028b5ed7e23f7cd5cead"
+        }
+      ],
+      "scientific_use": "FORBIDDEN",
+      "exclude": []
+    }
+  ],
+  "workspace_metadata": [
+    {
+      "source": "datasets/external_wireless/README.md",
+      "destination": "docs/SOURCE_DOWNLOAD_README.md"
+    },
+    {
+      "source": "datasets/external_wireless/CORE_SUBSET_PLAN.md",
+      "destination": "docs/CORE_SUBSET_PLAN.md"
+    },
+    {
+      "source": "datasets/external_wireless/TRAINING_READINESS_REVIEW.md",
+      "destination": "docs/TRAINING_READINESS_REVIEW.md"
+    },
+    {
+      "source": "datasets/external_wireless/DeepMIMO/deepmimo_download_manifest.json",
+      "destination": "metadata/DeepMIMO/deepmimo_download_manifest.json"
+    },
+    {
+      "source": "datasets/external_wireless/DeepMIMO/repository/LICENSE",
+      "destination": "licenses/DeepMIMO_CODE_LICENSE.txt"
+    },
+    {
+      "source": "datasets/external_wireless/UrbanMIMOMap/repository_snapshot/UrbanMIMOMap-main/LICENSE",
+      "destination": "licenses/UrbanMIMOMap_CODE_LICENSE.txt"
+    },
+    {
+      "source": "datasets/external_wireless/RadioMapSeer/RadioUNet_repository/RadioUNet-master/LICENSE",
+      "destination": "licenses/RadioUNet_CODE_LICENSE.txt"
+    }
+  ],
+  "repository_files": [
+    {
+      "source": "formal_v2/configs/a100_dataset_suite_v6.json",
+      "destination": "metadata/a100_dataset_suite_v6.json"
+    },
+    {
+      "source": "artifacts/a100_dataset_package_v6/package_template/README.md",
+      "destination": "README.md"
+    },
+    {
+      "source": "artifacts/a100_dataset_package_v6/package_template/START_HERE.sh",
+      "destination": "START_HERE.sh",
+      "executable": true
+    },
+    {
+      "source": "artifacts/a100_dataset_package_v6/package_template/scripts/VERIFY_PACKAGE.sh",
+      "destination": "scripts/VERIFY_PACKAGE.sh",
+      "executable": true
+    },
+    {
+      "source": "artifacts/a100_dataset_package_v6/package_template/scripts/verify_package.py",
+      "destination": "scripts/verify_package.py",
+      "executable": true
+    },
+    {
+      "source": "artifacts/a100_dataset_package_v6/package_template/scripts/MOUNT_DATASETS.sh",
+      "destination": "scripts/MOUNT_DATASETS.sh",
+      "executable": true
+    },
+    {
+      "source": "artifacts/a100_dataset_package_v6/scripts/A100_REGENERATE_AND_VERIFY.sh",
+      "destination": "scripts/A100_REGENERATE_AND_VERIFY.sh",
+      "executable": true
+    },
+    {
+      "source": "artifacts/a100_dataset_package_v6/DATASET_CARD.md",
+      "destination": "docs/DATASET_CARD.md"
+    },
+    {
+      "source": "artifacts/a100_dataset_package_v6/FORMAL_MAIN_SPLIT_LEDGER.json",
+      "destination": "docs/FORMAL_MAIN_SPLIT_LEDGER.json"
+    },
+    {
+      "source": "artifacts/a100_dataset_package_v6/SPLIT_GUIDE.zh-CN.md",
+      "destination": "docs/SPLIT_GUIDE.zh-CN.md"
+    },
+    {
+      "source": "artifacts/a100_dataset_package_v6/PACKAGE_POLICY.json",
+      "destination": "PACKAGE_POLICY.json"
+    },
+    {
+      "source": "artifacts/a100_dataset_package_v6/external_dataset_registry/EXTERNAL_DATASET_REGISTRY.json",
+      "destination": "external_dataset_registry/EXTERNAL_DATASET_REGISTRY.json"
+    },
+    {
+      "source": "artifacts/a100_dataset_package_v6/external_dataset_registry/MOUNTING.md",
+      "destination": "external_dataset_registry/MOUNTING.md"
+    },
+    {
+      "source": "formal_v2/external_data_bundle/BUNDLE_CONTRACT.json",
+      "destination": "docs/BUNDLE_CONTRACT.json"
+    },
+    {
+      "source": "formal_v2/external_data_bundle/SPLIT_POLICY.json",
+      "destination": "docs/SPLIT_POLICY.json"
+    },
+    {
+      "source": "formal_v2/external_data_bundle/LICENSE_STATUS.json",
+      "destination": "docs/LICENSE_STATUS.json"
+    },
+    {
+      "source": "formal_v2/DATA_CONTRACT.md",
+      "destination": "docs/CSI_PAIRS_FORMAL_DATA_CONTRACT.md"
+    },
+    {
+      "source": "artifacts/dataset_suite_v6/ROLE_ASSIGNMENTS.csv",
+      "destination": "docs/DATASET_ROLE_ASSIGNMENTS.csv"
+    },
+    {
+      "source": "artifacts/dataset_suite_v6/DATA_AVAILABILITY.md",
+      "destination": "docs/DATA_AVAILABILITY.md"
+    },
+    {
+      "source": "artifacts/dataset_suite_v6/external_wireless_metadata/SHA256SUMS",
+      "destination": "metadata/external_public_payload_source_SHA256SUMS"
+    }
+  ],
+  "required_exclusions": [
+    ".venv",
+    "__pycache__",
+    "partial_downloads",
+    ".part",
+    ".partial",
+    ".git",
+    "qualcomm_wireless_indoor",
+    "IRT2HighRes.zip",
+    "original_WWM_payloads",
+    "regenerated.npz"
+  ]
+}

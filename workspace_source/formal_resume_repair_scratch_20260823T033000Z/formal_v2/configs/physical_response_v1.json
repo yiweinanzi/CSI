@@ -1,0 +1,15 @@
+{
+  "schema_version": "csi-pairs-physical-response-config-v1",
+  "calibration_ridge": 1e-06,
+  "decomposition_ridge": 0.0001,
+  "fit_position_stride": 16,
+  "gate_batch_size": 512,
+  "gate_ensemble_size": 3,
+  "gate_seed_offset": 700001,
+  "gate_seed_stride": 1000003,
+  "gate_steps_per_member": 4000,
+  "grid_spacing_m": 4.0,
+  "maximum_fit_bank_group_false_positive_rate": 0.05,
+  "selection_position_stride": 1,
+  "world_scope": "all"
+}
