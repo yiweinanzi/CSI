@@ -2,6 +2,10 @@
 set -euo pipefail
 
 export PYTHONDONTWRITEBYTECODE=1
+# Tiny fixture workloads regress badly when BLAS/OpenMP oversubscribe the host.
+export OMP_NUM_THREADS=1
+export MKL_NUM_THREADS=1
+export OPENBLAS_NUM_THREADS=1
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 PYTHON_BIN="${CSI_PAIRS_PYTHON:-python3}"
@@ -9,7 +13,9 @@ OUTPUT="${1:?usage: run_formal_v2_dry_run.sh UNUSED_OUTPUT_DIRECTORY}"
 FIXTURE="${OUTPUT}.fixture.npz"
 
 cd "${PROJECT_ROOT}"
-"${PYTHON_BIN}" -m formal_v2.formal_cli make-fixture --output "${FIXTURE}"
+"${PYTHON_BIN}" -m formal_v2.formal_cli make-fixture \
+  --output "${FIXTURE}" \
+  --positions 8
 "${PYTHON_BIN}" -m formal_v2.formal_cli verify-data \
   --config "${PROJECT_ROOT}/formal_v2/configs/formal_v2_smoke.json" \
   --dataset "${FIXTURE}" \

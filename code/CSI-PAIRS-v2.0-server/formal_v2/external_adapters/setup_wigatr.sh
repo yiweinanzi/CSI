@@ -3,7 +3,8 @@ set -euo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 VENDOR_ROOT="${PROJECT_ROOT}/formal_v2/external_adapters/vendor/Wi-GATr"
-ENV_DIR="${1:-${PROJECT_ROOT}/formal_v2/external_adapters/.venv-wigatr}"
+ENV_DIR_INPUT="${1:-${PROJECT_ROOT}/formal_v2/external_adapters/.venv-wigatr}"
+ENV_DIR="$(cd "$(dirname "${ENV_DIR_INPUT}")" && pwd)/$(basename "${ENV_DIR_INPUT}")"
 PYTHON310="${CSI_PAIRS_PYTHON310:-}"
 
 if [[ -e "${ENV_DIR}" && ! -f "${ENV_DIR}/pyvenv.cfg" ]]; then
@@ -42,6 +43,11 @@ if [[ "${installed}" != true ]]; then
   echo "Wi-GATr locked dependency sync failed after 3 attempts" >&2
   exit 5
 fi
+
+# uv's editable build can leave generated distribution metadata in the
+# vendored source tree. Runtime provenance permits only the frozen source.
+find "${VENDOR_ROOT}/src" -mindepth 1 -maxdepth 1 -type d \
+  -name '*.egg-info' -exec rm -rf -- {} +
 
 "${ENV_DIR}/bin/python" - <<'PY'
 import gatr

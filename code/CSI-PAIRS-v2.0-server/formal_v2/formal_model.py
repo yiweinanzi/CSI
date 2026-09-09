@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import os
 
 try:
     import torch
@@ -18,6 +19,78 @@ def require_torch() -> None:
         raise RuntimeError("formal V6 training requires PyTorch")
 
 
+def resolve_execution_device(dataset, requested: str | None = None):
+    """Resolve the reviewed training device and fail closed for formal data."""
+    require_torch()
+    value = requested if requested is not None else os.environ.get("CSI_PAIRS_DEVICE")
+    if value is None and os.environ.get("CSI_PAIRS_DEVICES"):
+        value = os.environ["CSI_PAIRS_DEVICES"].split(",", 1)[0].strip()
+    if value is None:
+        value = "cpu" if bool(dataset.is_fixture) else "cuda:0"
+    try:
+        device = torch.device(str(value))
+    except (RuntimeError, TypeError) as error:
+        raise RuntimeError(f"invalid CSI_PAIRS_DEVICE value: {value!r}") from error
+    if device.type not in {"cpu", "cuda"}:
+        raise RuntimeError("CSI-PAIRS formal execution supports only cpu or cuda devices")
+    if not bool(dataset.is_fixture) and device.type != "cuda":
+        raise RuntimeError("non-fixture formal execution requires an NVIDIA CUDA device")
+    if device.type == "cuda":
+        if not torch.cuda.is_available():
+            raise RuntimeError(
+                "CUDA was requested but the reviewed PyTorch runtime cannot initialize CUDA"
+            )
+        index = 0 if device.index is None else int(device.index)
+        if index < 0 or index >= int(torch.cuda.device_count()):
+            raise RuntimeError(
+                f"requested CUDA device index {index} is outside the visible device inventory"
+            )
+        device = torch.device("cuda", index)
+    return device
+
+
+def resolve_execution_devices(dataset) -> tuple:
+    configured = os.environ.get("CSI_PAIRS_DEVICES")
+    if configured is None:
+        return (resolve_execution_device(dataset),)
+    values = [value.strip() for value in configured.split(",")]
+    if not values or any(not value for value in values):
+        raise RuntimeError("CSI_PAIRS_DEVICES must be a comma-separated device list")
+    devices = tuple(resolve_execution_device(dataset, value) for value in values)
+    if len(set(devices)) != len(devices):
+        raise RuntimeError("CSI_PAIRS_DEVICES cannot contain duplicate devices")
+    if len(devices) > 1 and any(device.type != "cuda" for device in devices):
+        raise RuntimeError("multi-device CSI-PAIRS execution requires only CUDA devices")
+    return devices
+
+
+def module_device(module):
+    require_torch()
+    try:
+        return next(module.parameters()).device
+    except StopIteration as error:
+        raise RuntimeError("cannot infer a device from a parameterless module") from error
+
+
+def tensor_for_module(module, values, *, dtype=None):
+    return torch.as_tensor(values, dtype=dtype, device=module_device(module))
+
+
+def batch_for_module(module, batch: dict) -> dict:
+    device = module_device(module)
+    return {
+        key: value.to(device=device) if torch.is_tensor(value) else value
+        for key, value in batch.items()
+    }
+
+
+def portable_state_dict(module) -> dict:
+    return {
+        key: value.detach().to(device="cpu", copy=True)
+        for key, value in module.state_dict().items()
+    }
+
+
 if nn is not None:
 
     class _SpatialTokenEncoder(nn.Module):
@@ -29,12 +102,44 @@ if nn is not None:
                 nn.GELU(),
                 nn.Conv2d(width, output_dim, kernel_size=3, padding=1),
                 nn.GELU(),
-                nn.AdaptiveAvgPool2d((4, 4)),
+                _DeterministicAdaptiveAvgPool2d((4, 4)),
             )
 
         def forward(self, values: Tensor) -> Tensor:
             encoded = self.network(values)
             return encoded.flatten(2).transpose(1, 2)
+
+
+    class _DeterministicAdaptiveAvgPool2d(nn.Module):
+        def __init__(self, output_size: tuple[int, int]):
+            super().__init__()
+            self.output_size = tuple(int(value) for value in output_size)
+
+        def forward(self, values: Tensor) -> Tensor:
+            output_rows, output_columns = self.output_size
+            input_rows, input_columns = values.shape[-2:]
+            if input_rows < output_rows or input_columns < output_columns:
+                raise ValueError("spatial inputs must be at least as large as the pooled grid")
+            rows = []
+            for row in range(output_rows):
+                row_start = (row * input_rows) // output_rows
+                row_end = ((row + 1) * input_rows + output_rows - 1) // output_rows
+                columns = []
+                for column in range(output_columns):
+                    column_start = (column * input_columns) // output_columns
+                    column_end = (
+                        ((column + 1) * input_columns + output_columns - 1)
+                        // output_columns
+                    )
+                    columns.append(
+                        values[
+                            ...,
+                            row_start:row_end,
+                            column_start:column_end,
+                        ].mean(dim=(-2, -1))
+                    )
+                rows.append(torch.stack(columns, dim=-1))
+            return torch.stack(rows, dim=-2)
 
 
     class CSIPairsFormalModel(nn.Module):

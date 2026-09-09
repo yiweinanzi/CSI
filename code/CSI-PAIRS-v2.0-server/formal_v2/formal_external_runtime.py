@@ -307,7 +307,9 @@ def _torch_record() -> dict:
                 {
                     "index": index,
                     "name": str(properties.name),
-                    "total_memory_bytes": int(properties.total_memory),
+                    "total_memory_bytes": _cuda_total_memory_bytes(
+                        torch, index, properties
+                    ),
                     "compute_capability": [int(properties.major), int(properties.minor)],
                 }
             )
@@ -329,6 +331,21 @@ def _torch_record() -> dict:
         "nvidia_driver_versions": _nvidia_driver_versions(),
         "devices": devices,
     }
+
+
+def _cuda_total_memory_bytes(torch_module, index: int, properties) -> int:
+    reported = int(getattr(properties, "total_memory", 0))
+    if reported > 0:
+        return reported
+    try:
+        _free, total = torch_module.cuda.mem_get_info(int(index))
+    except TypeError:
+        with torch_module.cuda.device(int(index)):
+            _free, total = torch_module.cuda.mem_get_info()
+    total = int(total)
+    if total <= 0:
+        raise RuntimeError(f"CUDA device {index} reports non-positive total memory")
+    return total
 
 
 def _nvidia_driver_versions() -> list[str]:

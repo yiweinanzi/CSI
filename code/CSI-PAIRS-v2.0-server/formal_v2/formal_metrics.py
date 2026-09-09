@@ -4,9 +4,13 @@ import numpy as np
 
 
 def binary_auroc(labels: np.ndarray, scores: np.ndarray) -> float:
-    y = np.asarray(labels, dtype=np.int64)
+    raw_y = np.asarray(labels)
     s = np.asarray(scores, dtype=np.float64)
-    if y.shape != s.shape or set(np.unique(y).tolist()) != {0, 1}:
+    _validate_aligned_vectors(raw_y, s, "AUROC")
+    if not np.all(np.isin(raw_y, (0, 1))):
+        raise ValueError("AUROC labels must be binary")
+    y = raw_y.astype(np.int64, copy=False)
+    if set(np.unique(y).tolist()) != {0, 1}:
         raise ValueError("AUROC requires aligned labels containing both classes")
     order = np.argsort(s, kind="mergesort")
     ranks = np.empty(s.size, dtype=np.float64)
@@ -21,21 +25,23 @@ def binary_auroc(labels: np.ndarray, scores: np.ndarray) -> float:
 
 
 def binary_nll(labels: np.ndarray, probabilities: np.ndarray) -> float:
-    y = np.asarray(labels, dtype=np.float64)
-    p = np.clip(np.asarray(probabilities, dtype=np.float64), 1e-8, 1.0 - 1e-8)
+    y, p = _validate_binary_probabilities(labels, probabilities, "binary NLL")
+    p = np.clip(p, 1e-8, 1.0 - 1e-8)
     return float(-np.mean(y * np.log(p) + (1.0 - y) * np.log(1.0 - p)))
 
 
 def brier_score(labels: np.ndarray, probabilities: np.ndarray) -> float:
-    return float(np.mean((np.asarray(probabilities, dtype=np.float64) - np.asarray(labels, dtype=np.float64)) ** 2))
+    y, p = _validate_binary_probabilities(labels, probabilities, "Brier score")
+    return float(np.mean((p - y) ** 2))
 
 
 def expected_calibration_error(
     labels: np.ndarray, probabilities: np.ndarray, bins: int = 10
 ) -> float:
-    y = np.asarray(labels, dtype=np.float64)
-    p = np.asarray(probabilities, dtype=np.float64)
-    edges = np.linspace(0.0, 1.0, int(bins) + 1)
+    y, p = _validate_binary_probabilities(labels, probabilities, "ECE")
+    if type(bins) is not int or bins < 1:
+        raise ValueError("ECE bins must be a positive integer")
+    edges = np.linspace(0.0, 1.0, bins + 1)
     total = y.size
     value = 0.0
     for index in range(int(bins)):
@@ -83,8 +89,11 @@ def risk_coverage(errors: np.ndarray, risk_scores: np.ndarray) -> dict:
 
 
 def spearman_correlation(first: np.ndarray, second: np.ndarray) -> float:
-    x = _average_ranks(np.asarray(first, dtype=np.float64))
-    y = _average_ranks(np.asarray(second, dtype=np.float64))
+    first_array = np.asarray(first, dtype=np.float64)
+    second_array = np.asarray(second, dtype=np.float64)
+    _validate_aligned_vectors(first_array, second_array, "Spearman correlation")
+    x = _average_ranks(first_array)
+    y = _average_ranks(second_array)
     if x.size < 2 or np.std(x) <= 0 or np.std(y) <= 0:
         return float("nan")
     return float(np.corrcoef(x, y)[0, 1])
@@ -98,3 +107,29 @@ def _average_ranks(values: np.ndarray) -> np.ndarray:
         mask = values == value
         ranks[mask] = np.mean(ranks[mask])
     return ranks
+
+
+def _validate_aligned_vectors(first: np.ndarray, second: np.ndarray, name: str) -> None:
+    if first.ndim != 1 or second.ndim != 1 or first.shape != second.shape or first.size == 0:
+        raise ValueError(f"{name} requires nonempty aligned one-dimensional arrays")
+    try:
+        finite_first = np.isfinite(first)
+    except TypeError as error:
+        raise ValueError(f"{name} requires numeric inputs") from error
+    if not np.all(finite_first) or not np.all(np.isfinite(second)):
+        raise ValueError(f"{name} requires finite inputs")
+
+
+def _validate_binary_probabilities(
+    labels: np.ndarray,
+    probabilities: np.ndarray,
+    name: str,
+) -> tuple[np.ndarray, np.ndarray]:
+    raw_labels = np.asarray(labels)
+    p = np.asarray(probabilities, dtype=np.float64)
+    _validate_aligned_vectors(raw_labels, p, name)
+    if not np.all(np.isin(raw_labels, (0, 1))):
+        raise ValueError(f"{name} labels must be binary")
+    if np.any((p < 0.0) | (p > 1.0)):
+        raise ValueError(f"{name} probabilities must lie in [0, 1]")
+    return raw_labels.astype(np.float64, copy=False), p

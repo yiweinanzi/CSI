@@ -337,7 +337,7 @@ def validate_installed_wheel_closure(
         if root != prefix and prefix not in root.parents:
             raise RuntimeError("main runtime site-package root escapes interpreter prefix")
 
-    expected_files: dict[Path, tuple[str, int, str]] = {}
+    expected_files: dict[Path, tuple[str, int, set[str]]] = {}
     record_digests: dict[str, str] = {}
     for wheel in manifest["wheels"]:
         assert isinstance(wheel, dict)
@@ -348,13 +348,18 @@ def validate_installed_wheel_closure(
             candidate = (root / str(file_record["path"])).resolve()
             if candidate != root and root not in candidate.parents:
                 raise RuntimeError("reviewed wheel installed path escapes site-packages")
+            encoded_hash = str(file_record["sha256_urlsafe"])
+            size = int(file_record["size"])
             if candidate in expected_files:
-                raise RuntimeError(f"reviewed wheels collide at installed path: {candidate}")
-            expected_files[candidate] = (
-                str(file_record["sha256_urlsafe"]),
-                int(file_record["size"]),
-                normalized,
-            )
+                locked_hash, locked_size, owners = expected_files[candidate]
+                if (encoded_hash, size) != (locked_hash, locked_size):
+                    raise RuntimeError(
+                        "reviewed wheels claim different content at installed path: "
+                        f"{candidate}"
+                    )
+                owners.add(normalized)
+            else:
+                expected_files[candidate] = (encoded_hash, size, {normalized})
         dist_info = str(wheel["dist_info"])
         record_path = (roots["purelib"] / dist_info / "RECORD").resolve()
         if not record_path.exists() and roots["platlib"] != roots["purelib"]:
@@ -371,7 +376,11 @@ def validate_installed_wheel_closure(
                 raise RuntimeError(f"main runtime installer metadata differs: {path}")
             if path in expected_files:
                 raise RuntimeError(f"main runtime generated metadata collides: {path}")
-            expected_files[path] = (_urlsafe_sha256(path), path.stat().st_size, normalized)
+            expected_files[path] = (
+                _urlsafe_sha256(path),
+                path.stat().st_size,
+                {normalized},
+            )
         record_digests[normalized] = _sha256_file(record_path)
 
     actual_files: set[Path] = set()

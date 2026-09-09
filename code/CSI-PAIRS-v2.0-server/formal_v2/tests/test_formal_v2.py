@@ -806,7 +806,9 @@ class DatasetTests(unittest.TestCase):
             str(arrays["position_ids"][second, query]),
         )
         arrays["positions"] = arrays["positions"].copy()
-        arrays["positions"][second, query] = arrays["positions"][first, support]
+        arrays["positions"][second, query] = arrays["positions"][first, support] + np.asarray(
+            (0.75e-9, -0.75e-9)
+        )
         malformed = self.root / "same-coordinate-different-id.npz"
         np.savez_compressed(malformed, **arrays)
         with self.assertRaisesRegex(

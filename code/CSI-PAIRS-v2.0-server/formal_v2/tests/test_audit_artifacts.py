@@ -311,16 +311,22 @@ class AtomicRequirementMatrixTests(unittest.TestCase):
 class RequirementsLockTests(unittest.TestCase):
     def setUp(self):
         self.server_root = Path(__file__).resolve().parents[2]
-        self.lock = self.server_root / "formal_v2" / "requirements-lock.txt"
+        self.macos_lock = self.server_root / "formal_v2" / "requirements-lock.txt"
+        self.linux_lock = (
+            self.server_root
+            / "formal_v2"
+            / "requirements-lock-linux-x86_64-cu121.txt"
+        )
+        self.lock = formal_evidence._requirements_lock_path()
 
     def test_hashed_lock_has_complete_supported_platform_closures(self):
         macos = formal_evidence._locked_requirement_versions(
-            self.lock,
+            self.macos_lock,
             sys_platform_value="darwin",
             machine_value="arm64",
         )
         linux = formal_evidence._locked_requirement_versions(
-            self.lock,
+            self.linux_lock,
             sys_platform_value="linux",
             machine_value="x86_64",
         )
@@ -340,33 +346,62 @@ class RequirementsLockTests(unittest.TestCase):
             "typing_extensions",
         }
         linux_only = {
-            "cuda-bindings",
-            "cuda-pathfinder",
-            "cuda-toolkit",
-            "nvidia-cublas",
-            "nvidia-cuda-cupti",
-            "nvidia-cuda-nvrtc",
-            "nvidia-cuda-runtime",
-            "nvidia-cudnn-cu13",
-            "nvidia-cufft",
-            "nvidia-cufile",
-            "nvidia-curand",
-            "nvidia-cusolver",
-            "nvidia-cusparse",
-            "nvidia-cusparselt-cu13",
-            "nvidia-nccl-cu13",
-            "nvidia-nvjitlink",
-            "nvidia-nvshmem-cu13",
-            "nvidia-nvtx",
+            "nvidia-cublas-cu12",
+            "nvidia-cuda-cupti-cu12",
+            "nvidia-cuda-nvrtc-cu12",
+            "nvidia-cuda-runtime-cu12",
+            "nvidia-cudnn-cu12",
+            "nvidia-cufft-cu12",
+            "nvidia-curand-cu12",
+            "nvidia-cusolver-cu12",
+            "nvidia-cusparse-cu12",
+            "nvidia-nccl-cu12",
+            "nvidia-nvjitlink-cu12",
+            "nvidia-nvtx-cu12",
             "triton",
         }
         self.assertEqual(set(macos), common)
         self.assertEqual(set(linux), common | linux_only)
         self.assertEqual(macos["torch"], "2.13.0")
-        self.assertEqual(linux["torch"], "2.13.0")
+        self.assertEqual(linux["torch"], "2.5.1+cu121")
         self.assertNotIn("triton", macos)
-        self.assertEqual(linux["triton"], "3.7.1")
-        self.assertEqual(linux["nvidia-cudnn-cu13"], "9.20.0.48")
+        self.assertEqual(linux["triton"], "3.1.0")
+        self.assertEqual(linux["nvidia-cudnn-cu12"], "9.1.0.70")
+        self.assertEqual(linux["nvidia-nccl-cu12"], "2.21.5")
+
+    def test_runtime_selects_the_target_specific_lock(self):
+        self.assertEqual(
+            formal_evidence._requirements_lock_path(
+                sys_platform_value="darwin", machine_value="arm64"
+            ),
+            self.macos_lock,
+        )
+        self.assertEqual(
+            formal_evidence._requirements_lock_path(
+                sys_platform_value="linux", machine_value="x86_64"
+            ),
+            self.linux_lock,
+        )
+
+    def test_torch_local_version_is_exact_when_the_lock_includes_it(self):
+        self.assertTrue(
+            formal_evidence._torch_module_version_matches_lock(
+                "2.5.1+cu121", "2.5.1+cu121"
+            )
+        )
+        self.assertFalse(
+            formal_evidence._torch_module_version_matches_lock(
+                "2.5.1+cu118", "2.5.1+cu121"
+            )
+        )
+        self.assertTrue(
+            formal_evidence._torch_module_version_matches_lock(
+                "2.13.0+cu130", "2.13.0"
+            )
+        )
+        self.assertFalse(
+            formal_evidence._torch_module_version_matches_lock("2.13.1", "2.13.0")
+        )
 
     def test_unhashed_or_unknown_marker_lock_entries_fail_closed(self):
         with tempfile.TemporaryDirectory() as temporary:

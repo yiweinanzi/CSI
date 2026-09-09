@@ -28,7 +28,7 @@ FACTORIAL_SCHEMA = "csi-pairs-formal-factorial-gate-v2.1-v6"
 GATE_IDS = tuple(f"G{index}" for index in range(9))
 CLAIM_IDS = tuple(f"C{index}" for index in range(1, 14))
 ASSESSMENT_STATES = {"PASS", "FAIL", "BLOCKED", "NOT_ASSESSED"}
-RUNTIME_PROVENANCE_SCHEMA = "csi-pairs-runtime-provenance-v3"
+RUNTIME_PROVENANCE_SCHEMA = "csi-pairs-runtime-provenance-v4"
 RUNTIME_PROVENANCE_FIELDS = {
     "schema_version",
     "source_tree_sha256",
@@ -53,6 +53,7 @@ RUNTIME_PROVENANCE_FIELDS = {
     "platform_libc_version",
     "cublas_workspace_config",
     "torch",
+    "cuda_driver",
     "installed_distributions",
 }
 TORCH_RUNTIME_FIELDS = {
@@ -67,10 +68,91 @@ TORCH_RUNTIME_FIELDS = {
     "cuda_matmul_allow_tf32",
     "float32_matmul_precision",
 }
+CUDA_DRIVER_FIELDS = {
+    "schema_version",
+    "mode",
+    "loaded_libcuda_path",
+    "loaded_libcuda_sha256",
+    "compatibility_package",
+}
+CUDA_COMPATIBILITY_FIELDS = {
+    "name",
+    "version",
+    "source_url",
+    "root",
+    "package_path",
+    "package_sha256",
+    "library_dir",
+    "files",
+}
+CUDA_COMPAT_PACKAGE_NAME = "cuda-compat-13-0"
+CUDA_COMPAT_PACKAGE_VERSION = "580.105.08-1.el8"
+CUDA_COMPAT_PACKAGE_FILENAME = (
+    "cuda-compat-13-0-580.105.08-1.el8.x86_64.rpm"
+)
+CUDA_COMPAT_PACKAGE_SHA256 = (
+    "7d77eb1ed96bbc4f639f7b1acea4b66883ab57deedf4c55cf506d3e7dc03a0f3"
+)
+CUDA_COMPAT_PACKAGE_URL = (
+    "https://developer.download.nvidia.com/compute/cuda/repos/rhel8/x86_64/"
+    + CUDA_COMPAT_PACKAGE_FILENAME
+)
+CUDA_COMPAT_LIBRARY_RELATIVE = Path("usr/local/cuda-13.0/compat")
+CUDA_COMPAT_FILES = {
+    "libcuda.so": {"kind": "symlink", "target": "libcuda.so.1"},
+    "libcuda.so.1": {
+        "kind": "symlink",
+        "target": "libcuda.so.580.105.08",
+    },
+    "libcuda.so.580.105.08": {
+        "kind": "file",
+        "sha256": "df9183549feb062f4195e6cf130e0ef372de4a59e59dbe51554ad8c3c5b167db",
+    },
+    "libcudadebugger.so.1": {
+        "kind": "symlink",
+        "target": "libcudadebugger.so.580.105.08",
+    },
+    "libcudadebugger.so.580.105.08": {
+        "kind": "file",
+        "sha256": "0e89f0ac8c1f8ee9b1e078fae8ac77b6572f3e847c4ed8626286335ca4cf4052",
+    },
+    "libnvidia-gpucomp.so.580.105.08": {
+        "kind": "file",
+        "sha256": "413df629c1ac4eb735c6a1e9146372f474d6f646bbe491d746820ec10c3181d7",
+    },
+    "libnvidia-nvvm.so.4": {
+        "kind": "symlink",
+        "target": "libnvidia-nvvm.so.580.105.08",
+    },
+    "libnvidia-nvvm.so.580.105.08": {
+        "kind": "file",
+        "sha256": "6d623daba56b6404a4a9138e687bf8383b95e879fde4a2de6d4cd534ce312f23",
+    },
+    "libnvidia-nvvm70.so.4": {
+        "kind": "file",
+        "sha256": "64e62bd2f763c575418bb7d660e8715c57d49ef66640a2385896324238896acd",
+    },
+    "libnvidia-pkcs11.so.580.105.08": {
+        "kind": "file",
+        "sha256": "8f67300d7cf5b41f755a651a476bb4403352bb4e27dc39d5707432ef38417f37",
+    },
+    "libnvidia-ptxjitcompiler.so.1": {
+        "kind": "symlink",
+        "target": "libnvidia-ptxjitcompiler.so.580.105.08",
+    },
+    "libnvidia-ptxjitcompiler.so.580.105.08": {
+        "kind": "file",
+        "sha256": "1ed129c4f703547fe5f8961dada7d53cb2981404fabdbfa9b9b3e3d83a04f6ac",
+    },
+}
 LINUX_X86_64_LOCK_MARKER = (
     'sys_platform == "linux" and platform_machine == "x86_64"'
 )
 SUPPORTED_LOCK_TARGETS = {("darwin", "arm64"), ("linux", "x86_64")}
+TARGET_REQUIREMENTS_LOCKS = {
+    ("darwin", "arm64"): "requirements-lock.txt",
+    ("linux", "x86_64"): "requirements-lock-linux-x86_64-cu121.txt",
+}
 INSTALL_REPORT_NAME = "csi-pairs-install-report.json"
 _LOCK_ENTRY = re.compile(
     r"^(?P<name>[A-Za-z0-9][A-Za-z0-9._-]*)"
@@ -200,6 +282,29 @@ def _locked_requirement_versions(
         machine_value=machine_value,
     )
     return {name: str(record["version"]) for name, record in records.items()}
+
+
+def _requirements_lock_path(
+    *,
+    sys_platform_value: str | None = None,
+    machine_value: str | None = None,
+) -> Path:
+    active_platform = sys.platform if sys_platform_value is None else sys_platform_value
+    active_machine = platform.machine() if machine_value is None else machine_value
+    try:
+        filename = TARGET_REQUIREMENTS_LOCKS[(active_platform, active_machine)]
+    except KeyError as error:
+        raise RuntimeError(
+            "formal requirements lock supports only macOS arm64 and Linux x86_64; "
+            f"observed {active_platform} {active_machine}"
+        ) from error
+    return Path(__file__).resolve().parent / filename
+
+
+def _torch_module_version_matches_lock(module_version: str, locked_version: str) -> bool:
+    if "+" in locked_version:
+        return module_version == locked_version
+    return module_version.split("+", 1)[0] == locked_version
 
 
 def _wheel_receipt_from_install_report(
@@ -341,7 +446,7 @@ def _validated_distribution_record(
 
 
 def runtime_provenance() -> dict[str, object]:
-    requirements = Path(__file__).resolve().parent / "requirements-lock.txt"
+    requirements = _requirements_lock_path()
     expected = _locked_requirement_records(requirements)
     prefix = Path(sys.prefix).resolve()
     report_path = prefix / INSTALL_REPORT_NAME
@@ -422,6 +527,7 @@ def runtime_provenance() -> dict[str, object]:
         )
     except ImportError:
         pass
+    cuda_driver = _cuda_driver_record(bool(torch_record["cuda_available"]))
     libc_name, libc_version = platform.libc_ver()
     return {
         "schema_version": RUNTIME_PROVENANCE_SCHEMA,
@@ -447,7 +553,109 @@ def runtime_provenance() -> dict[str, object]:
         "platform_libc_version": libc_version or None,
         "cublas_workspace_config": os.environ.get("CUBLAS_WORKSPACE_CONFIG"),
         "torch": torch_record,
+        "cuda_driver": cuda_driver,
         "installed_distributions": distributions,
+    }
+
+
+def _loaded_libcuda_path() -> Path:
+    maps = Path("/proc/self/maps")
+    if not maps.is_file() or maps.is_symlink():
+        raise RuntimeError("CUDA execution requires readable process library mappings")
+    candidates = set()
+    for line in maps.read_text(encoding="utf-8").splitlines():
+        parts = line.split(maxsplit=5)
+        if len(parts) != 6 or not parts[5].startswith("/"):
+            continue
+        candidate = Path(parts[5])
+        if candidate.name == "libcuda.so" or candidate.name.startswith("libcuda.so."):
+            candidates.add(candidate.resolve())
+    if len(candidates) != 1:
+        raise RuntimeError(
+            "CUDA execution must load exactly one identifiable libcuda; "
+            f"observed {[str(path) for path in sorted(candidates)]}"
+        )
+    path = next(iter(candidates))
+    if not path.is_file() or path.is_symlink():
+        raise RuntimeError("loaded CUDA driver library is missing or unsafe")
+    return path
+
+
+def _cuda_compatibility_record(root_value: str) -> dict[str, object]:
+    root = Path(root_value)
+    if not root.is_absolute() or not root.is_dir() or root.is_symlink():
+        raise RuntimeError("CSI_PAIRS_CUDA_COMPAT_ROOT must be an absolute regular directory")
+    root = root.resolve()
+    package_path = root / CUDA_COMPAT_PACKAGE_FILENAME
+    library_dir = root / CUDA_COMPAT_LIBRARY_RELATIVE
+    if (
+        not package_path.is_file()
+        or package_path.is_symlink()
+        or sha256_file(package_path) != CUDA_COMPAT_PACKAGE_SHA256
+        or not library_dir.is_dir()
+        or library_dir.is_symlink()
+    ):
+        raise RuntimeError("CUDA forward-compatibility package is missing or unauthenticated")
+    if {candidate.name for candidate in library_dir.iterdir()} != set(CUDA_COMPAT_FILES):
+        raise RuntimeError("CUDA forward-compatibility library inventory differs from the lock")
+    files = []
+    for name, expected in sorted(CUDA_COMPAT_FILES.items()):
+        candidate = library_dir / name
+        if expected["kind"] == "symlink":
+            if not candidate.is_symlink() or os.readlink(candidate) != expected["target"]:
+                raise RuntimeError(f"CUDA compatibility symlink differs: {name}")
+            record = {"path": name, "kind": "symlink", "target": expected["target"]}
+        else:
+            if not candidate.is_file() or candidate.is_symlink():
+                raise RuntimeError(f"CUDA compatibility library is missing or unsafe: {name}")
+            digest = sha256_file(candidate)
+            if digest != expected["sha256"]:
+                raise RuntimeError(f"CUDA compatibility library differs: {name}")
+            record = {"path": name, "kind": "file", "sha256": digest}
+        files.append(record)
+    library_paths = os.environ.get("LD_LIBRARY_PATH", "").split(":")
+    if not library_paths or Path(library_paths[0]).resolve() != library_dir:
+        raise RuntimeError(
+            "the authenticated CUDA compatibility directory must be first in LD_LIBRARY_PATH"
+        )
+    return {
+        "name": CUDA_COMPAT_PACKAGE_NAME,
+        "version": CUDA_COMPAT_PACKAGE_VERSION,
+        "source_url": CUDA_COMPAT_PACKAGE_URL,
+        "root": str(root),
+        "package_path": str(package_path),
+        "package_sha256": CUDA_COMPAT_PACKAGE_SHA256,
+        "library_dir": str(library_dir),
+        "files": files,
+    }
+
+
+def _cuda_driver_record(cuda_available: bool) -> dict[str, object] | None:
+    root_value = os.environ.get("CSI_PAIRS_CUDA_COMPAT_ROOT")
+    if not cuda_available:
+        if root_value:
+            raise RuntimeError(
+                "CUDA compatibility was configured but the reviewed runtime cannot initialize CUDA"
+            )
+        return None
+    loaded = _loaded_libcuda_path()
+    compatibility = (
+        _cuda_compatibility_record(root_value) if root_value is not None else None
+    )
+    if compatibility is not None:
+        expected_driver = (
+            Path(str(compatibility["library_dir"])) / "libcuda.so.580.105.08"
+        ).resolve()
+        if loaded != expected_driver:
+            raise RuntimeError(
+                "CUDA initialized from a driver outside the authenticated compatibility package"
+            )
+    return {
+        "schema_version": "csi-pairs-cuda-driver-provenance-v1",
+        "mode": "forward_compatibility" if compatibility is not None else "host_driver",
+        "loaded_libcuda_path": str(loaded),
+        "loaded_libcuda_sha256": sha256_file(loaded),
+        "compatibility_package": compatibility,
     }
 
 
@@ -475,7 +683,10 @@ def validate_runtime_provenance(runtime: object) -> dict[str, object]:
 
     lock_platform, lock_machine = _validated_runtime_platform(runtime)
 
-    requirements = Path(__file__).resolve().parent / "requirements-lock.txt"
+    requirements = _requirements_lock_path(
+        sys_platform_value=lock_platform,
+        machine_value=lock_machine,
+    )
     if not requirements.is_file() or requirements.is_symlink():
         raise RuntimeError("formal requirements lock is missing or not a regular file")
     if runtime.get("requirements_lock_sha256") != sha256_file(requirements):
@@ -571,7 +782,7 @@ def validate_runtime_provenance(runtime: object) -> dict[str, object]:
     torch_version = torch_record.get("version")
     if (
         not isinstance(torch_version, str)
-        or torch_version.split("+", 1)[0] != expected["torch"]
+        or not _torch_module_version_matches_lock(torch_version, expected["torch"])
     ):
         raise RuntimeError("main runtime torch module version does not match the lock")
     if (
@@ -587,6 +798,21 @@ def validate_runtime_provenance(runtime: object) -> dict[str, object]:
         torch_record.get("gpu_names"), list
     ) or not all(isinstance(value, str) for value in torch_record["gpu_names"]):
         raise RuntimeError("main runtime CUDA inventory is invalid")
+    cuda_driver = runtime.get("cuda_driver")
+    if cuda_driver is not None and (
+        not isinstance(cuda_driver, dict) or set(cuda_driver) != CUDA_DRIVER_FIELDS
+    ):
+        raise RuntimeError("main runtime CUDA driver provenance fields must be exact")
+    if isinstance(cuda_driver, dict):
+        compatibility = cuda_driver.get("compatibility_package")
+        if compatibility is not None and (
+            not isinstance(compatibility, dict)
+            or set(compatibility) != CUDA_COMPATIBILITY_FIELDS
+        ):
+            raise RuntimeError("main runtime CUDA compatibility fields must be exact")
+    current_driver = _cuda_driver_record(bool(torch_record["cuda_available"]))
+    if cuda_driver != current_driver:
+        raise RuntimeError("main runtime CUDA driver provenance differs from the active process")
     return runtime
 
 

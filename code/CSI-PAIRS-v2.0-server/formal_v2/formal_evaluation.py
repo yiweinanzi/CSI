@@ -26,7 +26,13 @@ from .formal_factorial import (
 from .formal_features import multichannel_spatial_features
 from .formal_io import artifact_manifest, read_strict_json, sha256_file, write_csv, write_json
 from .formal_metrics import binary_auroc, spearman_correlation
-from .formal_model import CSIPairsFormalModel, endpoint_per_sample, torch
+from .formal_model import (
+    CSIPairsFormalModel,
+    endpoint_per_sample,
+    resolve_execution_device,
+    tensor_for_module,
+    torch,
+)
 from .formal_probes import (
     fit_action_response_probe,
     fit_select_compatibility_probe,
@@ -81,7 +87,12 @@ def run_formal_evaluation(
     _validate_factorial_gate(config, dataset, factorial_gate, root / "factorial" / "gate.json")
     output_dir = root / "evaluation"
     output_dir.mkdir(parents=True, exist_ok=True)
-    teacher = load_teacher_bundle(qualification_gate["teacher_checkpoint"], config)
+    execution_device = resolve_execution_device(dataset)
+    teacher = load_teacher_bundle(
+        qualification_gate["teacher_checkpoint"],
+        config,
+        device=execution_device,
+    )
     route_normalization = fit_route_normalization(dataset, teacher)
     normalization = _training_normalization(
         dataset,
@@ -114,6 +125,7 @@ def run_formal_evaluation(
             qualification_gate,
             config,
             dataset,
+            device=execution_device,
         )
         probe_train = _compatibility_dataset(
             model,
@@ -564,7 +576,15 @@ def _validate_factorial_gate(config, dataset, gate, gate_path):
     )
 
 
-def _load_model(factorial_root, checkpoint_row, qualification_gate, config, dataset):
+def _load_model(
+    factorial_root,
+    checkpoint_row,
+    qualification_gate,
+    config,
+    dataset,
+    *,
+    device="cpu",
+):
     root = Path(factorial_root).resolve()
     path = (root / checkpoint_row["path"]).resolve()
     if root not in path.parents:
@@ -582,7 +602,7 @@ def _load_model(factorial_root, checkpoint_row, qualification_gate, config, data
         raise RuntimeError("factorial checkpoint uses a different frozen teacher")
     if payload.get("seed") != int(checkpoint_row["seed"]) or payload.get("arm") != checkpoint_row["arm"]:
         raise RuntimeError("factorial checkpoint seed/arm identity mismatch")
-    model = CSIPairsFormalModel(**payload["model_spec"])
+    model = CSIPairsFormalModel(**payload["model_spec"]).to(torch.device(device))
     model.load_state_dict(payload["state_dict"])
     model.eval()
     return model
@@ -643,7 +663,11 @@ def _compatibility_dataset(
     edit_status_xor_shortcut_features = []
     variant_id_match_shortcut_features = []
     zero = zero_typed_edit((1,), dataset.maps.shape[-1], int(dataset.metadata["assets"]["material_category_count"]))
-    zero_tensor = torch.as_tensor(_normalized_action(normalization, zero), dtype=torch.float32)
+    zero_tensor = tensor_for_module(
+        model,
+        _normalized_action(normalization, zero),
+        dtype=torch.float32,
+    )
     for scene_value in scenes:
         scene = int(scene_value)
         for edge in dataset.directed_edges(scene):
@@ -669,9 +693,11 @@ def _compatibility_dataset(
                             normalization, dataset.radio_config[scene], dataset.bs_pose[scene]
                         )[None, ...]
                         with torch.no_grad():
-                            patch_tensor = torch.as_tensor(patches[None, ...], dtype=torch.float32)
-                            map_tensor = torch.as_tensor(maps, dtype=torch.float32)
-                            radio_tensor = torch.as_tensor(radio, dtype=torch.float32)
+                            patch_tensor = tensor_for_module(
+                                model, patches[None, ...], dtype=torch.float32
+                            )
+                            map_tensor = tensor_for_module(model, maps, dtype=torch.float32)
+                            radio_tensor = tensor_for_module(model, radio, dtype=torch.float32)
                             representation, training_score = _masked_alignment_state_and_score(
                                 model,
                                 patch_tensor,
@@ -865,9 +891,9 @@ def _masked_alignment_state_and_score(
     for entry in mask_bank:
         visible = patch_tensor.clone()
         visible[:, entry.mask] = 0.0
-        masks = torch.as_tensor(entry.mask[None, :], dtype=torch.bool)
+        masks = tensor_for_module(model, entry.mask[None, :], dtype=torch.bool)
         state = model.state(visible, map_tensor, radio_tensor, masks)
-        query = torch.as_tensor([entry.query], dtype=torch.long)
+        query = tensor_for_module(model, [entry.query], dtype=torch.long)
         prediction_z, prediction_y = model.predict(state, zero_tensor, query)
         target_z = (
             latent_targets[entry.query] - normalization.latent_mean
@@ -876,8 +902,12 @@ def _masked_alignment_state_and_score(
             endpoint_per_sample(
                 prediction_z,
                 prediction_y,
-                torch.as_tensor(target_z[None, :], dtype=torch.float32),
-                torch.as_tensor(physical_targets[entry.query][None, :], dtype=torch.float32),
+                tensor_for_module(model, target_z[None, :], dtype=torch.float32),
+                tensor_for_module(
+                    model,
+                    physical_targets[entry.query][None, :],
+                    dtype=torch.float32,
+                ),
                 1.0,
             )[0]
         )
@@ -1178,31 +1208,31 @@ def _response_probe_dataset(model, dataset, teacher, config, normalization, scen
                     visible[entry.mask] = 0.0
                     with torch.no_grad():
                         state = model.state(
-                            torch.as_tensor(visible[None, ...], dtype=torch.float32),
-                            torch.as_tensor(maps, dtype=torch.float32),
-                            torch.as_tensor(radio, dtype=torch.float32),
-                            torch.as_tensor(entry.mask[None, :], dtype=torch.bool),
-                        )[0, query].numpy()
+                            tensor_for_module(model, visible[None, ...], dtype=torch.float32),
+                            tensor_for_module(model, maps, dtype=torch.float32),
+                            tensor_for_module(model, radio, dtype=torch.float32),
+                            tensor_for_module(model, entry.mask[None, :], dtype=torch.bool),
+                        )[0, query].cpu().numpy()
                         no_map_state = model.state(
-                            torch.as_tensor(visible[None, ...], dtype=torch.float32),
-                            torch.zeros_like(torch.as_tensor(maps, dtype=torch.float32)),
-                            torch.as_tensor(radio, dtype=torch.float32),
-                            torch.as_tensor(entry.mask[None, :], dtype=torch.bool),
-                        )[0, query].numpy()
+                            tensor_for_module(model, visible[None, ...], dtype=torch.float32),
+                            torch.zeros_like(tensor_for_module(model, maps, dtype=torch.float32)),
+                            tensor_for_module(model, radio, dtype=torch.float32),
+                            tensor_for_module(model, entry.mask[None, :], dtype=torch.bool),
+                        )[0, query].cpu().numpy()
                         map_swap_state = model.state(
-                            torch.as_tensor(visible[None, ...], dtype=torch.float32),
-                            torch.as_tensor(swapped_maps, dtype=torch.float32),
-                            torch.as_tensor(radio, dtype=torch.float32),
-                            torch.as_tensor(entry.mask[None, :], dtype=torch.bool),
-                        )[0, query].numpy()
+                            tensor_for_module(model, visible[None, ...], dtype=torch.float32),
+                            tensor_for_module(model, swapped_maps, dtype=torch.float32),
+                            tensor_for_module(model, radio, dtype=torch.float32),
+                            tensor_for_module(model, entry.mask[None, :], dtype=torch.bool),
+                        )[0, query].cpu().numpy()
                         map_only_state = model.state(
                             torch.zeros_like(
-                                torch.as_tensor(visible[None, ...], dtype=torch.float32)
+                                tensor_for_module(model, visible[None, ...], dtype=torch.float32)
                             ),
-                            torch.as_tensor(maps, dtype=torch.float32),
-                            torch.as_tensor(radio, dtype=torch.float32),
-                            torch.as_tensor(entry.mask[None, :], dtype=torch.bool),
-                        )[0, query].numpy()
+                            tensor_for_module(model, maps, dtype=torch.float32),
+                            tensor_for_module(model, radio, dtype=torch.float32),
+                            tensor_for_module(model, entry.mask[None, :], dtype=torch.bool),
+                        )[0, query].cpu().numpy()
                     features.append(np.concatenate((state, action_features, query_onehot)))
                     action_swap_features.append(
                         np.concatenate((state, swap_action_features, query_onehot))
@@ -1484,8 +1514,10 @@ def _native_mask_cover_metrics(model, dataset, teacher, config, normalization, s
             dataset.map_channel_names,
             material_categories,
         )
-        action_tensor = torch.as_tensor(
-            _normalized_action(normalization, action[None, ...]), dtype=torch.float32
+        action_tensor = tensor_for_module(
+            model,
+            _normalized_action(normalization, action[None, ...]),
+            dtype=torch.float32,
         )
         zero_action_tensor = torch.zeros_like(action_tensor)
         for position in _eligible_evaluation_positions(dataset, scene):
@@ -1501,7 +1533,8 @@ def _native_mask_cover_metrics(model, dataset, teacher, config, normalization, s
                 material_categories,
                 receiver_position=dataset.positions[scene, position],
             )
-            swap_action_tensor = torch.as_tensor(
+            swap_action_tensor = tensor_for_module(
+                model,
                 _normalized_action(normalization, swap_action[None, ...]),
                 dtype=torch.float32,
             )
@@ -1530,26 +1563,30 @@ def _native_mask_cover_metrics(model, dataset, teacher, config, normalization, s
                 )[None, ...]
                 with torch.no_grad():
                     state = model.state(
-                        torch.as_tensor(visible[None, ...], dtype=torch.float32),
-                        torch.as_tensor(maps, dtype=torch.float32),
-                        torch.as_tensor(radio, dtype=torch.float32),
-                        torch.as_tensor(entry.mask[None, :], dtype=torch.bool),
+                        tensor_for_module(model, visible[None, ...], dtype=torch.float32),
+                        tensor_for_module(model, maps, dtype=torch.float32),
+                        tensor_for_module(model, radio, dtype=torch.float32),
+                        tensor_for_module(model, entry.mask[None, :], dtype=torch.bool),
                     )
                     latent_value, value = model.predict(
-                        state, action_tensor, torch.as_tensor([query], dtype=torch.long)
+                        state, action_tensor, tensor_for_module(model, [query], dtype=torch.long)
                     )
                     latent_no_action, no_action_value = model.predict(
-                        state, zero_action_tensor, torch.as_tensor([query], dtype=torch.long)
+                        state,
+                        zero_action_tensor,
+                        tensor_for_module(model, [query], dtype=torch.long),
                     )
                     latent_swap, swap_value = model.predict(
-                        state, swap_action_tensor, torch.as_tensor([query], dtype=torch.long)
+                        state,
+                        swap_action_tensor,
+                        tensor_for_module(model, [query], dtype=torch.long),
                     )
-                predicted[query] = value[0].numpy()
-                predicted_latent[query] = latent_value[0].numpy()
-                predicted_no_action[query] = no_action_value[0].numpy()
-                predicted_latent_no_action[query] = latent_no_action[0].numpy()
-                predicted_action_swap[query] = swap_value[0].numpy()
-                predicted_latent_action_swap[query] = latent_swap[0].numpy()
+                predicted[query] = value[0].cpu().numpy()
+                predicted_latent[query] = latent_value[0].cpu().numpy()
+                predicted_no_action[query] = no_action_value[0].cpu().numpy()
+                predicted_latent_no_action[query] = latent_no_action[0].cpu().numpy()
+                predicted_action_swap[query] = swap_value[0].cpu().numpy()
+                predicted_latent_action_swap[query] = latent_swap[0].cpu().numpy()
                 rkey = (scene, edge.source_world, edge.target_world, int(position), query)
                 if routed.response_route[rkey] == 0:
                     null_delta_norms.append(

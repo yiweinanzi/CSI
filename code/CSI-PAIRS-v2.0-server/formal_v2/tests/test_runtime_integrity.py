@@ -84,6 +84,46 @@ class RuntimeIntegrityTests(unittest.TestCase):
             observed_distribution_names=names,
         )
 
+    def add_shared_path_wheel(self, payload: bytes) -> None:
+        dist_info = "shared-1.0.dist-info"
+        members = {
+            "example/__init__.py": payload,
+            f"{dist_info}/METADATA": (
+                b"Metadata-Version: 2.1\nName: shared\nVersion: 1.0\n\n"
+            ),
+            f"{dist_info}/WHEEL": (
+                b"Wheel-Version: 1.0\nGenerator: test\nRoot-Is-Purelib: true\n"
+                b"Tag: py3-none-any\n"
+            ),
+        }
+        rows = [
+            [name, f"sha256={_record_hash(content)}", str(len(content))]
+            for name, content in members.items()
+        ]
+        rows.append([f"{dist_info}/RECORD", "", ""])
+        stream = io.StringIO()
+        csv.writer(stream, lineterminator="\n").writerows(rows)
+        members[f"{dist_info}/RECORD"] = stream.getvalue().encode()
+        wheel = self.wheelhouse / "shared-1.0-py3-none-any.whl"
+        with zipfile.ZipFile(wheel, "w", zipfile.ZIP_DEFLATED) as archive:
+            for name, content in members.items():
+                archive.writestr(name, content)
+        for name, content in members.items():
+            if name == "example/__init__.py":
+                continue
+            destination = self.site / name
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_bytes(content)
+        generated = self.site / dist_info
+        (generated / "INSTALLER").write_bytes(b"pip\n")
+        (generated / "REQUESTED").write_bytes(b"")
+        self.expected["shared"] = {
+            "version": "1.0",
+            "hashes": (hashlib.sha256(wheel.read_bytes()).hexdigest(),),
+        }
+        manifest = reviewed_wheel_manifest(self.wheelhouse, self.expected, "a" * 64)
+        self.manifest_path.write_bytes(canonical_manifest_bytes(manifest))
+
     def test_reviewed_wheel_closure_accepts_exact_install(self):
         result = self.validate()
         self.assertEqual(set(result["record_digests"]), {"example"})
@@ -159,6 +199,16 @@ class RuntimeIntegrityTests(unittest.TestCase):
         installed_data.write_bytes(b"mutated\n")
         with self.assertRaisesRegex(RuntimeError, "differs from reviewed wheel"):
             self.validate()
+
+    def test_identical_shared_wheel_path_has_authenticated_multiple_owners(self):
+        self.add_shared_path_wheel(b"VALUE = 1\n")
+        result = self.validate(("example", "shared"))
+        self.assertEqual(set(result["record_digests"]), {"example", "shared"})
+
+    def test_shared_wheel_path_with_different_content_is_rejected(self):
+        self.add_shared_path_wheel(b"VALUE = 2\n")
+        with self.assertRaisesRegex(RuntimeError, "claim different content"):
+            self.validate(("example", "shared"))
 
     def test_rewritten_record_cannot_hide_installed_file_mutation(self):
         module = self.site / "example" / "__init__.py"

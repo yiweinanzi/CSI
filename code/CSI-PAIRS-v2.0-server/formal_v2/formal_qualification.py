@@ -11,6 +11,7 @@ from .formal_dataset import FormalDataset
 from .formal_evidence import QUALIFICATION_SCHEMA, bind_rows, complete_gate_vector, evidence_context
 from .formal_features import protocol_response_features, variant_features
 from .formal_io import artifact_manifest, sha256_file, write_csv, write_json
+from .formal_model import module_device, resolve_execution_device
 from .formal_protocol import PatchSpec, delay_angle_power, patchify_csi, typed_signed_edit, zero_typed_edit
 from .formal_routing import (
     PRIMARY_ROUTE_CONTRACT,
@@ -76,11 +77,13 @@ def run_formal_qualification(
     train_scenes = blocking["teacher_train"]
     selection_scenes = blocking["method_selection"]
     patch_spec = PatchSpec.from_metadata(dataset.metadata)
+    execution_device = resolve_execution_device(dataset)
     teacher_bundle = train_teacher_bundle(
         dataset.csi[train_scenes],
         patch_spec,
         config,
         seed=int(config["seeds"][0]) + 1009,
+        device=execution_device,
     )
     teacher_checkpoint = output_dir / "checkpoints" / "stage0_csi_teacher.pt"
     save_teacher_bundle(teacher_checkpoint, teacher_bundle, config, int(config["seeds"][0]) + 1009)
@@ -426,7 +429,17 @@ def _teacher_qualification(dataset, bundle, routed, scenes, config):
         patches = routed.physical_patches[scene]
         latent = routed.teacher_latent[scene]
         with torch.no_grad():
-            prediction = bundle.readout(torch.as_tensor(latent, dtype=torch.float32)).numpy()
+            prediction = (
+                bundle.readout(
+                    torch.as_tensor(
+                        latent,
+                        dtype=torch.float32,
+                        device=module_device(bundle.readout),
+                    )
+                )
+                .cpu()
+                .numpy()
+            )
         readout_nmse = normalized_mse(patches, prediction)
         alignment_items = [
             distances

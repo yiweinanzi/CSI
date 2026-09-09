@@ -60,6 +60,7 @@ def build_parser() -> argparse.ArgumentParser:
     fixture = subparsers.add_parser("make-fixture", help="create a permanently non-scientific code fixture")
     fixture.add_argument("--output", required=True)
     fixture.add_argument("--seed", type=int, default=20270805)
+    fixture.add_argument("--positions", type=int, default=16)
     fixture.add_argument(
         "--source-banks-per-role",
         type=int,
@@ -233,6 +234,7 @@ def main(argv: list[str] | None = None) -> int:
                 args.output,
                 seed=int(args.seed),
                 scene_count=scene_count,
+                positions=int(args.positions),
                 source_banks_per_role=source_banks_per_role,
             )
             print(json.dumps({"status": "success", "fixture": str(path.resolve()), "scientific_use": "FORBIDDEN"}))

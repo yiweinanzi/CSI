@@ -14,8 +14,8 @@ if [[ -e "${RUNTIME_ROOT}" && ! -d "${RUNTIME_ROOT}" ]]; then
 fi
 command -v uv >/dev/null 2>&1 || { echo "uv is required" >&2; exit 3; }
 command -v unzip >/dev/null 2>&1 || { echo "unzip is required" >&2; exit 4; }
-uv python install 3.12
-PYTHON312="$(uv python find --managed-python 3.12)"
+uv python install 3.12.13
+PYTHON312="$(uv python find --managed-python 3.12.13)"
 
 if [[ -z "${DRJIT_LIBLLVM_PATH:-}" ]]; then
   DRJIT_LIBLLVM_PATH="$({ ldconfig -p 2>/dev/null || true; } \

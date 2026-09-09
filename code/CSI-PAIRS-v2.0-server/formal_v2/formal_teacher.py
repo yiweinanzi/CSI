@@ -7,6 +7,7 @@ import numpy as np
 import torch
 from torch import Tensor, nn
 
+from .formal_model import module_device, portable_state_dict
 from .formal_protocol import MaskQuery, PatchSpec, frozen_mask_query_bank, patchify_csi
 
 
@@ -148,12 +149,14 @@ def train_teacher_bundle(
     config: dict,
     *,
     seed: int,
+    device: str | torch.device = "cpu",
 ) -> TeacherBundle:
     teacher_config = config["teacher"]
     model_config = config["model"]
     latent_dim = int(teacher_config["latent_dim"])
     heads = _compatible_heads(latent_dim, int(model_config["attention_heads"]))
     torch.manual_seed(int(seed))
+    execution_device = torch.device(device)
     teacher = CSIMaskedTeacher(
         patch_spec.patch_rows,
         patch_spec.patch_columns,
@@ -162,11 +165,11 @@ def train_teacher_bundle(
         heads,
         int(teacher_config["encoder_layers"]),
         int(teacher_config["decoder_layers"]),
-    )
+    ).to(execution_device)
     patches = patchify_csi(np.asarray(csi, dtype=np.float32), patch_spec).reshape(
         -1, patch_spec.patch_count, patch_spec.patch_dim
     )
-    tensor = torch.as_tensor(patches, dtype=torch.float32)
+    tensor = torch.as_tensor(patches, dtype=torch.float32, device=execution_device)
     mask_bank = frozen_mask_query_bank(
         patch_spec, int(model_config["mask_bank_seed"])
     )
@@ -183,14 +186,15 @@ def train_teacher_bundle(
     batch_size = min(int(teacher_config["batch_size"]), tensor.shape[0])
     for step in range(int(teacher_config["steps"])):
         indices = rng.integers(0, tensor.shape[0], size=batch_size)
-        batch = tensor[indices]
+        index_tensor = torch.as_tensor(indices, dtype=torch.long, device=execution_device)
+        batch = tensor[index_tensor]
         masks = random_teacher_pretraining_masks(
             rng,
             batch_size,
             patch_spec.patch_count,
             float(teacher_config["mask_fraction"]),
         )
-        mask_tensor = torch.as_tensor(masks, dtype=torch.bool)
+        mask_tensor = torch.as_tensor(masks, dtype=torch.bool, device=execution_device)
         _, prediction = teacher(batch, mask_tensor)
         error = (prediction - batch) ** 2
         loss = torch.mean(error[mask_tensor])
@@ -209,13 +213,14 @@ def train_teacher_bundle(
                 ]
             ),
             dtype=torch.bool,
+            device=execution_device,
         )
         latent_masked, reconstruction = teacher(tensor, audit_masks)
         reconstruction_nmse = _masked_nmse(tensor, reconstruction, audit_masks)
         full_latent = teacher.encode_full(tensor)
 
     torch.manual_seed(int(seed) + 1)
-    readout = CSIReadout(latent_dim, patch_spec.patch_dim)
+    readout = CSIReadout(latent_dim, patch_spec.patch_dim).to(execution_device)
     readout_optimizer = torch.optim.AdamW(readout.parameters(), lr=float(teacher_config["learning_rate"]))
     for _ in range(int(teacher_config["steps"])):
         prediction = readout(full_latent)
@@ -264,8 +269,8 @@ def save_teacher_bundle(path: str | Path, bundle: TeacherBundle, config: dict, s
                 "rng_seed": int(seed) + 43001,
                 "resampled_each_optimization_step": True,
             },
-            "teacher_state": bundle.teacher.state_dict(),
-            "readout_state": bundle.readout.state_dict(),
+            "teacher_state": portable_state_dict(bundle.teacher),
+            "readout_state": portable_state_dict(bundle.readout),
             "reconstruction_nmse": bundle.reconstruction_nmse,
             "readout_nmse": bundle.readout_nmse,
         },
@@ -273,7 +278,12 @@ def save_teacher_bundle(path: str | Path, bundle: TeacherBundle, config: dict, s
     )
 
 
-def load_teacher_bundle(path: str | Path, config: dict) -> TeacherBundle:
+def load_teacher_bundle(
+    path: str | Path,
+    config: dict,
+    *,
+    device: str | torch.device = "cpu",
+) -> TeacherBundle:
     payload = torch.load(Path(path), map_location="cpu", weights_only=False)
     if payload.get("schema_version") != TEACHER_CHECKPOINT_SCHEMA:
         raise RuntimeError("teacher checkpoint schema is not V6-compatible")
@@ -291,6 +301,7 @@ def load_teacher_bundle(path: str | Path, config: dict) -> TeacherBundle:
     spec = PatchSpec(**payload["patch_spec"])
     latent_dim = int(payload["teacher_config"]["latent_dim"])
     heads = _compatible_heads(latent_dim, int(payload["model_attention_heads"]))
+    execution_device = torch.device(device)
     teacher = CSIMaskedTeacher(
         spec.patch_rows,
         spec.patch_columns,
@@ -299,8 +310,8 @@ def load_teacher_bundle(path: str | Path, config: dict) -> TeacherBundle:
         heads,
         int(payload["teacher_config"]["encoder_layers"]),
         int(payload["teacher_config"]["decoder_layers"]),
-    )
-    readout = CSIReadout(latent_dim, spec.patch_dim)
+    ).to(execution_device)
+    readout = CSIReadout(latent_dim, spec.patch_dim).to(execution_device)
     teacher.load_state_dict(payload["teacher_state"])
     readout.load_state_dict(payload["readout_state"])
     teacher.eval()
@@ -334,6 +345,7 @@ def teacher_targets(bundle: TeacherBundle, csi: np.ndarray) -> np.ndarray:
     tensor = torch.as_tensor(
         patches.reshape(-1, bundle.patch_spec.patch_count, bundle.patch_spec.patch_dim),
         dtype=torch.float32,
+        device=module_device(bundle.teacher),
     )
     with torch.no_grad():
         latent = bundle.teacher.encode_full(tensor).cpu().numpy()
@@ -349,12 +361,14 @@ def masked_reconstruction_nmse(
     patches = patchify_csi(np.asarray(csi, dtype=np.float32), bundle.patch_spec).reshape(
         -1, bundle.patch_spec.patch_count, bundle.patch_spec.patch_dim
     )
-    tensor = torch.as_tensor(patches, dtype=torch.float32)
+    device = module_device(bundle.teacher)
+    tensor = torch.as_tensor(patches, dtype=torch.float32, device=device)
     source_bank = bundle.audit_mask_bank if audit else bundle.pretrain_mask_bank
     bank = tuple(entry for entry in source_bank if entry.mode == "random_75")
     masks = torch.as_tensor(
         np.stack([bank[index % len(bank)].mask for index in range(tensor.shape[0])]),
         dtype=torch.bool,
+        device=device,
     )
     with torch.no_grad():
         _, prediction = bundle.teacher(tensor, masks)

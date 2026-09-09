@@ -22,6 +22,7 @@ from .formal_metrics import (
     risk_coverage,
     spearman_correlation,
 )
+from .formal_model import resolve_execution_device, tensor_for_module
 from .formal_protocol import typed_signed_edit
 from .formal_routing import ROUTE_NAMES
 
@@ -2647,7 +2648,12 @@ def build_first_party_risk_features(config, dataset, output_root):
         dataset,
         allow_nonscientific_fixture=True,
     )
-    teacher = load_teacher_bundle(qualification["teacher_checkpoint"], config)
+    execution_device = resolve_execution_device(dataset)
+    teacher = load_teacher_bundle(
+        qualification["teacher_checkpoint"],
+        config,
+        device=execution_device,
+    )
     route_normalization = fit_route_normalization(dataset, teacher)
     normalization = _training_normalization(
         dataset,
@@ -2714,7 +2720,12 @@ def build_first_party_risk_features(config, dataset, output_root):
         arm = str(checkpoint_row["arm"])
         seed = int(checkpoint_row["seed"])
         model = _load_model(
-            root / "factorial", checkpoint_row, qualification, config, dataset
+            root / "factorial",
+            checkpoint_row,
+            qualification,
+            config,
+            dataset,
+            device=execution_device,
         )
         compatibility_train = _compatibility_dataset(
             model,
@@ -3018,8 +3029,10 @@ def _replay_risk_examples(
         dataset.maps.shape[-1],
         int(dataset.metadata["assets"]["material_category_count"]),
     )
-    zero_tensor = torch.as_tensor(
-        normalized_action(normalization, zero), dtype=torch.float32
+    zero_tensor = tensor_for_module(
+        model,
+        normalized_action(normalization, zero),
+        dtype=torch.float32,
     )
     mask_bank = tuple(entry for entry in teacher.mask_bank if entry.mode == "random_75")
     for scene, observed_world, supplied_world, position, condition in examples:
@@ -3031,9 +3044,9 @@ def _replay_risk_examples(
         )
         with torch.no_grad():
             representation = model.retained_representation(
-                torch.as_tensor(patches[None], dtype=torch.float32),
-                torch.as_tensor(map_value[None], dtype=torch.float32),
-                torch.as_tensor(radio_value[None], dtype=torch.float32),
+                tensor_for_module(model, patches[None], dtype=torch.float32),
+                tensor_for_module(model, map_value[None], dtype=torch.float32),
+                tensor_for_module(model, radio_value[None], dtype=torch.float32),
             )[0]
         representations.append(representation.detach().cpu().numpy())
 
@@ -3051,12 +3064,13 @@ def _replay_risk_examples(
             with torch.no_grad():
                 feature, native_value = masked_score(
                     model,
-                    torch.as_tensor(patches[None], dtype=torch.float32),
-                    torch.as_tensor(
+                    tensor_for_module(model, patches[None], dtype=torch.float32),
+                    tensor_for_module(
+                        model,
                         normalized_map(normalization, map_array)[None],
                         dtype=torch.float32,
                     ),
-                    torch.as_tensor(radio_value[None], dtype=torch.float32),
+                    tensor_for_module(model, radio_value[None], dtype=torch.float32),
                     zero_tensor,
                     mask_bank,
                     latent,
