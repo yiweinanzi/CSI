@@ -69,6 +69,8 @@ def _prepare_atomic_target(path: Path) -> None:
 
 
 def _fsync_directory(path: Path) -> None:
+    if os.name == "nt":
+        return  # File fsync and atomic replace still apply on Windows.
     descriptor = os.open(path, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
     try:
         os.fsync(descriptor)

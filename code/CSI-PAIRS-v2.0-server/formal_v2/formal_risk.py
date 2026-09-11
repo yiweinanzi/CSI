@@ -2899,7 +2899,7 @@ def build_first_party_risk_features(config, dataset, output_root):
     )
 
 
-def _risk_audit_examples(dataset, routed, config, role):
+def _risk_audit_examples(dataset, routed, config, role, *, require_all_strata=True):
     from .formal_protocol import headline_alignment_edge
 
     groups = {name: [] for name in ("correct", "active", "gray", "null")}
@@ -2930,7 +2930,7 @@ def _risk_audit_examples(dataset, routed, config, role):
     proportions = config["risk"]["audit_mixture"]
     if set(proportions) != set(groups) or not np.isclose(sum(proportions.values()), 1.0):
         raise RuntimeError("risk audit mixture is not a complete probability vector")
-    if any(not groups[name] for name in groups):
+    if require_all_strata and any(not groups[name] for name in groups):
         raise RiskStrataUnavailable(
             role, {name: len(values) for name, values in groups.items()}
         )
@@ -2941,7 +2941,7 @@ def _risk_audit_examples(dataset, routed, config, role):
             name: [row for row in values if int(row[0]) == scene]
             for name, values in groups.items()
         }
-        if any(not values for values in scene_groups.values()):
+        if require_all_strata and any(not values for values in scene_groups.values()):
             raise RiskStrataUnavailable(
                 role,
                 {
@@ -2949,13 +2949,15 @@ def _risk_audit_examples(dataset, routed, config, role):
                     for name, values in scene_groups.items()
                 },
             )
+        if not require_all_strata:
+            scene_groups = {name: values for name, values in scene_groups.items() if values}
         total = min(
             len(scene_groups[name]) / float(proportions[name])
             for name in scene_groups
         )
         for name in sorted(scene_groups):
             count = int(np.floor(total * float(proportions[name])))
-            if count < 2 or count > len(scene_groups[name]):
+            if require_all_strata and (count < 2 or count > len(scene_groups[name])):
                 raise RiskStrataUnavailable(
                     role,
                     {
@@ -2971,7 +2973,7 @@ def _risk_audit_examples(dataset, routed, config, role):
                     int(config["risk"]["proposal_seed"]),
                 ),
             )
-            selected.extend(ordered[:count])
+            selected.extend(ordered[:max(1, count)])
     return sorted(selected, key=lambda row: (row[0], row[3], row[1], row[2], row[4]))
 
 
@@ -3042,6 +3044,7 @@ def _replay_risk_examples(
         dtype=torch.float32,
     )
     mask_bank = tuple(entry for entry in teacher.mask_bank if entry.mode == "random_75")
+    bank_digests = {scene: _canonical_bank_digest(dataset, scene) for scene in {row[0] for row in examples}}
     for scene, observed_world, supplied_world, position, condition in examples:
         raw = patchify(dataset.csi[scene, observed_world, position], teacher.patch_spec)
         patches = (raw - normalization.patch_mean) / normalization.patch_scale
@@ -3123,7 +3126,7 @@ def _replay_risk_examples(
         clusters.append(str(dataset.base_map_cluster_ids[scene]))
         canonical_clusters.append(dataset.canonical_base_map_digest(scene))
         banks.append(str(dataset.bank_ids[scene]))
-        canonical_bank = _canonical_bank_digest(dataset, scene)
+        canonical_bank = bank_digests[scene]
         canonical_banks.append(canonical_bank)
         canonical_identifiers.append(
             "risk-canonical:"

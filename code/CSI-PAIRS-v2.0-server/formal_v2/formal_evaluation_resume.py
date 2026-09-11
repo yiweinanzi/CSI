@@ -483,6 +483,10 @@ def require_safe_directory_prefix(path: str | Path) -> None:
 
 
 def _fsync_directory(path: Path) -> None:
+    # Windows cannot open directories with os.open. The file itself is fsynced
+    # before replacement; directory fsync remains required on POSIX.
+    if os.name == "nt":
+        return
     descriptor = os.open(path, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
     try:
         os.fsync(descriptor)

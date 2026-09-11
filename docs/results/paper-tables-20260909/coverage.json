@@ -1,0 +1,66 @@
+{
+  "schema_version": "csi-pairs-paper-table-coverage-v1",
+  "protocol_id": "paper-six-tables-v1",
+  "archive_only": true,
+  "scientific_conclusion": "NOT_INFERRED_FROM_COMPLETION",
+  "tables": {
+    "main1": {
+      "title": "Four-arm alignment and response",
+      "COMPLETE": 0,
+      "PARTIAL": 0,
+      "MISSING": 40,
+      "status": "MISSING"
+    },
+    "main2": {
+      "title": "Cross-city localization: ablations and external baselines",
+      "COMPLETE": 64,
+      "PARTIAL": 0,
+      "MISSING": 32,
+      "status": "PARTIAL"
+    },
+    "s1": {
+      "title": "Interaction, resource cost and matched controls",
+      "COMPLETE": 55,
+      "PARTIAL": 0,
+      "MISSING": 8,
+      "status": "PARTIAL"
+    },
+    "s2": {
+      "title": "Shortcut and paired-supervision controls",
+      "COMPLETE": 0,
+      "PARTIAL": 0,
+      "MISSING": 114,
+      "status": "MISSING"
+    },
+    "s3": {
+      "title": "Six-condition map diagnostics (separate evaluation scope)",
+      "COMPLETE": 0,
+      "PARTIAL": 0,
+      "MISSING": 121,
+      "status": "MISSING"
+    },
+    "s4": {
+      "title": "Frozen k=0 risk and calibration",
+      "COMPLETE": 0,
+      "PARTIAL": 0,
+      "MISSING": 19,
+      "status": "MISSING"
+    }
+  },
+  "sources": {
+    "factorial/localization_summary.csv": {
+      "path": "C:\\Users\\22688\\Desktop\\ftr_csi\\artifacts\\streaming_gpu_repair_20260908\\sota-obstacle-audit-20260909\\localization_summary.csv",
+      "sha256": "e4378bd5e5e352583b7e7baa80b93c352c1bfa74daffb50b42023543a12835d7",
+      "rows": 32
+    },
+    "factorial/training_summary.csv": {
+      "path": "C:\\Users\\22688\\Desktop\\ftr_csi\\artifacts\\streaming_gpu_repair_20260908\\sota-obstacle-audit-20260909\\training_summary.csv",
+      "sha256": "b23868a564ed5795da90c697c56e2e88d983f2052f71a8be88f214a37ed0c838",
+      "rows": 12
+    },
+    "factorial/gate.json": {
+      "path": "C:\\Users\\22688\\Desktop\\ftr_csi\\artifacts\\streaming_gpu_repair_20260908\\sota-obstacle-audit-20260909\\gate.json",
+      "sha256": "1e810820a2413074da0148efcad78ddb9ff33407a09c0d277d79c116d1907a64"
+    }
+  }
+}

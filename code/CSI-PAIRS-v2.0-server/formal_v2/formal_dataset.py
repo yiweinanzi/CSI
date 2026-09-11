@@ -130,12 +130,17 @@ class FormalDataset:
     metadata: dict
 
     @classmethod
-    def load(cls, path: str | Path, require_clean_csi: bool = True) -> "FormalDataset":
+    def load(cls, path: str | Path, require_clean_csi: bool = True, *, array_cache=None) -> "FormalDataset":
         source = Path(path)
         if not source.is_file():
             raise FormalDatasetError(f"formal dataset not found: {source}")
         _validate_npz_members(source)
-        with np.load(source, allow_pickle=False) as archive:
+        if array_cache is None:
+            archive_context = np.load(source, allow_pickle=False)
+        else:
+            from .paper_arrays import MappedNPZ
+            archive_context = MappedNPZ(source, array_cache)
+        with archive_context as archive:
             try:
                 metadata = parse_strict_json(str(np.asarray(archive["metadata_json"]).item()))
                 engine_config = parse_strict_json(str(np.asarray(archive["engine_config_json"]).item()))
@@ -181,6 +186,8 @@ class FormalDataset:
                 position_roles=_string_array(archive["position_roles"]),
                 metadata=metadata,
             )
+        if array_cache is not None:
+            dataset._storage_source_sha256 = archive_context.sha256
         dataset.validate(require_clean_csi=require_clean_csi)
         return dataset
 
@@ -674,11 +681,11 @@ class FormalDataset:
             ("path_power", self.path_power),
             ("noop_path_power", self.noop_path_power),
         ):
-            if not np.all(np.isfinite(array)):
+            if any(not np.all(np.isfinite(scene)) for scene in array):
                 raise FormalDatasetError(f"{name} contains non-finite values")
-        if not np.all(np.isfinite(self.csi_clean)):
+        if any(not np.all(np.isfinite(scene)) for scene in self.csi_clean):
             raise FormalDatasetError("csi_clean contains non-finite values")
-        if not np.any(np.std(self.csi_repeat, axis=(0, 1, 2, 3)) > 1e-12):
+        if not np.any(_channel_std_bounded(self.csi_repeat) > 1e-12):
             raise FormalDatasetError("CSI channels are constant")
 
         self._validate_metadata()
@@ -769,11 +776,13 @@ class FormalDataset:
                 raise FormalDatasetError("source banks do not randomize the natural anchor")
 
     def _validate_repeat_independence(self) -> None:
-        residual = self.csi_repeat - self.csi_clean[:, :, :, None, :]
         for scene in range(self.scene_count):
-            scale = max(float(np.max(np.abs(residual[scene]))), np.finfo(np.float64).eps)
+            # Preserve the exact check without allocating a second complete CSI
+            # repeat tensor. Peak temporary storage is now one scene.
+            residual = self.csi_repeat[scene] - self.csi_clean[scene, :, :, None, :]
+            scale = max(float(np.max(np.abs(residual))), np.finfo(np.float64).eps)
             for position in range(self.position_count):
-                observations = residual[scene, :, position].reshape(
+                observations = residual[:, position].reshape(
                     self.world_count * self.repeat_count, self.channel_count
                 )
                 if self.channel_count >= 8:
@@ -1054,6 +1063,26 @@ def _canonical_foundation_sha256(
     )
     digest.update(canonical_map.tobytes())
     return digest.hexdigest()
+
+
+def _channel_std_bounded(array, rows=4096):
+    """Population channel std, using mergeable moments instead of a full copy."""
+    count = 0
+    mean = np.zeros(array.shape[-1], dtype=np.float64)
+    m2 = np.zeros_like(mean)
+    for scene in array:
+        flat = scene.reshape(-1, array.shape[-1])
+        for start in range(0, len(flat), rows):
+            block = flat[start:start + rows]
+            size = len(block)
+            block_mean = np.mean(block, axis=0)
+            block_m2 = np.sum((block - block_mean) ** 2, axis=0)
+            difference = block_mean - mean
+            total = count + size
+            m2 += block_m2 + difference ** 2 * (count * size / total)
+            mean += difference * (size / total)
+            count = total
+    return np.sqrt(m2 / count)
 
 
 def _canonical_json_bytes(value: object) -> bytes:

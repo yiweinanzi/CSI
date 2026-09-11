@@ -1,0 +1,43 @@
+.s........s......................ss.ss.................................. [ 11%]
+...........................................................ss..s........ [ 22%]
+....s....s...............s.......s...................................... [ 33%]
+..s.................s...........................ss...............s...... [ 45%]
+......................................................................s. [ 56%]
+..s..................................................................... [ 67%]
+....................................................................s... [ 79%]
+.s.................................................s.................... [ 90%]
+.............................................................            [100%]
+============================== warnings summary ===============================
+formal_v2/tests/test_data_protocol_integrity.py: 15 warnings
+formal_v2/tests/test_evaluation_batch.py: 9 warnings
+formal_v2/tests/test_evaluation_response_batch.py: 5 warnings
+formal_v2/tests/test_factorial_integrity.py: 8 warnings
+formal_v2/tests/test_formal_v2.py: 17 warnings
+formal_v2/tests/test_paper_core.py: 3 warnings
+formal_v2/tests/test_protocol_contracts.py: 3 warnings
+  C:\Users\22688\AppData\Roaming\Python\Python311\site-packages\torch\nn\modules\transformer.py:382: UserWarning: enable_nested_tensor is True, but self.use_nested_tensor is False because encoder_layer.norm_first was True
+    warnings.warn(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+SKIPPED [1] formal_v2\tests\test_formal_data_pilot_projection.py:10: unittest.case.SkipTest: No module named 'artifacts.formal_readiness'
+SKIPPED [1] formal_v2\tests\test_v5_action_inverse_response_probe.py:12: unittest.case.SkipTest: No module named 'artifacts.formal_readiness'
+SKIPPED [1] formal_v2\tests\test_v5_pilot_tools.py:31: unittest.case.SkipTest: No module named 'artifacts.formal_readiness'
+SKIPPED [1] formal_v2\tests\test_v5_protocol_freeze.py:14: unittest.case.SkipTest: No module named 'artifacts.formal_readiness'
+SKIPPED [1] formal_v2\tests\test_v5_response_pilot_aggregate.py:11: unittest.case.SkipTest: No module named 'artifacts.formal_readiness'
+SKIPPED [9] formal_v2\tests\platform_support.py:10: Windows account lacks symbolic-link privilege
+SKIPPED [1] formal_v2\tests\test_a100_launch_readiness.py:522: module 'shapely' has __version__ '2.0.7', required is: '2.1'
+SKIPPED [1] formal_v2\tests\test_a100_launch_readiness.py:504: module 'shapely' has __version__ '2.0.7', required is: '2.1'
+SKIPPED [1] formal_v2\tests\test_a100_launch_readiness.py:818: Linux Bash renderer scheduler requires POSIX Python paths
+SKIPPED [1] formal_v2\tests\test_a100_launch_readiness.py:806: Linux Bash renderer scheduler requires POSIX Python paths
+SKIPPED [1] formal_v2\tests\test_evaluation_batch.py:729: CUDA runtime is unavailable
+SKIPPED [1] formal_v2\tests\test_evaluation_batch.py:456: CUDA runtime is unavailable
+SKIPPED [1] formal_v2\tests\test_evaluation_streaming.py:2684: CUDA runtime is unavailable
+SKIPPED [1] formal_v2\tests\test_evaluation_streaming.py:1187: CSI_EVALUATION_ORACLE_ROOT is not configured
+SKIPPED [1] formal_v2\tests\test_evaluation_streaming.py:2677: CUDA runtime is unavailable
+SKIPPED [1] formal_v2\tests\test_formal_probes_devices.py:364: CUDA is unavailable
+SKIPPED [1] formal_v2\tests\test_formal_probes_devices.py:95: two CUDA devices required
+SKIPPED [1] formal_v2\tests\test_m4_candidate_evidence.py:24: Historical checksum archive requires unchanged LF checkout; archive bytes are not rewritten
+SKIPPED [1] formal_v2\tests\test_m4_scene0_exact_gate.py:56: Historical checksum archive requires unchanged LF checkout; archive bytes are not rewritten
+SKIPPED [1] formal_v2\tests\test_probe_acceleration.py:164: CUDA required
+614 passed, 28 skipped, 60 warnings in 93.36s (0:01:33)

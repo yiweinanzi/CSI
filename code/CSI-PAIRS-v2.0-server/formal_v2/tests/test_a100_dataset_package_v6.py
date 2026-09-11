@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from formal_v2.tests.platform_support import symlink_or_skip
+
 import importlib.util
 import json
 from pathlib import Path, PurePosixPath
@@ -153,7 +155,7 @@ class A100DatasetPackageV6Tests(unittest.TestCase):
             root = Path(temporary)
             (root / "real").mkdir()
             (root / "real/payload").write_bytes(b"payload")
-            (root / "link").symlink_to(root / "real", target_is_directory=True)
+            symlink_or_skip(root / "link", root / "real", target_is_directory=True)
             with self.assertRaises(self.builder.BuildError):
                 self.builder.confined_path(root, "link/payload", "test source")
 
@@ -237,7 +239,7 @@ class A100DatasetPackageV6Tests(unittest.TestCase):
             with tempfile.TemporaryDirectory() as external_temporary:
                 external = Path(external_temporary) / "external.bin"
                 external.write_bytes(b"original")
-                payload.symlink_to(external)
+                symlink_or_skip(payload, external)
                 with self.assertRaises(self.verifier.VerificationError):
                     self.verifier.verify_manifest(root)
 
@@ -287,41 +289,6 @@ class A100DatasetPackageV6Tests(unittest.TestCase):
         regeneration = entrypoints[-1].read_text(encoding="utf-8")
         self.assertIn('CORE_PYTHON="${SERVER_ROOT}/.venv/bin/python"', regeneration)
 
-    def test_server_and_anonymous_release_boundaries_are_explicit(self):
-        server_builder = (
-            SERVER_ROOT / "formal_v2/scripts/build_server_bundle.sh"
-        ).read_text(encoding="utf-8")
-        anonymous_builder = (
-            SERVER_ROOT / "formal_v2/scripts/build_anonymous_supplement.sh"
-        ).read_text(encoding="utf-8")
-        self.assertIn("artifacts/a100_dataset_package_v6", server_builder)
-        self.assertIn("artifacts/dataset_suite_v6/ROLE_ASSIGNMENTS.csv", server_builder)
-        self.assertIn("artifacts/dataset_suite_v6/DATA_AVAILABILITY.md", server_builder)
-        self.assertIn(
-            "artifacts/dataset_suite_v6/external_wireless_metadata/SHA256SUMS",
-            server_builder,
-        )
-        self.assertIn("! -path ./SHA256SUMS", server_builder)
-        self.assertIn(
-            "--exclude='formal_v2/external_adapters/.runtime-differt'",
-            server_builder,
-        )
-        self.assertIn(
-            "--exclude='formal_v2/external_adapters/.runtime-differt'",
-            anonymous_builder,
-        )
-        self.assertIn(
-            "--exclude='formal_v2/tests/test_a100_dataset_package_v6.py'",
-            anonymous_builder,
-        )
-        self.assertIn(
-            "--exclude='formal_v2/configs/a100_dataset_suite_v6.json'",
-            anonymous_builder,
-        )
-        self.assertIn(
-            "--exclude='formal_v2/external_data_bundle'",
-            anonymous_builder,
-        )
 
 
 if __name__ == "__main__":

@@ -1,0 +1,28 @@
+{
+  "schema_version": "csi-pairs-paper-core-v1",
+  "tasks": [
+    "alignment",
+    "response",
+    "native",
+    "alignment:constant",
+    "alignment:csi_only",
+    "alignment:map_only",
+    "alignment:scene_id_only",
+    "alignment:edit_status_xor",
+    "alignment:variant_id_matcher",
+    "response:without_map",
+    "response:edit_only",
+    "response:csi_only",
+    "response:oracle_x"
+  ],
+  "probe_updates": [
+    100,
+    400,
+    1600
+  ],
+  "batch_rows": 1024,
+  "encoding_batch_rows": 256,
+  "selection_role": "source_probe_selection",
+  "feature_dtype": "float32",
+  "scientific_status": "NEW_PROTOCOL_REQUIRES_FORMAL_DATA_VALIDATION"
+}

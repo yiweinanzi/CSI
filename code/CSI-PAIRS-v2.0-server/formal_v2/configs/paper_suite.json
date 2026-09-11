@@ -1,0 +1,118 @@
+{
+  "schema_version": "csi-pairs-paper-suite-v1",
+  "protocol_id": "paper-six-tables-v1",
+  "dataset_sha256": "060d8671380acaf43bd0beb2c77ac5c6ec112e4ddc083451ab36a5916b7c9cac",
+  "formal_config": "formal_v2/configs/formal_v2.json",
+  "arms": [
+    "endpoint",
+    "alignment",
+    "response",
+    "full"
+  ],
+  "baselines": [
+    "Wi-GATr",
+    "PMNet"
+  ],
+  "map_models": [
+    "SigMap",
+    "Wi-GATr",
+    "PMNet",
+    "WiSER",
+    "RFIR"
+  ],
+  "cities": [
+    "target-boston",
+    "target-seattle"
+  ],
+  "budgets": [
+    0,
+    8,
+    32,
+    128
+  ],
+  "seeds": [
+    20270001,
+    20270002,
+    20270003
+  ],
+  "label_draws": 10,
+  "minimum_clusters_per_city": 41,
+  "stages": [
+    {
+      "id": "factorial",
+      "outputs": [
+        "factorial/checkpoint_index.json",
+        "factorial/training_summary.csv",
+        "factorial/localization_summary.csv",
+        "factorial/gate.json"
+      ],
+      "tables": [
+        "main2",
+        "s1"
+      ]
+    },
+    {
+      "id": "evaluation",
+      "outputs": [
+        "evaluation/cgs_per_bank.csv",
+        "evaluation/response_per_bank.csv",
+        "evaluation/compatibility_route_distributions.csv",
+        "evaluation/alignment_shortcut_baselines.csv"
+      ],
+      "tables": [
+        "main1",
+        "s2"
+      ]
+    },
+    {
+      "id": "map_baselines",
+      "outputs": [
+        "external_baselines/six_condition_results.csv",
+        "external_baselines/adapter_status.csv"
+      ],
+      "tables": [
+        "s3"
+      ]
+    },
+    {
+      "id": "baseline_localization",
+      "outputs": [
+        "paper_baselines/localization_summary.csv",
+        "paper_baselines/comparison_protocol.json"
+      ],
+      "tables": [
+        "main2"
+      ]
+    },
+    {
+      "id": "resources",
+      "outputs": [
+        "controls/localization_per_bank.csv",
+        "controls/resource_summary.csv"
+      ],
+      "tables": [
+        "s1"
+      ]
+    },
+    {
+      "id": "shuffled_pair",
+      "outputs": [
+        "controls/shuffled_pair/gate.json"
+      ],
+      "tables": [
+        "s2"
+      ]
+    },
+    {
+      "id": "risk",
+      "outputs": [
+        "risk/metrics.csv",
+        "risk/proposal_audit.csv"
+      ],
+      "tables": [
+        "s4"
+      ]
+    }
+  ],
+  "purpose": "read_only_legacy_export; new experiments use paper_run and paper_formal.json"
+}

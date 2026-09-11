@@ -287,7 +287,7 @@ def _build_model(config, dataset):
             int(model_config["tap_count"]),
         )
     else:
-        material_count = int(np.max(dataset.maps[:, :, 2])) + 1
+        material_count = int(dataset.metadata["assets"]["material_category_count"])
         model = RFIRForward(
             material_count,
             spec.antennas,
@@ -322,7 +322,14 @@ def _train(model, config, dataset, normalizer, output, model_metadata):
     schedule_counts = {"radiomap": 0, "cir": 0, "joint": 0}
     effective_batch_size = int(training["batch_size"])
     microbatch_size = int(training["microbatch_size"])
-    for step in range(1, int(training["steps"]) + 1):
+    from formal_v2.baseline_resume import restore, save
+    resumed = restore(output, model, optimizer, scheduler)
+    best_state, best_selection, best_step = resumed["best_state"], resumed["best_selection"], resumed["best_step"]
+    last_loss = resumed.get("last_loss", last_loss)
+    schedule_counts.update(resumed.get("schedule_counts", {}))
+    for step in range(resumed["step"] + 1, int(training["steps"]) + 1):
+        model.train()
+        rng = np.random.default_rng(int(training["seed"]) + step)
         chosen = rng.choice(
             len(train_units),
             size=effective_batch_size,
@@ -365,6 +372,10 @@ def _train(model, config, dataset, normalizer, output, model_metadata):
                 best_selection = selected
                 best_step = step
                 best_state = {key: value.detach().cpu().clone() for key, value in model.state_dict().items()}
+        if step % 100 == 0 or step == int(training["steps"]):
+            save(output, model, optimizer, scheduler, step=step, best_state=best_state,
+                 best_selection=best_selection, best_step=best_step, schedule_counts=schedule_counts, last_loss=last_loss)
+            print(f"{config['method']} step {step}/{training['steps']} loss={last_loss:.6g}", flush=True)
     if best_state is None:
         raise RuntimeError("controlled map source selection produced no checkpoint")
     model.load_state_dict(best_state)
@@ -530,14 +541,24 @@ def _inverse_predict(model, config, dataset, scene, observed, supplied_map, norm
 
 def _fit_data_normalizer(dataset):
     scenes = dataset.indices_for_role("source_encoder_train")
-    csi = dataset.csi_clean[scenes]
-    maps = dataset.maps[scenes]
+    def moments(field, axes):
+        totals, squares, count = None, None, 0
+        for scene in scenes:
+            values = np.asarray(field[int(scene)], dtype=np.float64)
+            total, square = values.sum(axis=axes), np.square(values).sum(axis=axes)
+            totals = total if totals is None else totals + total
+            squares = square if squares is None else squares + square
+            count += int(np.prod([values.shape[axis] for axis in axes]))
+        mean = totals / count
+        return mean, np.maximum(np.sqrt(np.maximum(squares / count - mean ** 2, 0)), 1e-6)
+    csi_mean, csi_std = moments(dataset.csi_clean, (0, 1))
+    map_mean, map_std = moments(dataset.maps, (0, 2, 3))
     context = np.concatenate((dataset.radio_config[scenes], dataset.bs_pose[scenes]), axis=1)
     return {
-        "csi_mean": np.mean(csi, axis=(0, 1, 2)),
-        "csi_std": np.maximum(np.std(csi, axis=(0, 1, 2)), 1e-6),
-        "map_mean": np.mean(maps, axis=(0, 1, 3, 4)),
-        "map_std": np.maximum(np.std(maps, axis=(0, 1, 3, 4)), 1e-6),
+        "csi_mean": csi_mean,
+        "csi_std": csi_std,
+        "map_mean": map_mean,
+        "map_std": map_std,
         "context_mean": np.mean(context, axis=0),
         "context_std": np.maximum(np.std(context, axis=0), 1e-6),
     }

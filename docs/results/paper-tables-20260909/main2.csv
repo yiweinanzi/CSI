@@ -1,0 +1,97 @@
+panel,method,city,budget,metric,value,status,n,source,note
+localization,endpoint,target-boston,0,mean_bank_median_error_m,12.215381641815107,COMPLETE,41,factorial/localization_summary.csv,
+localization,endpoint,target-boston,0,mean_bank_p90_error_m,33.51959104064008,COMPLETE,41,factorial/localization_summary.csv,
+localization,endpoint,target-boston,8,mean_bank_median_error_m,15.17689055230249,COMPLETE,41,factorial/localization_summary.csv,
+localization,endpoint,target-boston,8,mean_bank_p90_error_m,39.00121698589208,COMPLETE,41,factorial/localization_summary.csv,
+localization,endpoint,target-boston,32,mean_bank_median_error_m,14.612376129575708,COMPLETE,41,factorial/localization_summary.csv,
+localization,endpoint,target-boston,32,mean_bank_p90_error_m,38.18438878746497,COMPLETE,41,factorial/localization_summary.csv,
+localization,endpoint,target-boston,128,mean_bank_median_error_m,13.343995959376663,COMPLETE,41,factorial/localization_summary.csv,
+localization,endpoint,target-boston,128,mean_bank_p90_error_m,35.143776889527345,COMPLETE,41,factorial/localization_summary.csv,
+localization,endpoint,target-seattle,0,mean_bank_median_error_m,9.5314282999011,COMPLETE,41,factorial/localization_summary.csv,
+localization,endpoint,target-seattle,0,mean_bank_p90_error_m,30.76270389522339,COMPLETE,41,factorial/localization_summary.csv,
+localization,endpoint,target-seattle,8,mean_bank_median_error_m,12.860347282065337,COMPLETE,41,factorial/localization_summary.csv,
+localization,endpoint,target-seattle,8,mean_bank_p90_error_m,37.14093103793852,COMPLETE,41,factorial/localization_summary.csv,
+localization,endpoint,target-seattle,32,mean_bank_median_error_m,11.927112247978597,COMPLETE,41,factorial/localization_summary.csv,
+localization,endpoint,target-seattle,32,mean_bank_p90_error_m,35.00674284031906,COMPLETE,41,factorial/localization_summary.csv,
+localization,endpoint,target-seattle,128,mean_bank_median_error_m,10.964707554704015,COMPLETE,41,factorial/localization_summary.csv,
+localization,endpoint,target-seattle,128,mean_bank_p90_error_m,32.40180798523828,COMPLETE,41,factorial/localization_summary.csv,
+localization,alignment,target-boston,0,mean_bank_median_error_m,13.19192742470109,COMPLETE,41,factorial/localization_summary.csv,
+localization,alignment,target-boston,0,mean_bank_p90_error_m,34.66836115640259,COMPLETE,41,factorial/localization_summary.csv,
+localization,alignment,target-boston,8,mean_bank_median_error_m,16.727958929549022,COMPLETE,41,factorial/localization_summary.csv,
+localization,alignment,target-boston,8,mean_bank_p90_error_m,42.949178747395834,COMPLETE,41,factorial/localization_summary.csv,
+localization,alignment,target-boston,32,mean_bank_median_error_m,15.75312854913914,COMPLETE,41,factorial/localization_summary.csv,
+localization,alignment,target-boston,32,mean_bank_p90_error_m,39.75608557656259,COMPLETE,41,factorial/localization_summary.csv,
+localization,alignment,target-boston,128,mean_bank_median_error_m,14.238238996625348,COMPLETE,41,factorial/localization_summary.csv,
+localization,alignment,target-boston,128,mean_bank_p90_error_m,37.23085954634888,COMPLETE,41,factorial/localization_summary.csv,
+localization,alignment,target-seattle,0,mean_bank_median_error_m,10.08064452198279,COMPLETE,41,factorial/localization_summary.csv,
+localization,alignment,target-seattle,0,mean_bank_p90_error_m,32.31960746753708,COMPLETE,41,factorial/localization_summary.csv,
+localization,alignment,target-seattle,8,mean_bank_median_error_m,13.07246361461609,COMPLETE,41,factorial/localization_summary.csv,
+localization,alignment,target-seattle,8,mean_bank_p90_error_m,36.7081082695571,COMPLETE,41,factorial/localization_summary.csv,
+localization,alignment,target-seattle,32,mean_bank_median_error_m,12.44954815822885,COMPLETE,41,factorial/localization_summary.csv,
+localization,alignment,target-seattle,32,mean_bank_p90_error_m,36.01466053401261,COMPLETE,41,factorial/localization_summary.csv,
+localization,alignment,target-seattle,128,mean_bank_median_error_m,11.613437761474492,COMPLETE,41,factorial/localization_summary.csv,
+localization,alignment,target-seattle,128,mean_bank_p90_error_m,34.16576408534796,COMPLETE,41,factorial/localization_summary.csv,
+localization,response,target-boston,0,mean_bank_median_error_m,11.594326273126475,COMPLETE,41,factorial/localization_summary.csv,
+localization,response,target-boston,0,mean_bank_p90_error_m,31.37690968811418,COMPLETE,41,factorial/localization_summary.csv,
+localization,response,target-boston,8,mean_bank_median_error_m,15.334705655965655,COMPLETE,41,factorial/localization_summary.csv,
+localization,response,target-boston,8,mean_bank_p90_error_m,38.8473735290324,COMPLETE,41,factorial/localization_summary.csv,
+localization,response,target-boston,32,mean_bank_median_error_m,13.70400991984206,COMPLETE,41,factorial/localization_summary.csv,
+localization,response,target-boston,32,mean_bank_p90_error_m,35.35716950455993,COMPLETE,41,factorial/localization_summary.csv,
+localization,response,target-boston,128,mean_bank_median_error_m,12.647515404551232,COMPLETE,41,factorial/localization_summary.csv,
+localization,response,target-boston,128,mean_bank_p90_error_m,32.978302931024885,COMPLETE,41,factorial/localization_summary.csv,
+localization,response,target-seattle,0,mean_bank_median_error_m,8.775193862508903,COMPLETE,41,factorial/localization_summary.csv,
+localization,response,target-seattle,0,mean_bank_p90_error_m,27.960063764640594,COMPLETE,41,factorial/localization_summary.csv,
+localization,response,target-seattle,8,mean_bank_median_error_m,11.414612571273839,COMPLETE,41,factorial/localization_summary.csv,
+localization,response,target-seattle,8,mean_bank_p90_error_m,32.21559758981046,COMPLETE,41,factorial/localization_summary.csv,
+localization,response,target-seattle,32,mean_bank_median_error_m,10.3175189068489,COMPLETE,41,factorial/localization_summary.csv,
+localization,response,target-seattle,32,mean_bank_p90_error_m,30.07335749282575,COMPLETE,41,factorial/localization_summary.csv,
+localization,response,target-seattle,128,mean_bank_median_error_m,10.235400251799211,COMPLETE,41,factorial/localization_summary.csv,
+localization,response,target-seattle,128,mean_bank_p90_error_m,30.213539284063007,COMPLETE,41,factorial/localization_summary.csv,
+localization,full,target-boston,0,mean_bank_median_error_m,11.985595121032393,COMPLETE,41,factorial/localization_summary.csv,
+localization,full,target-boston,0,mean_bank_p90_error_m,33.06825942025621,COMPLETE,41,factorial/localization_summary.csv,
+localization,full,target-boston,8,mean_bank_median_error_m,16.0371427663667,COMPLETE,41,factorial/localization_summary.csv,
+localization,full,target-boston,8,mean_bank_p90_error_m,41.157529934567805,COMPLETE,41,factorial/localization_summary.csv,
+localization,full,target-boston,32,mean_bank_median_error_m,14.398875588793539,COMPLETE,41,factorial/localization_summary.csv,
+localization,full,target-boston,32,mean_bank_p90_error_m,37.72429807099771,COMPLETE,41,factorial/localization_summary.csv,
+localization,full,target-boston,128,mean_bank_median_error_m,13.515084122365232,COMPLETE,41,factorial/localization_summary.csv,
+localization,full,target-boston,128,mean_bank_p90_error_m,35.42784388816041,COMPLETE,41,factorial/localization_summary.csv,
+localization,full,target-seattle,0,mean_bank_median_error_m,9.1516786851811,COMPLETE,41,factorial/localization_summary.csv,
+localization,full,target-seattle,0,mean_bank_p90_error_m,29.669264667651895,COMPLETE,41,factorial/localization_summary.csv,
+localization,full,target-seattle,8,mean_bank_median_error_m,13.075027575836053,COMPLETE,41,factorial/localization_summary.csv,
+localization,full,target-seattle,8,mean_bank_p90_error_m,37.36616390362037,COMPLETE,41,factorial/localization_summary.csv,
+localization,full,target-seattle,32,mean_bank_median_error_m,11.388892057779739,COMPLETE,41,factorial/localization_summary.csv,
+localization,full,target-seattle,32,mean_bank_p90_error_m,34.07445099702141,COMPLETE,41,factorial/localization_summary.csv,
+localization,full,target-seattle,128,mean_bank_median_error_m,11.097603340993551,COMPLETE,41,factorial/localization_summary.csv,
+localization,full,target-seattle,128,mean_bank_p90_error_m,33.21270823364112,COMPLETE,41,factorial/localization_summary.csv,
+localization,Wi-GATr,target-boston,0,mean_bank_median_error_m,,MISSING,,paper_baselines/localization_summary.csv,Full seed/draw/cluster coverage required; six-condition diagnostic errors are not interchangeable.
+localization,Wi-GATr,target-boston,0,mean_bank_p90_error_m,,MISSING,,paper_baselines/localization_summary.csv,Full seed/draw/cluster coverage required; six-condition diagnostic errors are not interchangeable.
+localization,Wi-GATr,target-boston,8,mean_bank_median_error_m,,MISSING,,paper_baselines/localization_summary.csv,Full seed/draw/cluster coverage required; six-condition diagnostic errors are not interchangeable.
+localization,Wi-GATr,target-boston,8,mean_bank_p90_error_m,,MISSING,,paper_baselines/localization_summary.csv,Full seed/draw/cluster coverage required; six-condition diagnostic errors are not interchangeable.
+localization,Wi-GATr,target-boston,32,mean_bank_median_error_m,,MISSING,,paper_baselines/localization_summary.csv,Full seed/draw/cluster coverage required; six-condition diagnostic errors are not interchangeable.
+localization,Wi-GATr,target-boston,32,mean_bank_p90_error_m,,MISSING,,paper_baselines/localization_summary.csv,Full seed/draw/cluster coverage required; six-condition diagnostic errors are not interchangeable.
+localization,Wi-GATr,target-boston,128,mean_bank_median_error_m,,MISSING,,paper_baselines/localization_summary.csv,Full seed/draw/cluster coverage required; six-condition diagnostic errors are not interchangeable.
+localization,Wi-GATr,target-boston,128,mean_bank_p90_error_m,,MISSING,,paper_baselines/localization_summary.csv,Full seed/draw/cluster coverage required; six-condition diagnostic errors are not interchangeable.
+localization,Wi-GATr,target-seattle,0,mean_bank_median_error_m,,MISSING,,paper_baselines/localization_summary.csv,Full seed/draw/cluster coverage required; six-condition diagnostic errors are not interchangeable.
+localization,Wi-GATr,target-seattle,0,mean_bank_p90_error_m,,MISSING,,paper_baselines/localization_summary.csv,Full seed/draw/cluster coverage required; six-condition diagnostic errors are not interchangeable.
+localization,Wi-GATr,target-seattle,8,mean_bank_median_error_m,,MISSING,,paper_baselines/localization_summary.csv,Full seed/draw/cluster coverage required; six-condition diagnostic errors are not interchangeable.
+localization,Wi-GATr,target-seattle,8,mean_bank_p90_error_m,,MISSING,,paper_baselines/localization_summary.csv,Full seed/draw/cluster coverage required; six-condition diagnostic errors are not interchangeable.
+localization,Wi-GATr,target-seattle,32,mean_bank_median_error_m,,MISSING,,paper_baselines/localization_summary.csv,Full seed/draw/cluster coverage required; six-condition diagnostic errors are not interchangeable.
+localization,Wi-GATr,target-seattle,32,mean_bank_p90_error_m,,MISSING,,paper_baselines/localization_summary.csv,Full seed/draw/cluster coverage required; six-condition diagnostic errors are not interchangeable.
+localization,Wi-GATr,target-seattle,128,mean_bank_median_error_m,,MISSING,,paper_baselines/localization_summary.csv,Full seed/draw/cluster coverage required; six-condition diagnostic errors are not interchangeable.
+localization,Wi-GATr,target-seattle,128,mean_bank_p90_error_m,,MISSING,,paper_baselines/localization_summary.csv,Full seed/draw/cluster coverage required; six-condition diagnostic errors are not interchangeable.
+localization,PMNet,target-boston,0,mean_bank_median_error_m,,MISSING,,paper_baselines/localization_summary.csv,Full seed/draw/cluster coverage required; six-condition diagnostic errors are not interchangeable.
+localization,PMNet,target-boston,0,mean_bank_p90_error_m,,MISSING,,paper_baselines/localization_summary.csv,Full seed/draw/cluster coverage required; six-condition diagnostic errors are not interchangeable.
+localization,PMNet,target-boston,8,mean_bank_median_error_m,,MISSING,,paper_baselines/localization_summary.csv,Full seed/draw/cluster coverage required; six-condition diagnostic errors are not interchangeable.
+localization,PMNet,target-boston,8,mean_bank_p90_error_m,,MISSING,,paper_baselines/localization_summary.csv,Full seed/draw/cluster coverage required; six-condition diagnostic errors are not interchangeable.
+localization,PMNet,target-boston,32,mean_bank_median_error_m,,MISSING,,paper_baselines/localization_summary.csv,Full seed/draw/cluster coverage required; six-condition diagnostic errors are not interchangeable.
+localization,PMNet,target-boston,32,mean_bank_p90_error_m,,MISSING,,paper_baselines/localization_summary.csv,Full seed/draw/cluster coverage required; six-condition diagnostic errors are not interchangeable.
+localization,PMNet,target-boston,128,mean_bank_median_error_m,,MISSING,,paper_baselines/localization_summary.csv,Full seed/draw/cluster coverage required; six-condition diagnostic errors are not interchangeable.
+localization,PMNet,target-boston,128,mean_bank_p90_error_m,,MISSING,,paper_baselines/localization_summary.csv,Full seed/draw/cluster coverage required; six-condition diagnostic errors are not interchangeable.
+localization,PMNet,target-seattle,0,mean_bank_median_error_m,,MISSING,,paper_baselines/localization_summary.csv,Full seed/draw/cluster coverage required; six-condition diagnostic errors are not interchangeable.
+localization,PMNet,target-seattle,0,mean_bank_p90_error_m,,MISSING,,paper_baselines/localization_summary.csv,Full seed/draw/cluster coverage required; six-condition diagnostic errors are not interchangeable.
+localization,PMNet,target-seattle,8,mean_bank_median_error_m,,MISSING,,paper_baselines/localization_summary.csv,Full seed/draw/cluster coverage required; six-condition diagnostic errors are not interchangeable.
+localization,PMNet,target-seattle,8,mean_bank_p90_error_m,,MISSING,,paper_baselines/localization_summary.csv,Full seed/draw/cluster coverage required; six-condition diagnostic errors are not interchangeable.
+localization,PMNet,target-seattle,32,mean_bank_median_error_m,,MISSING,,paper_baselines/localization_summary.csv,Full seed/draw/cluster coverage required; six-condition diagnostic errors are not interchangeable.
+localization,PMNet,target-seattle,32,mean_bank_p90_error_m,,MISSING,,paper_baselines/localization_summary.csv,Full seed/draw/cluster coverage required; six-condition diagnostic errors are not interchangeable.
+localization,PMNet,target-seattle,128,mean_bank_median_error_m,,MISSING,,paper_baselines/localization_summary.csv,Full seed/draw/cluster coverage required; six-condition diagnostic errors are not interchangeable.
+localization,PMNet,target-seattle,128,mean_bank_p90_error_m,,MISSING,,paper_baselines/localization_summary.csv,Full seed/draw/cluster coverage required; six-condition diagnostic errors are not interchangeable.

@@ -1,0 +1,10 @@
+{
+  "schema_version": "csi-pairs-paper-core-v1",
+  "tasks": ["alignment", "response", "native"],
+  "probe_updates": [100, 400, 1600],
+  "batch_rows": 1024,
+  "encoding_batch_rows": 256,
+  "selection_role": "source_probe_selection",
+  "feature_dtype": "float32",
+  "scientific_status": "NEW_PROTOCOL_REQUIRES_FORMAL_DATA_VALIDATION"
+}

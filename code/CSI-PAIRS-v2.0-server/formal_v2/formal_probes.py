@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import copy
 from contextlib import nullcontext
+from pathlib import Path
 
 import numpy as np
 import torch
 from torch import nn
 
 from .formal_metrics import binary_auroc, binary_nll
+from .paper_probe_resume import ProbeResume
 
 
 def _initialize_probe(factory, seed, device, rng_lock):
@@ -129,6 +131,8 @@ def fit_select_compatibility_probe(
     rng_lock=None,
     progress_callback=None,
     prefer_full_batch: bool = False,
+    checkpoint_dir=None,
+    checkpoint_interval: int = 100,
 ) -> tuple[CompatibilityProbe, dict]:
     resolved_device = _resolve_probe_device(device)
     batch_rows = _validate_batch_rows(train_batch_rows, "train_batch_rows")
@@ -151,6 +155,8 @@ def fit_select_compatibility_probe(
             train_batch_rows=batch_rows,
             progress_callback=report,
             prefer_full_batch=prefer_full_batch,
+            checkpoint_path=(Path(checkpoint_dir) / (family + ".pt")) if checkpoint_dir is not None else None,
+            checkpoint_interval=checkpoint_interval,
         )
         report({"phase": "prediction", "step": 0, "total_steps": 0})
         probabilities = predict_binary_probe(
@@ -193,6 +199,8 @@ def fit_action_response_probe(
     rng_lock=None,
     progress_callback=None,
     prefer_full_batch: bool = False,
+    checkpoint_dir=None,
+    checkpoint_interval: int = 100,
 ) -> ActionResponseProbe:
     resolved_device = _resolve_probe_device(device)
     batch_rows = _validate_batch_rows(train_batch_rows, "train_batch_rows")
@@ -213,7 +221,10 @@ def fit_action_response_probe(
         probe, train_x, train_y, batch_rows, zero_action_x, prefer_full_batch, progress_callback
     )
     steps = int(config["evaluation"]["probe_steps"])
-    _progress(progress_callback, "training", 0, steps, 0, row_count)
+    recovery = ProbeResume((Path(checkpoint_dir) / "response.pt") if checkpoint_dir is not None else None,
+                           probe, optimizer, (train_x, train_y, zero_action_x), steps, batch_rows,
+                           interval=checkpoint_interval)
+    _progress(progress_callback, "training", recovery.start_step, steps, 0, row_count)
     if batch_rows is None or batch_rows >= row_count:
         x = torch.as_tensor(train_x, dtype=torch.float32, device=resolved_device)
         y = torch.as_tensor(train_y, dtype=torch.float32, device=resolved_device)
@@ -226,12 +237,13 @@ def fit_action_response_probe(
             if zero_action_x is not None
             else None
         )
-        for step in range(steps):
+        for step in range(recovery.start_step, steps):
             optimizer.zero_grad(set_to_none=True)
             prediction = probe(x) - probe(zero) if zero is not None else probe(x)
             loss = torch.mean((prediction - y) ** 2)
             loss.backward()
             optimizer.step()
+            recovery.save(step + 1)
             _progress(progress_callback, "training", step + 1, steps, row_count, row_count)
         probe.eval()
         _finish_training(probe, progress_callback, steps, row_count)
@@ -241,7 +253,7 @@ def fit_action_response_probe(
         (train_x, train_y, zero_action_x), resolved_device, prefer_full_batch
     )
     denominator = int(y_cpu.numel())
-    for step in range(steps):
+    for step in range(recovery.start_step, steps):
         optimizer.zero_grad(set_to_none=True)
         for start in range(0, row_count, batch_rows):
             stop = min(start + batch_rows, row_count)
@@ -261,6 +273,7 @@ def fit_action_response_probe(
             (squared_error_sum / denominator).backward()
             _progress(progress_callback, "accumulating", step, steps, stop, row_count)
         optimizer.step()
+        recovery.save(step + 1)
         _progress(progress_callback, "training", step + 1, steps, row_count, row_count)
     probe.eval()
     _finish_training(probe, progress_callback, steps, row_count)
@@ -348,7 +361,7 @@ def predict_response_probe(
         return np.concatenate(predictions, axis=0)
 
 
-def _fit_binary(probe, features, labels, config, *, train_batch_rows=None, progress_callback=None, prefer_full_batch=False):
+def _fit_binary(probe, features, labels, config, *, train_batch_rows=None, progress_callback=None, prefer_full_batch=False, checkpoint_path=None, checkpoint_interval=100):
     optimizer = torch.optim.AdamW(
         probe.parameters(), lr=float(config["evaluation"]["probe_learning_rate"])
     )
@@ -357,16 +370,18 @@ def _fit_binary(probe, features, labels, config, *, train_batch_rows=None, progr
     rows = _training_rows(probe, features, labels, rows, None, prefer_full_batch, progress_callback)
     row_count = int(features.shape[0])
     steps = int(config["evaluation"]["probe_steps"])
-    _progress(progress_callback, "training", 0, steps, 0, row_count)
+    recovery = ProbeResume(checkpoint_path, probe, optimizer, (features, labels), steps, rows, interval=checkpoint_interval)
+    _progress(progress_callback, "training", recovery.start_step, steps, 0, row_count)
     if rows is None or rows >= row_count:
         x = torch.as_tensor(features, dtype=torch.float32, device=device)
         y = torch.as_tensor(labels, dtype=torch.float32, device=device)
-        for step in range(steps):
+        for step in range(recovery.start_step, steps):
             optimizer.zero_grad(set_to_none=True)
             logits = probe(x)
             loss = torch.nn.functional.binary_cross_entropy_with_logits(logits, y)
             loss.backward()
             optimizer.step()
+            recovery.save(step + 1)
             _progress(progress_callback, "training", step + 1, steps, row_count, row_count)
         probe.eval()
         _finish_training(probe, progress_callback, steps, row_count)
@@ -374,7 +389,7 @@ def _fit_binary(probe, features, labels, config, *, train_batch_rows=None, progr
 
     x_cpu, y_cpu = _training_tensors((features, labels), device, prefer_full_batch)
     denominator = int(y_cpu.numel())
-    for step in range(steps):
+    for step in range(recovery.start_step, steps):
         optimizer.zero_grad(set_to_none=True)
         for start in range(0, row_count, rows):
             stop = min(start + rows, row_count)
@@ -388,6 +403,7 @@ def _fit_binary(probe, features, labels, config, *, train_batch_rows=None, progr
             (loss_sum / denominator).backward()
             _progress(progress_callback, "accumulating", step, steps, stop, row_count)
         optimizer.step()
+        recovery.save(step + 1)
         _progress(progress_callback, "training", step + 1, steps, row_count, row_count)
     probe.eval()
     _finish_training(probe, progress_callback, steps, row_count)

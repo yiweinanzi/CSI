@@ -74,7 +74,8 @@ def risk_coverage(errors: np.ndarray, risk_scores: np.ndarray) -> dict:
         start = int(end)
     coverages = np.arange(1, error.size + 1, dtype=np.float64) / error.size
     selective_risk = np.cumsum(sorted_error) / np.arange(1, error.size + 1)
-    aurc = float(np.trapezoid(selective_risk, coverages))
+    from scipy.integrate import trapezoid
+    aurc = float(trapezoid(selective_risk, coverages))
     retained = {}
     for coverage in (0.9, 0.75, 0.5):
         requested = max(1, int(np.floor(coverage * error.size)))

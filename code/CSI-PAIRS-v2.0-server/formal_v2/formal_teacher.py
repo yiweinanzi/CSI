@@ -222,14 +222,16 @@ def _encode_full_in_batches(
     patches: Tensor,
     *,
     batch_size: int = TEACHER_INFERENCE_BATCH_SIZE,
+    output_path=None,
 ) -> Tensor:
-    output = torch.empty(
+    output = (torch.from_numpy(np.lib.format.open_memmap(output_path, mode="w+", dtype="float32",
+        shape=(patches.shape[0], teacher.patch_count, teacher.latent_dim))) if output_path else torch.empty(
         (patches.shape[0], teacher.patch_count, teacher.latent_dim),
         dtype=patches.dtype,
         device=patches.device,
-    )
+    ))
     for start, end in _batch_bounds(patches.shape[0], batch_size):
-        output[start:end].copy_(teacher.encode_full(patches[start:end]))
+        output[start:end].copy_(teacher.encode_full(patches[start:end].to(next(teacher.parameters()).device)))
     return output
 
 
@@ -242,17 +244,18 @@ def _masked_reconstruction_nmse_in_batches(
 ) -> float:
     if not mask_bank:
         raise ValueError("teacher reconstruction audit requires a mask bank")
-    numerator = torch.zeros((), dtype=torch.float64, device=patches.device)
-    denominator = torch.zeros((), dtype=torch.float64, device=patches.device)
+    device = next(teacher.parameters()).device
+    numerator = torch.zeros((), dtype=torch.float64, device=device)
+    denominator = torch.zeros((), dtype=torch.float64, device=device)
     for start, end in _batch_bounds(patches.shape[0], batch_size):
         masks = torch.as_tensor(
             np.stack(
                 [mask_bank[index % len(mask_bank)].mask for index in range(start, end)]
             ),
             dtype=torch.bool,
-            device=patches.device,
+            device=device,
         )
-        batch = patches[start:end]
+        batch = patches[start:end].to(device)
         _, reconstruction = teacher(batch, masks)
         target = batch[masks].to(dtype=torch.float64)
         prediction = reconstruction[masks].to(dtype=torch.float64)
@@ -272,11 +275,14 @@ def _full_batch_readout_step(
     if latent.shape[:2] != target.shape[:2]:
         raise ValueError("teacher readout latent and target shapes are incompatible")
     optimizer.zero_grad(set_to_none=True)
-    total_loss = torch.zeros((), dtype=torch.float64, device=target.device)
+    device = next(readout.parameters()).device
+    total_loss = torch.zeros((), dtype=torch.float64, device=device)
     element_count = int(target.numel())
     for start, end in _batch_bounds(target.shape[0], chunk_size):
-        error = readout(latent[start:end]) - target[start:end]
+        error = readout(latent[start:end].to(device)) - target[start:end].to(device)
         loss = torch.sum(error**2) / float(element_count)
+        if not torch.isfinite(loss):
+            raise FloatingPointError("Nonfinite teacher readout loss")
         loss.backward()
         total_loss += torch.sum(error.detach().to(dtype=torch.float64) ** 2)
     optimizer.step()
@@ -290,16 +296,40 @@ def _readout_nmse_in_batches(
     *,
     chunk_size: int = READOUT_FULL_BATCH_CHUNK_SIZE,
 ) -> float:
-    numerator = torch.zeros((), dtype=torch.float64, device=target.device)
-    denominator = torch.zeros((), dtype=torch.float64, device=target.device)
+    device = next(readout.parameters()).device
+    numerator = torch.zeros((), dtype=torch.float64, device=device)
+    denominator = torch.zeros((), dtype=torch.float64, device=device)
     for start, end in _batch_bounds(target.shape[0], chunk_size):
-        batch = target[start:end]
-        prediction = readout(latent[start:end])
+        batch = target[start:end].to(device)
+        prediction = readout(latent[start:end].to(device))
         numerator += torch.sum(
             (batch.to(dtype=torch.float64) - prediction.to(dtype=torch.float64)) ** 2
         )
         denominator += torch.sum(batch.to(dtype=torch.float64) ** 2)
     return float((numerator / denominator.clamp_min(1e-12)).item())
+
+
+def _teacher_resume(path, model, optimizer, rng):
+    if path is None or not path.exists():
+        return 0
+    state = torch.load(path, map_location="cpu", weights_only=False)
+    model.load_state_dict(state["model"])
+    optimizer.load_state_dict(state["optimizer"])
+    rng.bit_generator.state = state["numpy_rng"]
+    torch.set_rng_state(state["torch_rng"])
+    if state["cuda_rng"] is not None:
+        torch.cuda.set_rng_state_all(state["cuda_rng"])
+    return state["step"]
+
+
+def _save_teacher_resume(path, model, optimizer, rng, step, total):
+    if path is None or (step % 100 and step != total):
+        return
+    from .formal_training_resume import _atomic_torch_save
+    _atomic_torch_save(path, {"model": model.state_dict(), "optimizer": optimizer.state_dict(),
+        "step": step, "numpy_rng": rng.bit_generator.state, "torch_rng": torch.get_rng_state(),
+        "cuda_rng": torch.cuda.get_rng_state_all() if torch.cuda.is_available() else None})
+    print(f"teacher {path.stem} step {step}/{total}", flush=True)
 
 
 def train_teacher_bundle(
@@ -309,6 +339,7 @@ def train_teacher_bundle(
     *,
     seed: int,
     device: str | torch.device = "cpu",
+    streaming_root=None,
 ) -> TeacherBundle:
     teacher_config = config["teacher"]
     model_config = config["model"]
@@ -327,12 +358,19 @@ def train_teacher_bundle(
         int(teacher_config["decoder_layers"]),
     ).to(execution_device)
     channel_mean, channel_scale = _fit_teacher_input_normalization(csi, patch_spec)
-    patches = normalized_teacher_patches_from_statistics(
-        csi, patch_spec, channel_mean, channel_scale
-    ).reshape(
-        -1, patch_spec.patch_count, patch_spec.patch_dim
-    )
-    tensor = torch.as_tensor(patches, dtype=torch.float32, device=execution_device)
+    if streaming_root is None:
+        patches = normalized_teacher_patches_from_statistics(csi, patch_spec, channel_mean, channel_scale).reshape(-1, patch_spec.patch_count, patch_spec.patch_dim)
+        tensor = torch.as_tensor(patches, dtype=torch.float32, device=execution_device)
+    else:
+        streaming_root = Path(streaming_root)
+        streaming_root.mkdir(parents=True, exist_ok=True)
+        raw = csi.reshape(-1, csi.shape[-1])
+        patches = np.lib.format.open_memmap(streaming_root / "patches.npy", mode="w+", dtype="float32",
+            shape=(len(raw), patch_spec.patch_count, patch_spec.patch_dim))
+        for start, end in _batch_bounds(len(raw), 512):
+            patches[start:end] = normalized_teacher_patches_from_statistics(raw[start:end], patch_spec, channel_mean, channel_scale)
+        patches.flush()
+        tensor = torch.from_numpy(patches)
     mask_bank = frozen_mask_query_bank(
         patch_spec, int(model_config["mask_bank_seed"])
     )
@@ -350,10 +388,12 @@ def train_teacher_bundle(
     optimizer = torch.optim.AdamW(teacher.parameters(), lr=float(teacher_config["learning_rate"]))
     rng = np.random.default_rng(training_seed + 43001)
     batch_size = min(int(teacher_config["batch_size"]), tensor.shape[0])
-    for step in range(int(teacher_config["steps"])):
+    teacher_resume = streaming_root / "teacher_resume.pt" if streaming_root else None
+    start_step = _teacher_resume(teacher_resume, teacher, optimizer, rng)
+    for step in range(start_step, int(teacher_config["steps"])):
         indices = rng.integers(0, tensor.shape[0], size=batch_size)
-        index_tensor = torch.as_tensor(indices, dtype=torch.long, device=execution_device)
-        batch = tensor[index_tensor]
+        index_tensor = torch.as_tensor(indices, dtype=torch.long, device=tensor.device)
+        batch = tensor[index_tensor].to(execution_device)
         masks = random_teacher_pretraining_masks(
             rng,
             batch_size,
@@ -364,9 +404,12 @@ def train_teacher_bundle(
         _, prediction = teacher(batch, mask_tensor)
         error = (prediction - batch) ** 2
         loss = torch.mean(error[mask_tensor])
+        if not torch.isfinite(loss):
+            raise FloatingPointError("Nonfinite teacher training loss")
         optimizer.zero_grad(set_to_none=True)
         loss.backward()
         optimizer.step()
+        _save_teacher_resume(teacher_resume, teacher, optimizer, rng, step + 1, int(teacher_config["steps"]))
     teacher.eval()
     for parameter in teacher.parameters():
         parameter.requires_grad_(False)
@@ -376,13 +419,21 @@ def train_teacher_bundle(
             tensor,
             audit_pretraining_mask_bank,
         )
-        full_latent = _encode_full_in_batches(teacher, tensor)
+        full_latent = _encode_full_in_batches(teacher, tensor,
+            output_path=streaming_root / "latent.npy" if streaming_root else None)
 
     torch.manual_seed(training_seed + 1)
     readout = CSIReadout(latent_dim, patch_spec.patch_dim).to(execution_device)
     readout_optimizer = torch.optim.AdamW(readout.parameters(), lr=float(teacher_config["learning_rate"]))
-    for _ in range(int(teacher_config["steps"])):
-        _full_batch_readout_step(readout, readout_optimizer, full_latent, tensor)
+    readout_resume = streaming_root / "readout_resume.pt" if streaming_root else None
+    start_step = _teacher_resume(readout_resume, readout, readout_optimizer, rng)
+    for step in range(start_step, int(teacher_config["steps"])):
+        if teacher_config.get("readout_protocol") == "minibatch_updates":
+            indices = torch.as_tensor(rng.integers(0, tensor.shape[0], size=batch_size), device=tensor.device)
+            _full_batch_readout_step(readout, readout_optimizer, full_latent[indices].to(execution_device), tensor[indices].to(execution_device))
+        else:
+            _full_batch_readout_step(readout, readout_optimizer, full_latent, tensor)
+        _save_teacher_resume(readout_resume, readout, readout_optimizer, rng, step + 1, int(teacher_config["steps"]))
     readout.eval()
     for parameter in readout.parameters():
         parameter.requires_grad_(False)
@@ -589,8 +640,13 @@ def _fit_teacher_input_normalization(
     flattened = values.reshape(-1, expected_channels)
     if flattened.shape[0] < 2 or not np.all(np.isfinite(flattened)):
         raise ValueError("teacher CSI normalization requires finite source-train samples")
-    channel_mean = flattened.mean(axis=0)
-    channel_scale = flattened.std(axis=0)
+    channel_mean = np.zeros(expected_channels, dtype=np.float64)
+    for start, end in _batch_bounds(len(flattened), 1024):
+        channel_mean += flattened[start:end].sum(axis=0) / len(flattened)
+    variance = np.zeros_like(channel_mean)
+    for start, end in _batch_bounds(len(flattened), 1024):
+        variance += np.square(flattened[start:end] - channel_mean).sum(axis=0) / len(flattened)
+    channel_scale = np.sqrt(variance)
     channel_scale[channel_scale < TEACHER_INPUT_SCALE_FLOOR] = 1.0
     return channel_mean, channel_scale
 

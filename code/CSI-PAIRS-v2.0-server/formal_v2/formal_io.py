@@ -87,7 +87,7 @@ def artifact_manifest(
         item for item in base.rglob("*") if item.is_file() and item.name != "manifest.json"
     ):
         row: dict[str, object] = {
-                "path": str(path.relative_to(base)),
+                "path": path.relative_to(base).as_posix(),
                 "bytes": path.stat().st_size,
                 "sha256": sha256_file(path),
         }

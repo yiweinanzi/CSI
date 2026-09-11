@@ -1,0 +1,64 @@
+panel,method,city,budget,metric,value,status,n,source,note
+training_cost,endpoint,,,parameters,1888836.0,COMPLETE,20270001,factorial/training_summary.csv,Per-record value; n column identifies training seed when supplied.
+training_cost,endpoint,,,measured_flops_per_step,12380733440.0,COMPLETE,20270001,factorial/training_summary.csv,Per-record value; n column identifies training seed when supplied.
+training_cost,endpoint,,,elapsed_seconds,4123.7919590789825,COMPLETE,20270001,factorial/training_summary.csv,Per-record value; n column identifies training seed when supplied.
+training_cost,alignment,,,parameters,1888836.0,COMPLETE,20270001,factorial/training_summary.csv,Per-record value; n column identifies training seed when supplied.
+training_cost,alignment,,,measured_flops_per_step,804747673600.0,COMPLETE,20270001,factorial/training_summary.csv,Per-record value; n column identifies training seed when supplied.
+training_cost,alignment,,,elapsed_seconds,110742.34658337757,COMPLETE,20270001,factorial/training_summary.csv,Per-record value; n column identifies training seed when supplied.
+training_cost,response,,,parameters,1888836.0,COMPLETE,20270001,factorial/training_summary.csv,Per-record value; n column identifies training seed when supplied.
+training_cost,response,,,measured_flops_per_step,102394947072.0,COMPLETE,20270001,factorial/training_summary.csv,Per-record value; n column identifies training seed when supplied.
+training_cost,response,,,elapsed_seconds,24617.485018948093,COMPLETE,20270001,factorial/training_summary.csv,Per-record value; n column identifies training seed when supplied.
+training_cost,full,,,parameters,1888838.0,COMPLETE,20270001,factorial/training_summary.csv,Per-record value; n column identifies training seed when supplied.
+training_cost,full,,,measured_flops_per_step,894761887232.0,COMPLETE,20270001,factorial/training_summary.csv,Per-record value; n column identifies training seed when supplied.
+training_cost,full,,,elapsed_seconds,108212.90833123308,COMPLETE,20270001,factorial/training_summary.csv,Per-record value; n column identifies training seed when supplied.
+training_cost,endpoint,,,parameters,1888836.0,COMPLETE,20270002,factorial/training_summary.csv,Per-record value; n column identifies training seed when supplied.
+training_cost,endpoint,,,measured_flops_per_step,12380733440.0,COMPLETE,20270002,factorial/training_summary.csv,Per-record value; n column identifies training seed when supplied.
+training_cost,endpoint,,,elapsed_seconds,24750.91100200638,COMPLETE,20270002,factorial/training_summary.csv,Per-record value; n column identifies training seed when supplied.
+training_cost,alignment,,,parameters,1888836.0,COMPLETE,20270002,factorial/training_summary.csv,Per-record value; n column identifies training seed when supplied.
+training_cost,alignment,,,measured_flops_per_step,804747673600.0,COMPLETE,20270002,factorial/training_summary.csv,Per-record value; n column identifies training seed when supplied.
+training_cost,alignment,,,elapsed_seconds,19413.459972942248,COMPLETE,20270002,factorial/training_summary.csv,Per-record value; n column identifies training seed when supplied.
+training_cost,response,,,parameters,1888836.0,COMPLETE,20270002,factorial/training_summary.csv,Per-record value; n column identifies training seed when supplied.
+training_cost,response,,,measured_flops_per_step,101501308416.0,COMPLETE,20270002,factorial/training_summary.csv,Per-record value; n column identifies training seed when supplied.
+training_cost,response,,,elapsed_seconds,144018.08426976297,COMPLETE,20270002,factorial/training_summary.csv,Per-record value; n column identifies training seed when supplied.
+training_cost,full,,,parameters,1888838.0,COMPLETE,20270002,factorial/training_summary.csv,Per-record value; n column identifies training seed when supplied.
+training_cost,full,,,measured_flops_per_step,893868248576.0,COMPLETE,20270002,factorial/training_summary.csv,Per-record value; n column identifies training seed when supplied.
+training_cost,full,,,elapsed_seconds,24777.135517817922,COMPLETE,20270002,factorial/training_summary.csv,Per-record value; n column identifies training seed when supplied.
+training_cost,endpoint,,,parameters,1888836.0,COMPLETE,20270003,factorial/training_summary.csv,Per-record value; n column identifies training seed when supplied.
+training_cost,endpoint,,,measured_flops_per_step,12380733440.0,COMPLETE,20270003,factorial/training_summary.csv,Per-record value; n column identifies training seed when supplied.
+training_cost,endpoint,,,elapsed_seconds,3051.9863192597404,COMPLETE,20270003,factorial/training_summary.csv,Per-record value; n column identifies training seed when supplied.
+training_cost,alignment,,,parameters,1888836.0,COMPLETE,20270003,factorial/training_summary.csv,Per-record value; n column identifies training seed when supplied.
+training_cost,alignment,,,measured_flops_per_step,804747673600.0,COMPLETE,20270003,factorial/training_summary.csv,Per-record value; n column identifies training seed when supplied.
+training_cost,alignment,,,elapsed_seconds,19188.092180153355,COMPLETE,20270003,factorial/training_summary.csv,Per-record value; n column identifies training seed when supplied.
+training_cost,response,,,parameters,1888836.0,COMPLETE,20270003,factorial/training_summary.csv,Per-record value; n column identifies training seed when supplied.
+training_cost,response,,,measured_flops_per_step,103809874944.0,COMPLETE,20270003,factorial/training_summary.csv,Per-record value; n column identifies training seed when supplied.
+training_cost,response,,,elapsed_seconds,11530.85867983289,COMPLETE,20270003,factorial/training_summary.csv,Per-record value; n column identifies training seed when supplied.
+training_cost,full,,,parameters,1888838.0,COMPLETE,20270003,factorial/training_summary.csv,Per-record value; n column identifies training seed when supplied.
+training_cost,full,,,measured_flops_per_step,896176815104.0,COMPLETE,20270003,factorial/training_summary.csv,Per-record value; n column identifies training seed when supplied.
+training_cost,full,,,elapsed_seconds,24489.75854336936,COMPLETE,20270003,factorial/training_summary.csv,Per-record value; n column identifies training seed when supplied.
+matched_resource,,,,parameters,,MISSING,,controls/resource_summary.csv,
+matched_resource,,,,training_flops,,MISSING,,controls/resource_summary.csv,
+matched_resource,,,,inference_flops,,MISSING,,controls/resource_summary.csv,
+matched_resource,,,,wall_seconds,,MISSING,,controls/resource_summary.csv,
+matched_localization,,,,median_error_m,,MISSING,,controls/localization_per_bank.csv,
+matched_localization,,,,p90_error_m,,MISSING,,controls/localization_per_bank.csv,
+full_minus_endpoint,full,target-boston,0,difference,0.0200221168250242,COMPLETE,41,factorial/gate.json,Hypothesis pass=False
+full_minus_endpoint,full,target-boston,0,ci95_low,-0.014969748596687196,COMPLETE,41,factorial/gate.json,Hypothesis pass=False
+full_minus_endpoint,full,target-boston,0,ci95_high,0.05610000318133603,COMPLETE,41,factorial/gate.json,Hypothesis pass=False
+full_minus_endpoint,full,target-boston,0,holm_adjusted_p,0.5970440295597044,COMPLETE,41,factorial/gate.json,Hypothesis pass=False
+full_minus_endpoint,full,target-boston,8,difference,-0.057232085336210256,COMPLETE,41,factorial/gate.json,Hypothesis pass=False
+full_minus_endpoint,full,target-boston,8,ci95_low,-0.08671285081995891,COMPLETE,41,factorial/gate.json,Hypothesis pass=False
+full_minus_endpoint,full,target-boston,8,ci95_high,-0.028495884847090244,COMPLETE,41,factorial/gate.json,Hypothesis pass=False
+full_minus_endpoint,full,target-boston,8,holm_adjusted_p,0.00023999760002399976,COMPLETE,41,factorial/gate.json,Hypothesis pass=False
+full_minus_endpoint,full,target-seattle,0,difference,0.0500961970664742,COMPLETE,41,factorial/gate.json,Hypothesis pass=False
+full_minus_endpoint,full,target-seattle,0,ci95_low,0.01493904170459002,COMPLETE,41,factorial/gate.json,Hypothesis pass=False
+full_minus_endpoint,full,target-seattle,0,ci95_high,0.08573250123816797,COMPLETE,41,factorial/gate.json,Hypothesis pass=False
+full_minus_endpoint,full,target-seattle,0,holm_adjusted_p,0.09191908080919191,COMPLETE,41,factorial/gate.json,Hypothesis pass=False
+full_minus_endpoint,full,target-seattle,8,difference,-0.009287477350475977,COMPLETE,41,factorial/gate.json,Hypothesis pass=False
+full_minus_endpoint,full,target-seattle,8,ci95_low,-0.030907899205799144,COMPLETE,41,factorial/gate.json,Hypothesis pass=False
+full_minus_endpoint,full,target-seattle,8,ci95_high,0.013962389540341433,COMPLETE,41,factorial/gate.json,Hypothesis pass=False
+full_minus_endpoint,full,target-seattle,8,holm_adjusted_p,0.2125978740212598,COMPLETE,41,factorial/gate.json,Hypothesis pass=False
+factorial_point_estimates,full,,,full_minus_alignment,0.07877617903183376,COMPLETE,,factorial/localization_summary.csv,Descriptive utility contrast at k=0/8; not a significance decision.
+factorial_point_estimates,full,,,full_minus_response,-0.07910806831484463,COMPLETE,,factorial/localization_summary.csv,Descriptive utility contrast at k=0/8; not a significance decision.
+factorial_point_estimates,full,,,interaction,-0.0012315770842139528,COMPLETE,,factorial/localization_summary.csv,Descriptive utility contrast at k=0/8; not a significance decision.
+factorial_intervals,,,,hierarchical_bootstrap,,MISSING,,factorial/factorial_statistics.json,
+coverage,,,,resources,,MISSING,,"controls/localization_per_bank.csv, controls/resource_summary.csv",A complete stage receipt is absent; some rows alone cannot establish coverage.

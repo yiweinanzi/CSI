@@ -95,8 +95,8 @@ class ProbeAccelerationTests(unittest.TestCase):
             "/sys/fs/cgroup/memory.current": str(120 * gib),
         }
         with (
-            mock.patch.object(Path, "read_text", autospec=True, side_effect=lambda p: files[str(p)]),
-            mock.patch.object(Path, "is_file", autospec=True, side_effect=lambda p: str(p) in files),
+            mock.patch.object(Path, "read_text", autospec=True, side_effect=lambda p: files[p.as_posix()]),
+            mock.patch.object(Path, "is_file", autospec=True, side_effect=lambda p: p.as_posix() in files),
         ):
             self.assertEqual(_available_probe_memory(), 280 * gib)
 

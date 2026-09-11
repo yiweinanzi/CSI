@@ -770,6 +770,7 @@ def _fit_probe_bundle(
     device=None,
     progress_callback=None,
     corpus_callback=None,
+    checkpoint_dir=None,
 ) -> _ProbeBundle:
     def report(probe, event=None):
         if progress_callback is not None:
@@ -833,6 +834,7 @@ def _fit_probe_bundle(
         seed=seed + 31001,
         **probe_options,
         progress_callback=lambda event: report("compatibility", event),
+        **({"checkpoint_dir": Path(checkpoint_dir) / "compatibility"} if checkpoint_dir is not None else {}),
     )
     shortcut_probes = legacy._prepare_alignment_shortcut_probes(
         seed,
@@ -841,6 +843,7 @@ def _fit_probe_bundle(
         config,
         **probe_options,
         progress_callback=lambda event: report("shortcut", event),
+        **({"checkpoint_dir": Path(checkpoint_dir) / "shortcuts"} if checkpoint_dir is not None else {}),
     )
     del compatibility_train, compatibility_selection, routed_selection
     gc.collect()
@@ -866,6 +869,7 @@ def _fit_probe_bundle(
         zero_action_x=response_train["no_action_features"],
         **probe_options,
         progress_callback=lambda event: report("response", event),
+        **({"checkpoint_dir": Path(checkpoint_dir) / "response"} if checkpoint_dir is not None else {}),
     )
     variants: dict[str, ActionResponseProbe] = {}
     contrast_variants = {"without_map", "edit_only", "oracle_x"}
@@ -884,6 +888,7 @@ def _fit_probe_bundle(
             ),
             **probe_options,
             progress_callback=lambda event, name=name: report(name, event),
+            **({"checkpoint_dir": Path(checkpoint_dir) / name} if checkpoint_dir is not None else {}),
         )
     del response_train, response_target, routed_train
     gc.collect()
@@ -4180,7 +4185,6 @@ def run_streaming_formal_evaluation(
     execution_devices: Iterable[str],
     batch_size: int = 1,
     probe_build_limit: int = 1,
-    authenticated_origin=None,
     stop_after_units: int | None = None,
     validation_corpus_callback=None,
 ) -> dict:
@@ -4195,20 +4199,7 @@ def run_streaming_formal_evaluation(
         "source_final_unseen_bank",
         "target",
     )
-    if authenticated_origin is None:
-        require_verified_roles_from_root(output_root, config, dataset, required_roles)
-    else:
-        from .formal_evaluation_repair import AuthenticatedEvaluationOrigin
-
-        if not isinstance(authenticated_origin, AuthenticatedEvaluationOrigin):
-            raise TypeError("evaluation origin must be authenticated")
-        authenticated_origin.require_compatible(config, dataset, upstream_root, required_roles)
-    if stop_after_units is not None and (type(stop_after_units) is not int or stop_after_units < 1):
-        raise ValueError("stop_after_units must be positive or None")
-    if type(batch_size) is not int or batch_size < 1:
-        raise ValueError("streaming evaluation batch_size must be positive")
-    if type(probe_build_limit) is not int or probe_build_limit not in (1, 2):
-        raise ValueError("probe_build_limit must be one or two")
+    require_verified_roles_from_root(output_root, config, dataset, required_roles)
     worker_devices = _validated_worker_devices(execution_devices)
     actual_execution_profile = EvaluationExecutionProfile(
         execution_devices=worker_devices,
@@ -4514,6 +4505,7 @@ def run_streaming_formal_evaluation(
                         rng_lock=rng_lock,
                         device=unit.execution_device,
                         progress_callback=report_probe,
+                        checkpoint_dir=output_dir / "probe_recovery" / f"{unit.seed}-{unit.arm}",
                         corpus_callback=(
                             lambda train, selection: validation_corpus_callback(unit, train, selection)
                         ) if validation_corpus_callback is not None and unit.canonical_index == 0 else None,

@@ -45,6 +45,9 @@ def _require_regular_parent(path: Path) -> None:
 
 
 def _fsync_directory(path: Path) -> None:
+    if os.name == "nt":
+        # Windows fsyncs the temporary file but cannot os.open a directory.
+        return
     flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)
     descriptor = os.open(path, flags)
     try:

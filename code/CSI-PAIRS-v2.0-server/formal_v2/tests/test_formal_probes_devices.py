@@ -274,6 +274,7 @@ class ProbeDeviceTests(unittest.TestCase):
             _config()["evaluation"]["probe_hidden_dim"],
         )
         with (
+            mock.patch("torch.cuda.synchronize"),
             mock.patch(
                 "formal_v2.formal_probes._module_device",
                 return_value=torch.device("cuda:0"),

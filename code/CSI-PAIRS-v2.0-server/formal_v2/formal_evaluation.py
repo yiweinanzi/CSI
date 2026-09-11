@@ -673,6 +673,7 @@ def _compatibility_dataset(
     route_normalization=None,
     routed=None,
     batch_size=DEFAULT_EVALUATION_BATCH_SIZE,
+    include_shortcuts=True,
 ):
     route_norm = (
         fit_route_normalization(dataset, teacher)
@@ -717,6 +718,7 @@ def _compatibility_dataset(
     for scene_value in scenes:
         scene = int(scene_value)
         context_cache = {}
+        scene_bank_digest = _canonical_bank_digest(dataset, scene)
         for edge in dataset.directed_edges(scene):
             if edge.source_world >= edge.target_world:
                 continue
@@ -747,14 +749,15 @@ def _compatibility_dataset(
                                 maps,
                                 radio,
                             )
-                            no_map_values = np.zeros_like(maps)
-                            encoded_no_map_context = _cached_encoded_context(
-                                model,
-                                context_cache,
-                                ("zero-map",),
-                                no_map_values,
-                                radio,
-                            )
+                            if include_shortcuts:
+                                no_map_values = np.zeros_like(maps)
+                                encoded_no_map_context = _cached_encoded_context(
+                                    model,
+                                    context_cache,
+                                    ("zero-map",),
+                                    no_map_values,
+                                    radio,
+                                )
                             representation, training_score = _masked_alignment_state_and_score(
                                 model,
                                 patches[None, ...],
@@ -773,24 +776,25 @@ def _compatibility_dataset(
                                 encoded_zero_action=encoded_zero_action,
                                 batch_size=batch_size,
                             )
-                            no_map_representation, _ = _masked_alignment_state_and_score(
-                                model,
-                                patches[None, ...],
-                                no_map_values,
-                                radio,
-                                zero_values,
-                                tuple(
-                                    entry
-                                    for entry in teacher.mask_bank
-                                    if entry.mode == "random_75"
-                                ),
-                                routed.teacher_latent[scene][csi_world, position],
-                                patches,
-                                normalization,
-                                encoded_context=encoded_no_map_context,
-                                encoded_zero_action=encoded_zero_action,
-                                batch_size=batch_size,
-                            )
+                            if include_shortcuts:
+                                no_map_representation, _ = _masked_alignment_state_and_score(
+                                    model,
+                                    patches[None, ...],
+                                    no_map_values,
+                                    radio,
+                                    zero_values,
+                                    tuple(
+                                        entry
+                                        for entry in teacher.mask_bank
+                                        if entry.mode == "random_75"
+                                    ),
+                                    routed.teacher_latent[scene][csi_world, position],
+                                    patches,
+                                    normalization,
+                                    encoded_context=encoded_no_map_context,
+                                    encoded_zero_action=encoded_zero_action,
+                                    batch_size=batch_size,
+                                )
                             _, audit_score = _masked_alignment_state_and_score(
                                 model,
                                 patches[None, ...],
@@ -810,7 +814,8 @@ def _compatibility_dataset(
                                 batch_size=batch_size,
                             )
                         features.append(representation)
-                        without_map_features.append(no_map_representation)
+                        if include_shortcuts:
+                            without_map_features.append(no_map_representation)
                         labels.append(label)
                         native_scores.append(audit_score)
                         native_training_scores.append(training_score)
@@ -821,7 +826,7 @@ def _compatibility_dataset(
                             dataset.canonical_base_map_digest(scene)
                         )
                         canonical_bank_digests.append(
-                            _canonical_bank_digest(dataset, scene)
+                            scene_bank_digest
                         )
                         routes.append(str(ROUTE_NAMES[route_code]))
                         pair_ids.append(
@@ -835,37 +840,38 @@ def _compatibility_dataset(
                         positions.append(position)
                         csi_worlds.append(csi_world)
                         supplied_worlds.append(supplied_world)
-                        csi_only_shortcut_scores.append(float(np.linalg.norm(patches)))
-                        map_only_shortcut_scores.append(
-                            float(np.linalg.norm(dataset.maps[scene, supplied_world]))
-                        )
-                        scene_features, edit_features, variant_features = (
-                            _shortcut_metadata_features(
-                                dataset,
-                                scene,
-                                csi_world,
-                                supplied_world,
+                        if include_shortcuts:
+                            csi_only_shortcut_scores.append(float(np.linalg.norm(patches)))
+                            map_only_shortcut_scores.append(
+                                float(np.linalg.norm(dataset.maps[scene, supplied_world]))
                             )
-                        )
-                        constant_shortcut_features.append(np.zeros(1, dtype=np.float64))
-                        csi_only_shortcut_features.append(
-                            np.concatenate((patches.reshape(-1), radio.reshape(-1)))
-                        )
-                        map_only_shortcut_features.append(
-                            np.concatenate((maps.reshape(-1), radio.reshape(-1)))
-                        )
-                        scene_id_only_shortcut_features.append(
-                            scene_features
-                        )
-                        edit_status_xor_shortcut_features.append(
-                            edit_features
-                        )
-                        variant_id_match_shortcut_features.append(
-                            variant_features
-                        )
+                            scene_features, edit_features, variant_features = (
+                                _shortcut_metadata_features(
+                                    dataset,
+                                    scene,
+                                    csi_world,
+                                    supplied_world,
+                                )
+                            )
+                            constant_shortcut_features.append(np.zeros(1, dtype=np.float64))
+                            csi_only_shortcut_features.append(
+                                np.concatenate((patches.reshape(-1), radio.reshape(-1)))
+                            )
+                            map_only_shortcut_features.append(
+                                np.concatenate((maps.reshape(-1), radio.reshape(-1)))
+                            )
+                            scene_id_only_shortcut_features.append(
+                                scene_features
+                            )
+                            edit_status_xor_shortcut_features.append(
+                                edit_features
+                            )
+                            variant_id_match_shortcut_features.append(
+                                variant_features
+                            )
     if not features:
         raise RuntimeError("compatibility probe dataset has no active quartets")
-    return {
+    result = {
         "features": np.asarray(features, dtype=np.float64),
         "without_map_features": np.asarray(
             without_map_features, dtype=np.float64
@@ -902,6 +908,10 @@ def _compatibility_dataset(
         ),
         "edge_scope": "non-natural-incident direct edits only",
     }
+
+    if not include_shortcuts:
+        result = {key: value for key, value in result.items() if "shortcut" not in key and key != "without_map_features"}
+    return result
 
 
 def _shortcut_metadata_features(dataset, scene, csi_world, supplied_world):
@@ -1341,6 +1351,7 @@ def _prepare_alignment_shortcut_probes(
     rng_lock=None,
     progress_callback=None,
     prefer_full_batch=False,
+    checkpoint_dir=None,
 ):
     prepared = {}
     for offset, (name, (field, _input_class)) in enumerate(
@@ -1366,6 +1377,7 @@ def _prepare_alignment_shortcut_probes(
                 rng_lock=rng_lock,
                 progress_callback=report,
                 prefer_full_batch=prefer_full_batch,
+                **({"checkpoint_dir": Path(checkpoint_dir) / name} if checkpoint_dir is not None else {}),
             )
             report({"phase": "prediction", "partition": "source_train"})
             source_scores = predict_binary_probe(
@@ -1448,6 +1460,7 @@ def _response_probe_dataset(
     route_normalization=None,
     routed=None,
     batch_size=DEFAULT_EVALUATION_BATCH_SIZE,
+    include_variants=True,
 ):
     from .formal_qualification import _select_wrong_action
 
@@ -1492,6 +1505,7 @@ def _response_probe_dataset(
     for scene_value in scenes:
         scene = int(scene_value)
         context_cache = {}
+        scene_bank_digest = _canonical_bank_digest(dataset, scene)
         for edge in dataset.directed_edges(scene):
             action = typed_signed_edit(
                 dataset.maps[scene, edge.source_world],
@@ -1559,20 +1573,21 @@ def _response_probe_dataset(
                     maps,
                     radio,
                 )
-                encoded_no_map_context = _cached_encoded_context(
-                    model,
-                    context_cache,
-                    ("zero-map",),
-                    np.zeros_like(maps),
-                    radio,
-                )
-                encoded_swapped_context = _cached_encoded_context(
-                    model,
-                    context_cache,
-                    ("map", int(edge.target_world)),
-                    swapped_maps,
-                    radio,
-                )
+                if include_variants:
+                    encoded_no_map_context = _cached_encoded_context(
+                        model,
+                        context_cache,
+                        ("zero-map",),
+                        np.zeros_like(maps),
+                        radio,
+                    )
+                    encoded_swapped_context = _cached_encoded_context(
+                        model,
+                        context_cache,
+                        ("map", int(edge.target_world)),
+                        swapped_maps,
+                        radio,
+                    )
                 target_patches = _normalized_scene_patches(
                     dataset,
                     normalization,
@@ -1616,42 +1631,43 @@ def _response_probe_dataset(
             )
             state_values = gather_query_states(states, query_values).numpy()
             del states
-            no_map_states, _ = _batched_masked_patch_bank_states(
-                model,
-                patch_bank,
-                edge_mask_entries,
-                edge_patch_indices,
-                encoded_no_map_context,
-                batch_size=batch_size,
-            )
-            no_map_state_values = gather_query_states(
-                no_map_states, query_values
-            ).numpy()
-            del no_map_states
-            map_swap_states, _ = _batched_masked_patch_bank_states(
-                model,
-                patch_bank,
-                edge_mask_entries,
-                edge_patch_indices,
-                encoded_swapped_context,
-                batch_size=batch_size,
-            )
-            map_swap_state_values = gather_query_states(
-                map_swap_states, query_values
-            ).numpy()
-            del map_swap_states
-            map_only_states, _ = _batched_masked_patch_bank_states(
-                model,
-                np.zeros_like(patch_bank),
-                edge_mask_entries,
-                edge_patch_indices,
-                encoded_context,
-                batch_size=batch_size,
-            )
-            map_only_state_values = gather_query_states(
-                map_only_states, query_values
-            ).numpy()
-            del map_only_states
+            if include_variants:
+                no_map_states, _ = _batched_masked_patch_bank_states(
+                    model,
+                    patch_bank,
+                    edge_mask_entries,
+                    edge_patch_indices,
+                    encoded_no_map_context,
+                    batch_size=batch_size,
+                )
+                no_map_state_values = gather_query_states(
+                    no_map_states, query_values
+                ).numpy()
+                del no_map_states
+                map_swap_states, _ = _batched_masked_patch_bank_states(
+                    model,
+                    patch_bank,
+                    edge_mask_entries,
+                    edge_patch_indices,
+                    encoded_swapped_context,
+                    batch_size=batch_size,
+                )
+                map_swap_state_values = gather_query_states(
+                    map_swap_states, query_values
+                ).numpy()
+                del map_swap_states
+                map_only_states, _ = _batched_masked_patch_bank_states(
+                    model,
+                    np.zeros_like(patch_bank),
+                    edge_mask_entries,
+                    edge_patch_indices,
+                    encoded_context,
+                    batch_size=batch_size,
+                )
+                map_only_state_values = gather_query_states(
+                    map_only_states, query_values
+                ).numpy()
+                del map_only_states
             for row_index, row in enumerate(edge_rows):
                 position = row["position"]
                 query = row["query"]
@@ -1659,9 +1675,10 @@ def _response_probe_dataset(
                 query_onehot = np.zeros(teacher.patch_spec.patch_count)
                 query_onehot[query] = 1.0
                 state = state_values[row_index]
-                no_map_state = no_map_state_values[row_index]
-                map_swap_state = map_swap_state_values[row_index]
-                map_only_state = map_only_state_values[row_index]
+                if include_variants:
+                    no_map_state = no_map_state_values[row_index]
+                    map_swap_state = map_swap_state_values[row_index]
+                    map_only_state = map_only_state_values[row_index]
                 features.append(np.concatenate((state, action_features, query_onehot)))
                 action_swap_features.append(
                     np.concatenate((state, row["swap_action_features"], query_onehot))
@@ -1669,44 +1686,45 @@ def _response_probe_dataset(
                 no_action_features.append(
                     np.concatenate((state, no_action_vector, query_onehot))
                 )
-                without_map_features.append(
-                    np.concatenate((no_map_state, action_features, query_onehot))
-                )
-                without_map_zero_action_features.append(
-                    np.concatenate((no_map_state, no_action_vector, query_onehot))
-                )
-                map_swap_features.append(
-                    np.concatenate((map_swap_state, action_features, query_onehot))
-                )
-                edit_only_features.append(
-                    np.concatenate((map_only_state, action_features, query_onehot))
-                )
-                edit_only_zero_action_features.append(
-                    np.concatenate((map_only_state, no_action_vector, query_onehot))
-                )
-                csi_only_features.append(
-                    np.concatenate((no_map_state, no_action_vector, query_onehot))
-                )
-                oracle_x_features.append(
-                    np.concatenate(
-                        (
-                            state,
-                            action_features,
-                            query_onehot,
-                            row["normalized_position"],
+                if include_variants:
+                    without_map_features.append(
+                        np.concatenate((no_map_state, action_features, query_onehot))
+                    )
+                    without_map_zero_action_features.append(
+                        np.concatenate((no_map_state, no_action_vector, query_onehot))
+                    )
+                    map_swap_features.append(
+                        np.concatenate((map_swap_state, action_features, query_onehot))
+                    )
+                    edit_only_features.append(
+                        np.concatenate((map_only_state, action_features, query_onehot))
+                    )
+                    edit_only_zero_action_features.append(
+                        np.concatenate((map_only_state, no_action_vector, query_onehot))
+                    )
+                    csi_only_features.append(
+                        np.concatenate((no_map_state, no_action_vector, query_onehot))
+                    )
+                    oracle_x_features.append(
+                        np.concatenate(
+                            (
+                                state,
+                                action_features,
+                                query_onehot,
+                                row["normalized_position"],
+                            )
                         )
                     )
-                )
-                oracle_x_zero_action_features.append(
-                    np.concatenate(
-                        (
-                            state,
-                            no_action_vector,
-                            query_onehot,
-                            row["normalized_position"],
+                    oracle_x_zero_action_features.append(
+                        np.concatenate(
+                            (
+                                state,
+                                no_action_vector,
+                                query_onehot,
+                                row["normalized_position"],
+                            )
                         )
                     )
-                )
                 targets.append(row["target_patches"][query])
                 source_targets.append(row["source_patches"][query])
                 bank_ids.append(str(dataset.bank_ids[scene]))
@@ -1722,14 +1740,14 @@ def _response_probe_dataset(
                 queries.append(query)
                 cluster_ids.append(str(dataset.base_map_cluster_ids[scene]))
                 canonical_cluster_ids.append(dataset.canonical_base_map_digest(scene))
-                canonical_bank_ids.append(_canonical_bank_digest(dataset, scene))
+                canonical_bank_ids.append(scene_bank_digest)
                 wrong_action_match_statuses.append(row["swap_status"])
                 wrong_action_worlds.append(
                     -1 if row["swap_world"] is None else int(row["swap_world"])
                 )
     if not features:
         raise RuntimeError("response probe dataset has no eligible patches")
-    return {
+    result = {
         "features": np.asarray(features),
         "action_swap_features": np.asarray(action_swap_features),
         "no_action_features": np.asarray(no_action_features),
@@ -1765,6 +1783,11 @@ def _response_probe_dataset(
         "wrong_action_world": np.asarray(wrong_action_worlds, dtype=np.int64),
         "input_contract": "masked_F_query_state_plus_typed_action_plus_query; target patch is supervision-only",
     }
+
+    if not include_variants:
+        prefixes = ("without_map", "map_swap", "edit_only", "csi_only", "oracle_x")
+        result = {key: value for key, value in result.items() if not key.startswith(prefixes)}
+    return result
 
 
 def _response_effect_rows(

@@ -402,7 +402,7 @@ def _radiomap_samples(dataset, role: str) -> list[tuple[int, int]]:
 
 def _fit_source_power_normalization(dataset, power_floor: float) -> tuple[float, float]:
     scenes = dataset.indices_for_role("source_encoder_train")
-    power = relative_total_power_db(dataset.csi_clean[scenes], power_floor)
+    power = np.concatenate([relative_total_power_db(dataset.csi_clean[int(scene)], power_floor).reshape(-1) for scene in scenes])
     mean = float(np.mean(power))
     scale = float(np.std(power))
     if not np.isfinite(mean) or not np.isfinite(scale) or scale <= 1e-12:
@@ -523,7 +523,12 @@ def _fit_source_only_model(
     best_selection = float("inf")
     best_epoch = 0
     last_training = float("nan")
-    for epoch in range(1, int(training["epochs"]) + 1):
+    from formal_v2.baseline_resume import restore, save
+    resumed = restore(output, model, optimizer, scheduler)
+    best_state, best_selection, best_epoch = resumed["best_state"], resumed["best_selection"], resumed["best_step"]
+    last_training = resumed.get("last_loss", last_training)
+    for epoch in range(resumed["step"] + 1, int(training["epochs"]) + 1):
+        generator.manual_seed(int(training["seed"]) + epoch)
         model.train()
         squared_error = 0.0
         observed = 0
@@ -569,6 +574,9 @@ def _fit_source_only_model(
                 key: value.detach().cpu().clone()
                 for key, value in model.state_dict().items()
             }
+        save(output, model, optimizer, scheduler, step=epoch, best_state=best_state,
+             best_selection=best_selection, best_step=best_epoch, last_loss=last_training)
+        print(f"PMNet epoch {epoch}/{training['epochs']} source_mse={selection_loss:.6g}", flush=True)
     if best_state is None:
         raise RuntimeError("PMNet source-method-selection produced no checkpoint")
     model.load_state_dict(best_state)

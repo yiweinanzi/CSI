@@ -386,22 +386,23 @@ def _fit_source_only_model(
     effective_batch_size = int(training["batch_size"])
     microbatch_size = int(training["microbatch_size"])
     accumulation_steps = effective_batch_size // microbatch_size
-    for step in range(1, int(training["steps"]) + 1):
+    from formal_v2.baseline_resume import restore, save
+    resumed = restore(output, model, optimizer, scheduler)
+    best_state, best_selection, best_step = resumed["best_state"], resumed["best_selection"], resumed["best_step"]
+    last_loss = resumed.get("last_loss", last_loss)
+    for step in range(resumed["step"] + 1, int(training["steps"]) + 1):
+        model.train()
+        chosen = np.random.default_rng(int(training["seed"]) + step).choice(
+            len(train_dataset), effective_batch_size, replace=len(train_dataset) < effective_batch_size)
         optimizer.zero_grad(set_to_none=True)
         total_squared_error = 0.0
         total_targets = 0
-        for _ in range(accumulation_steps):
-            try:
-                batch = next(iterator)
-            except StopIteration:
-                iterator = iter(loader)
-                batch = next(iterator)
+        for start in range(0, effective_batch_size, microbatch_size):
+            batch = runtime["Batch"].from_data_list([train_dataset[int(i)] for i in chosen[start:start + microbatch_size]])
             batch = batch.to(device)
             prediction = model(batch)
             squared_error = torch.sum((prediction - batch.y) ** 2)
             target_count = int(batch.y.numel())
-            if target_count != microbatch_size:
-                raise RuntimeError("Wi-GATr training yielded a partial microbatch")
             (squared_error / effective_batch_size).backward()
             total_squared_error += float(squared_error.detach().cpu())
             total_targets += target_count
@@ -422,6 +423,10 @@ def _fit_source_only_model(
                     key: value.detach().cpu().clone()
                     for key, value in model.state_dict().items()
                 }
+        if step % 100 == 0 or step == int(training["steps"]):
+            save(output, model, optimizer, scheduler, step=step, best_state=best_state,
+                 best_selection=best_selection, best_step=best_step, last_loss=last_loss)
+            print(f"Wi-GATr step {step}/{training['steps']} loss={last_loss:.6g}", flush=True)
     if best_state is None or best_step is None:
         raise RuntimeError("Wi-GATr source-method-selection never produced a checkpoint")
     model.load_state_dict(best_state)
@@ -463,7 +468,7 @@ def _fit_source_only_model(
         "mesh_preprocessing": config["mesh"]["preprocessing"],
         "optimizer": "Adam",
         "scheduler": "CosineAnnealingLR",
-        "last_training_power_mse": float(last_loss),
+        "last_training_power_mse": float(last_loss) if last_loss is not None else None,
         "selected_step": int(best_step),
         "selection_power_mse": float(best_selection),
         "train_role": "source_encoder_train",
@@ -680,9 +685,7 @@ def _power_mse(model, loader, device, torch):
 
 def _source_power_normalization(dataset, config):
     scenes = dataset.indices_for_role("source_encoder_train")
-    values = relative_total_power_db(
-        dataset.csi_clean[scenes], float(config["power"]["floor"])
-    )
+    values = np.concatenate([relative_total_power_db(dataset.csi_clean[int(scene)], float(config["power"]["floor"])).reshape(-1) for scene in scenes])
     mean = float(np.mean(values))
     scale = float(np.std(values))
     if not np.isfinite(mean) or not np.isfinite(scale) or scale <= 1e-12:

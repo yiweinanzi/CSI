@@ -1093,6 +1093,7 @@ def _pilot_scales(config, train_corpus, selection_corpus, seed, *, device=None):
     )
     alignment_values = []
     response_values = []
+    gradient_ratios = []
     weights = _loss_weights(config, 1.0, 1.0, 1.0, 1.0, kappa)
     model.eval()
     for step in range(int(config["factorial"]["pilot_steps"])):
@@ -1102,16 +1103,28 @@ def _pilot_scales(config, train_corpus, selection_corpus, seed, *, device=None):
             seed + 1,
             step,
         )
-        with torch.no_grad():
+        gradient_mode = config["factorial"].get("loss_normalization") == "source_gradient"
+        with torch.set_grad_enabled(gradient_mode and step < 8):
             components = _loss_components(model, selection_corpus, plan, weights)
+            if gradient_mode and step < 8:
+                retained = _retained_parameters(model)
+                reference = max(_gradient_norm(components["endpoint"], retained), 1e-8)
+                gradient_ratios.append([
+                    _gradient_norm(components["alignment"], retained) / reference,
+                    _gradient_norm(components["response"], retained) / reference,
+                ])
         alignment_values.append(float(components["alignment"]))
         response_values.append(float(components["response"]))
+    scales = (np.maximum(np.median(gradient_ratios, axis=0), 1e-4) if gradient_ratios
+              else [max(float(np.mean(alignment_values)), 1e-6), max(float(np.mean(response_values)), 1e-6)])
     return {
         "pilot_seed": int(seed),
         "pilot_steps": int(config["factorial"]["pilot_steps"]),
         "pilot_contract": "endpoint-only source-encoder-train fit; source-method-selection no-op kappa and frozen scale sequence",
-        "alignment_scale": max(float(np.mean(alignment_values)), 1e-6),
-        "response_scale": max(float(np.mean(response_values)), 1e-6),
+        "alignment_scale": float(scales[0]),
+        "response_scale": float(scales[1]),
+        "normalization_method": config["factorial"].get("loss_normalization", "loss"),
+        "source_gradient_ratios": gradient_ratios,
         "alignment_null_tolerance": float(kappa),
         "checkpoint_reused_for_final_training": False,
     }
@@ -1444,6 +1457,7 @@ def _train_arm(
         )
         cosine_steps = {0, steps - 1}
         cosine_steps.update(range(0, steps, max(1, cosine_interval)))
+        gradient_diagnostics = {}
         if step in {0, steps - 1} or step in cosine_steps:
             retained = _retained_parameters(model)
             if step in {0, steps - 1}:
@@ -1472,6 +1486,20 @@ def _train_arm(
                     encoder_grad_cosines.append(
                         {"step": step + 1, "cosine": cosine}
                     )
+            if loss_trace is not None:
+                effective_alignment = alignment_term
+                effective_response = response_term
+                if task_log_variances is not None:
+                    effective_alignment = torch.exp(-log_var_alignment) * alignment_term
+                    effective_response = torch.exp(-log_var_response) * response_term
+                gradient_diagnostics = {
+                    "endpoint_norm": _gradient_norm(components["endpoint"], retained),
+                    "effective_alignment_norm": _gradient_norm(effective_alignment, retained),
+                    "effective_response_norm": _gradient_norm(effective_response, retained),
+                    "alignment_response_cosine": _gradient_cosine(effective_alignment, effective_response, retained),
+                    "endpoint_alignment_cosine": _gradient_cosine(components["endpoint"], effective_alignment, retained),
+                    "endpoint_response_cosine": _gradient_cosine(components["endpoint"], effective_response, retained),
+                }
         optimizer.zero_grad(set_to_none=True)
         components["total"].backward()
         if loss_trace is not None:
@@ -1496,6 +1524,7 @@ def _train_arm(
                         / max(float(weights.response_scale), 1e-12)
                     ),
                     "gradient_norm": math.sqrt(max(squared_gradient, 0.0)),
+                    "retained_gradient_diagnostics": gradient_diagnostics,
                 }
             )
         torch.nn.utils.clip_grad_norm_(model.parameters(), 5.0, error_if_nonfinite=True)
@@ -2260,7 +2289,7 @@ def _information_budget_checklist(config) -> list[dict]:
     return rows
 
 
-def _run_localization(config, dataset, models, normalization, patch_spec, execution_devices):
+def _run_localization(config, dataset, models, normalization, patch_spec, execution_devices, *, methods=None, feature_provider=None):
     bank_rows = []
     sample_rows = []
     source_scenes = [int(value) for value in dataset.indices_for_role("source_encoder_train")]
@@ -2283,12 +2312,13 @@ def _run_localization(config, dataset, models, normalization, patch_spec, execut
             for draw in range(int(config["localization"]["label_draws"])):
                 rng = np.random.default_rng(int(seed) * 100003 + _stable_city_seed(city) + draw)
                 city_orders[(city, draw)] = [candidates[index] for index in rng.permutation(len(candidates))]
-        for arm in ARMS:
+        for arm in (ARMS if methods is None else methods):
             device = execution_devices[localization_job_index % len(execution_devices)]
             localization_job_index += 1
-            model = models[(int(seed), arm)].to(device)
-            scene_representations = _natural_representations(
-                model, dataset, source_scenes + target_scenes, normalization, patch_spec
+            model = models[(int(seed), arm)].to(device) if feature_provider is None else None
+            scene_representations = (
+                _natural_representations(model, dataset, source_scenes + target_scenes, normalization, patch_spec)
+                if feature_provider is None else feature_provider(int(seed), arm, source_scenes + target_scenes)
             )
             source_x = np.vstack([scene_representations[scene] for scene in source_scenes])
             source_y = np.vstack([dataset.positions[scene] for scene in source_scenes])
@@ -2373,12 +2403,14 @@ def _run_localization(config, dataset, models, normalization, patch_spec, execut
                                     "city_support_unique_positions": len(selected),
                                     "support_position_ids": ";".join(support_ids),
                                     "query_unique_positions": int(query_indices.size),
+                                    "query_position_ids": ";".join(str(dataset.position_ids[scene, p]) for p in query_indices),
                                     "median_error_m": median,
                                     "p90_error_m": float(np.percentile(errors, 90)),
                                     "utility_neg_log_median": float(-math.log(max(median, 1e-12))),
                                 }
                             )
-            model.to("cpu")
+            if model is not None:
+                model.to("cpu")
     return bank_rows, sample_rows
 
 
@@ -2416,7 +2448,7 @@ def _canonical_bank_digest(dataset, scene):
     return digest.hexdigest()
 
 
-def _natural_representations(model, dataset, scenes, normalization, patch_spec):
+def _natural_representations(model, dataset, scenes, normalization, patch_spec, batch_rows=256):
     model.eval()
     outputs = {}
     with torch.no_grad():
@@ -2424,17 +2456,20 @@ def _natural_representations(model, dataset, scenes, normalization, patch_spec):
             world = int(dataset.natural_world_index[scene])
             raw = patchify_csi(dataset.csi[scene, world], patch_spec)
             patches = (raw - normalization.patch_mean) / normalization.patch_scale
-            maps = np.repeat(dataset.maps[scene, world][None, :, :, :], dataset.position_count, axis=0)
-            maps = maps / normalization.map_scale[None, :, None, None]
             context = np.concatenate((dataset.radio_config[scene], dataset.bs_pose[scene]))
-            radio = np.repeat(context[None, :], dataset.position_count, axis=0)
-            radio = (radio - normalization.radio_mean) / normalization.radio_scale
-            representation = model.retained_representation(
-                tensor_for_module(model, patches, dtype=torch.float32),
-                tensor_for_module(model, maps, dtype=torch.float32),
-                tensor_for_module(model, radio, dtype=torch.float32),
-            )
-            outputs[scene] = representation.cpu().numpy().astype(np.float64)
+            radio = (context - normalization.radio_mean) / normalization.radio_scale
+            chunks = []
+            for start in range(0, len(patches), batch_rows):
+                batch = patches[start:start + batch_rows]
+                maps = np.broadcast_to(dataset.maps[scene, world] / normalization.map_scale[:, None, None],
+                                       (len(batch), *dataset.maps.shape[2:]))
+                representation = model.retained_representation(
+                    tensor_for_module(model, batch, dtype=torch.float32),
+                    tensor_for_module(model, np.array(maps, copy=True), dtype=torch.float32),
+                    tensor_for_module(model, np.broadcast_to(radio, (len(batch), len(radio))).copy(), dtype=torch.float32),
+                )
+                chunks.append(representation.cpu().numpy())
+            outputs[scene] = np.concatenate(chunks).astype(np.float32)
     return outputs
 
 

@@ -53,6 +53,7 @@ class M4Scene0ExactGateTests(unittest.TestCase):
             regeneration._required_arrays_exact(reference, regenerated, fields)
         )
 
+    @unittest.skipIf(os.name == "nt", "Historical checksum archive requires unchanged LF checkout; archive bytes are not rewritten")
     def test_repository_replay_cli_has_frozen_dependency(self) -> None:
         self.assertTrue(REGENERATION_TOOL_PATH.is_file())
         self.assertEqual(gate._sha256(REGENERATION_TOOL_PATH), REGENERATION_TOOL_SHA256)

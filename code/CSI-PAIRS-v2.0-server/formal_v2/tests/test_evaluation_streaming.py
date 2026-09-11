@@ -137,6 +137,7 @@ class EvaluationStreamingTests(unittest.TestCase):
         selected_identity = self.run_identity if identity is None else identity
         synthetic_gate = _synthetic_evaluation_gate()
         with (
+            mock.patch("formal_v2.formal_data_verification.require_verified_roles_from_root"),
             mock.patch(
                 "formal_v2.formal_evaluation_streaming.evidence_context",
                 return_value=self.evidence,
@@ -1009,6 +1010,7 @@ class EvaluationStreamingTests(unittest.TestCase):
 
         teacher = mock.Mock(patch_spec=object())
         with (
+            mock.patch("formal_v2.formal_data_verification.require_verified_roles_from_root"),
             mock.patch(
                 "formal_v2.formal_evaluation_streaming.evidence_context",
                 return_value=self.evidence,
@@ -2616,7 +2618,10 @@ class EvaluationStreamingTests(unittest.TestCase):
                     ],
                     axis=0,
                 )
-            np.testing.assert_array_equal(scene_values, merged, err_msg=name)
+            # Float32 BLAS can round differently for different batch shapes.
+            # Bound this at four machine epsilons; metrics must still agree.
+            eps = 4 * np.finfo(np.float32).eps
+            np.testing.assert_allclose(scene_values, merged, rtol=eps, atol=eps, err_msg=name)
 
     def test_scene_prediction_rejects_broadcastable_response_width(self):
         probes = _probe_bundle(hidden_dim=5)

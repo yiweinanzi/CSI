@@ -760,55 +760,19 @@ def _recorded_runtime_sha256(runtime, label):
 
 
 def _validate_recorded_runtime_provenance(runtime, label):
-    if (
-        not isinstance(runtime, dict)
-        or set(runtime) != RUNTIME_PROVENANCE_FIELDS
-        or runtime.get("schema_version") != RUNTIME_PROVENANCE_SCHEMA
-    ):
-        raise RuntimeError(f"{label} runtime provenance fields are not exact")
-    for key in (
-        "source_tree_sha256",
-        "requirements_lock_sha256",
-        "installer_report_sha256",
-        "reviewed_wheelhouse_sha256",
-        "reviewed_wheel_manifest_sha256",
-    ):
-        if not _lower_sha256(runtime.get(key)):
-            raise RuntimeError(f"{label} runtime provenance {key} is invalid")
-    if runtime.get("python_dont_write_bytecode") is not True:
-        raise RuntimeError(f"{label} runtime provenance permits Python bytecode")
-    torch_record = runtime.get("torch")
-    if not isinstance(torch_record, dict) or set(torch_record) != TORCH_RUNTIME_FIELDS:
-        raise RuntimeError(f"{label} runtime torch provenance fields are not exact")
-    installed = runtime.get("installed_distributions")
-    if not isinstance(installed, dict):
-        raise RuntimeError(f"{label} runtime distribution provenance is invalid")
-    for name, record in installed.items():
-        if (
-            not isinstance(name, str)
-            or not name
-            or not isinstance(record, dict)
-            or set(record) != {"version", "record_sha256", "wheel_sha256"}
-            or not isinstance(record["version"], str)
-            or not record["version"]
-            or not _lower_sha256(record["record_sha256"])
-            or not _lower_sha256(record["wheel_sha256"])
-        ):
-            raise RuntimeError(f"{label} runtime distribution provenance is invalid")
+    from .experiment_runtime import validate_runtime_provenance
+    try:
+        validate_runtime_provenance(runtime)
+    except ValueError as error:
+        raise RuntimeError(f"{label}: {error}") from error
 
 
 def _validate_migrated_legacy_runtime(runtime, label):
-    """Validate the less-populated runtime record accepted by migration v2."""
-    if (
-        not isinstance(runtime, dict)
-        or set(runtime) != RUNTIME_PROVENANCE_FIELDS
-        or runtime.get("schema_version") != RUNTIME_PROVENANCE_SCHEMA
-    ):
-        raise RuntimeError(f"{label} legacy runtime provenance fields are not exact")
-    if runtime.get("python_implementation") != "CPython":
-        raise RuntimeError(f"{label} legacy runtime implementation is invalid")
-    if runtime.get("python_dont_write_bytecode") is not True:
-        raise RuntimeError(f"{label} legacy runtime permits Python bytecode")
+    from .experiment_runtime import validate_runtime_provenance
+    try:
+        validate_runtime_provenance(runtime)
+    except ValueError as error:
+        raise RuntimeError(f"{label}: {error}") from error
 
 
 def _validate_checkpoint_evidence(

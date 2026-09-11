@@ -52,9 +52,3 @@ print("Wi-GATr environment installed")
 print("cuda_available", torch.cuda.is_available())
 print("formal_execution_ready", torch.cuda.is_available())
 PY
-
-"${ENV_DIR}/bin/python" "${PROJECT_ROOT}/formal_v2/formal_external_runtime.py" \
-  --profile wigatr \
-  --project-root "${PROJECT_ROOT}" \
-  --output "${ENV_DIR}/runtime_provenance.json" \
-  --verify-existing

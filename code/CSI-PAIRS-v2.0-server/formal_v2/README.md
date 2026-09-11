@@ -1,3 +1,5 @@
+> 当前实验入口与运行说明见 [服务器 README](../README.md)。新任务使用 `paper_run`；下文保留原始 V6 科学定义与历史流程背景，其中旧认证/启动脚本不再是运行前置条件。
+
 # CSI-PAIRS V6 formal implementation (V2.1)
 
 This directory implements the frozen V6 protocol contract. It intentionally rejects the earlier V2.0 single-channel/full-vector schema.

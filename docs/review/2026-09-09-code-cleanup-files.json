@@ -1,0 +1,607 @@
+{
+  "reason": "Removed retired approval, migration certification, automatic claims, path/second-engine audits and their dedicated launchers/tests; historical artifacts retained.",
+  "files": [
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/formal_run_approval.py",
+      "lines": 1714
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/formal_llm_judge.py",
+      "lines": 36
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/formal_runtime_integrity.py",
+      "lines": 446
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/formal_operator_preflight.py",
+      "lines": 340
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/formal_migration.py",
+      "lines": 2334
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/formal_migration_evidence.py",
+      "lines": 3576
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/formal_migration_evidence_runner.py",
+      "lines": 2491
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/formal_migration_postexit_runner.py",
+      "lines": 726
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/formal_claims.py",
+      "lines": 2254
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/formal_literature.py",
+      "lines": 430
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/formal_path.py",
+      "lines": 1367
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/formal_external_validity.py",
+      "lines": 1285
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/formal_rt_calibration.py",
+      "lines": 759
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/formal_evaluation_repair.py",
+      "lines": 438
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/formal_evaluation_compare.py",
+      "lines": 1298
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/formal_evaluation_subset_compare.py",
+      "lines": 3191
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/formal_source_method_pilot.py",
+      "lines": 493
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/anonymous_release.py",
+      "lines": 264
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/tests/test_run_approval.py",
+      "lines": 1138
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/tests/test_runtime_integrity.py",
+      "lines": 387
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/tests/test_operator_preflight.py",
+      "lines": 97
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/tests/test_optional_launch_gates.py",
+      "lines": 202
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/tests/test_migration_postexit_runner.py",
+      "lines": 239
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/tests/test_migration_evidence_tools.py",
+      "lines": 943
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/tests/test_migration_evidence_runner.py",
+      "lines": 967
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/tests/test_migration_cli_acceptance.py",
+      "lines": 315
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/tests/test_formal_migration.py",
+      "lines": 1927
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/tests/test_cli_migration_control.py",
+      "lines": 740
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/tests/test_m4_llvm_diagnostic.py",
+      "lines": 88
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/tests/test_differt_external_validity.py",
+      "lines": 328
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/tests/test_anonymous_release.py",
+      "lines": 338
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/tests/test_evaluation_repair.py",
+      "lines": 88
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/tests/test_evaluation_compare.py",
+      "lines": 404
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/tests/test_evaluation_subset_compare.py",
+      "lines": 1128
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/tests/test_source_method_pilot.py",
+      "lines": 280
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/tests/test_cli_evaluation_defaults.py",
+      "lines": 155
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/tools/verify_source_method_inputs.py",
+      "lines": 74
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/tools/verify_evaluation_origin.py",
+      "lines": 81
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/tools/supervise_source_method_pilot.py",
+      "lines": 105
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/tools/validate_formal_dual_probe.py",
+      "lines": 206
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/scripts/v6_trace_registry.py",
+      "lines": 505
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/scripts/build_v6_requirement_matrix.py",
+      "lines": 394
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/scripts/build_anonymous_supplement.sh",
+      "lines": 93
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/scripts/run_formal_v2.sh",
+      "lines": 63
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/scripts/run_formal_v2_dry_run.sh",
+      "lines": 141
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/scripts/launch_engineering_evaluation.sh",
+      "lines": 270
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/scripts/setup_formal_v2.sh",
+      "lines": 118
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/scripts/build_server_bundle.sh",
+      "lines": 97
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/scripts/verify_server_bundle.sh",
+      "lines": 62
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/external_adapters/differt_external_validity.py",
+      "lines": 620
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/external_adapters/prepare_differt_external_scenes.py",
+      "lines": 344
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/external_adapters/sionna_external_validity.py",
+      "lines": 283
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/external_adapters/setup_differt.sh",
+      "lines": 40
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/configs/source_method_pilot_20260909.json",
+      "lines": 34
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/configs/compute_plan_formal.template.json",
+      "lines": 91
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/configs/differt_external_engine_v1.json",
+      "lines": 20
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/configs/sionna_external_validity_adapter_v2.json",
+      "lines": 18
+    },
+    {
+      "path": "code/CSI-PAIRS-v2.0-server/formal_v2/tests/test_audit_artifacts.py",
+      "lines": 553
+    }
+  ],
+  "retired_tests_in_mixed_files": [
+    {
+      "file": "formal_v2/tests/test_a100_launch_readiness.py",
+      "test": "test_precomputed_independent_rt_archive_is_diagnostic_only",
+      "reason": "references removed workflow API"
+    },
+    {
+      "file": "formal_v2/tests/test_a100_launch_readiness.py",
+      "test": "test_primary_plus_epsilon_archive_cannot_satisfy_formal_g8",
+      "reason": "references removed workflow API"
+    },
+    {
+      "file": "formal_v2/tests/test_a100_launch_readiness.py",
+      "test": "test_independent_rt_scene_manifest_binds_every_external_world",
+      "reason": "references removed workflow API"
+    },
+    {
+      "file": "formal_v2/tests/test_a100_launch_readiness.py",
+      "test": "test_precomputed_archive_rejects_legacy_sionna_scene_manifest",
+      "reason": "references removed workflow API"
+    },
+    {
+      "file": "formal_v2/tests/test_a100_launch_readiness.py",
+      "test": "test_independent_rt_scene_manifest_authenticates_source_asset_files",
+      "reason": "references removed workflow API"
+    },
+    {
+      "file": "formal_v2/tests/test_a100_launch_readiness.py",
+      "test": "test_sionna_primary_cannot_reuse_sionna_as_g8_independent_engine",
+      "reason": "references removed workflow API"
+    },
+    {
+      "file": "formal_v2/tests/test_evaluation_identity.py",
+      "test": "_build",
+      "reason": "references removed workflow API"
+    },
+    {
+      "file": "formal_v2/tests/test_evaluation_identity.py",
+      "test": "test_production_config_batch_size_overrides_plan",
+      "reason": "references removed workflow API"
+    },
+    {
+      "file": "formal_v2/tests/test_evaluation_identity.py",
+      "test": "test_production_accepts_one_gpu",
+      "reason": "references removed workflow API"
+    },
+    {
+      "file": "formal_v2/tests/test_evidence_integrity.py",
+      "test": "test_g8_command_and_raw_csi_are_outer_authenticated",
+      "reason": "references removed workflow API"
+    },
+    {
+      "file": "formal_v2/tests/test_evidence_integrity.py",
+      "test": "test_g8_direction_interval_ignores_copied_canonical_unit",
+      "reason": "references removed workflow API"
+    },
+    {
+      "file": "formal_v2/tests/test_evidence_integrity.py",
+      "test": "test_aggregate_only_claim_controls_cannot_support_claims",
+      "reason": "references removed workflow API"
+    },
+    {
+      "file": "formal_v2/tests/test_evidence_integrity.py",
+      "test": "test_fewer_than_two_faithful_c1_models_is_blocked_not_supported",
+      "reason": "references removed workflow API"
+    },
+    {
+      "file": "formal_v2/tests/test_evidence_integrity.py",
+      "test": "test_c1_claim_rejects_gate_without_passing_raw_adapters",
+      "reason": "references removed workflow API"
+    },
+    {
+      "file": "formal_v2/tests/test_evidence_integrity.py",
+      "test": "test_c1_claim_recomputes_raw_adapter_assessments",
+      "reason": "references removed workflow API"
+    },
+    {
+      "file": "formal_v2/tests/test_formal_v2.py",
+      "test": "test_frozen_legacy_commit_binds_receipt_before_default",
+      "reason": "references removed workflow API"
+    },
+    {
+      "file": "formal_v2/tests/test_formal_v2.py",
+      "test": "test_subset_compare_imports_without_posix_resource",
+      "reason": "references removed workflow API"
+    },
+    {
+      "file": "formal_v2/tests/test_formal_v2.py",
+      "test": "test_sionna_export_lock_root_only_treats_inputs_as_reserved",
+      "reason": "references removed workflow API"
+    },
+    {
+      "file": "formal_v2/tests/test_formal_v2.py",
+      "test": "test_full_run_reservation_accepts_only_new_root_or_staged_inputs",
+      "reason": "references removed workflow API"
+    },
+    {
+      "file": "formal_v2/tests/test_formal_v2.py",
+      "test": "test_gate_and_claim_identifiers_are_fixed",
+      "reason": "references removed workflow API"
+    },
+    {
+      "file": "formal_v2/tests/test_formal_v2.py",
+      "test": "test_c8_stages_bind_one_qualification_factorial_evaluation_chain",
+      "reason": "references removed workflow API"
+    },
+    {
+      "file": "formal_v2/tests/test_formal_v2.py",
+      "test": "test_claim_semantics_recheck_g0_c2_c11_and_g8_evidence",
+      "reason": "references removed workflow API"
+    },
+    {
+      "file": "formal_v2/tests/test_formal_v2.py",
+      "test": "test_c13_follows_the_same_supported_rule_as_other_claims",
+      "reason": "references removed workflow API"
+    },
+    {
+      "file": "formal_v2/tests/test_formal_v2.py",
+      "test": "test_not_assessed_from_later_stage_cannot_erase_upstream_gate",
+      "reason": "references removed workflow API"
+    },
+    {
+      "file": "formal_v2/tests/test_formal_v2.py",
+      "test": "test_g5_fail_still_exports_descriptive_numbers_and_does_not_invalidate_claims",
+      "reason": "references removed workflow API"
+    },
+    {
+      "file": "formal_v2/tests/test_formal_v2.py",
+      "test": "test_sota_ready_requires_full_grid_and_strict_rank",
+      "reason": "references removed workflow API"
+    },
+    {
+      "file": "formal_v2/tests/test_formal_v2.py",
+      "test": "test_engineering_marker_and_incomplete_external_fail_closed",
+      "reason": "references removed workflow API"
+    },
+    {
+      "file": "formal_v2/tests/test_formal_v2.py",
+      "test": "test_nonfixture_assemble_claims_is_descriptive_publishable_not_candidate_block",
+      "reason": "references removed workflow API"
+    },
+    {
+      "file": "formal_v2/tests/test_formal_v2.py",
+      "test": "test_path_incidence_and_local_aggregation_are_bounded",
+      "reason": "references removed workflow API"
+    },
+    {
+      "file": "formal_v2/tests/test_formal_v2.py",
+      "test": "test_noop_path_threshold_comes_from_registered_retrace",
+      "reason": "references removed workflow API"
+    },
+    {
+      "file": "formal_v2/tests/test_formal_v2.py",
+      "test": "test_claim_reauthenticates_copied_stage_input_manifest",
+      "reason": "references removed workflow API"
+    },
+    {
+      "file": "formal_v2/tests/test_formal_v2.py",
+      "test": "test_control_and_scene_id_manifests_are_fail_closed",
+      "reason": "references removed workflow API"
+    },
+    {
+      "file": "formal_v2/tests/test_formal_v2.py",
+      "test": "test_builtin_scene_id_skip_blocks_c2_without_failing_the_chain",
+      "reason": "references removed workflow API"
+    },
+    {
+      "file": "formal_v2/tests/test_formal_v2.py",
+      "test": "test_external_direction_gate_cannot_be_inflated_by_duplicate_rows",
+      "reason": "references removed workflow API"
+    },
+    {
+      "file": "formal_v2/tests/test_formal_v2.py",
+      "test": "test_rt_calibration_manifest_requires_bound_input_and_source_paths",
+      "reason": "references removed workflow API"
+    },
+    {
+      "file": "formal_v2/tests/test_formal_v2.py",
+      "test": "test_rt_calibration_stage_isolates_reference_and_binds_outputs_end_to_end",
+      "reason": "references removed workflow API"
+    },
+    {
+      "file": "formal_v2/tests/test_formal_v2.py",
+      "test": "test_rt_calibration_rejects_unit_error_cancellation",
+      "reason": "references removed workflow API"
+    },
+    {
+      "file": "formal_v2/tests/test_formal_v2.py",
+      "test": "test_rt_calibration_rejects_fit_validation_scene_or_unit_overlap",
+      "reason": "references removed workflow API"
+    },
+    {
+      "file": "formal_v2/tests/test_formal_v2.py",
+      "test": "test_rt_calibration_rejects_renamed_or_copied_raw_sources",
+      "reason": "references removed workflow API"
+    },
+    {
+      "file": "formal_v2/tests/test_formal_v2.py",
+      "test": "test_rt_calibration_rejects_payload_not_present_in_source_asset",
+      "reason": "references removed workflow API"
+    },
+    {
+      "file": "formal_v2/tests/test_formal_v2.py",
+      "test": "test_rt_calibration_allows_equal_measurements_from_distinct_raw_units",
+      "reason": "references removed workflow API"
+    },
+    {
+      "file": "formal_v2/tests/test_formal_v2.py",
+      "test": "test_rt_calibration_rejects_same_logical_raw_unit_under_another_wrapper",
+      "reason": "references removed workflow API"
+    },
+    {
+      "file": "formal_v2/tests/test_formal_v2.py",
+      "test": "test_literature_gate_rejects_unbound_or_contradictory_novelty_records",
+      "reason": "references removed workflow API"
+    },
+    {
+      "file": "formal_v2/tests/test_formal_v2.py",
+      "test": "test_c1_claim_requires_two_explicitly_eligible_external_models",
+      "reason": "references removed workflow API"
+    },
+    {
+      "file": "formal_v2/tests/test_formal_v2.py",
+      "test": "test_c1_claim_reauthenticates_the_adapter_manifest_copy",
+      "reason": "references removed workflow API"
+    },
+    {
+      "file": "formal_v2/tests/test_formal_v2.py",
+      "test": "test_shipped_sionna_manifest_is_a_valid_g8_adapter",
+      "reason": "references removed workflow API"
+    },
+    {
+      "file": "formal_v2/tests/test_formal_v2.py",
+      "test": "test_sionna_gate_rejects_runtime_record_not_matching_outer_probe",
+      "reason": "references removed workflow API"
+    },
+    {
+      "file": "formal_v2/tests/test_formal_v2.py",
+      "test": "test_sionna_scene_export_covers_and_authenticates_external_worlds",
+      "reason": "references removed workflow API"
+    },
+    {
+      "file": "formal_v2/tests/test_formal_v2.py",
+      "test": "test_sionna_device_positions_cross_the_mitsuba_boundary_as_python_floats",
+      "reason": "references removed workflow API"
+    },
+    {
+      "file": "formal_v2/tests/test_formal_v2.py",
+      "test": "test_sionna_uses_scalar_first_wxyz_bs_pose_quaternions",
+      "reason": "references removed workflow API"
+    },
+    {
+      "file": "formal_v2/tests/test_formal_v2.py",
+      "test": "test_sionna_cfr_uses_numpy_without_a_torch_runtime_dependency",
+      "reason": "references removed workflow API"
+    },
+    {
+      "file": "formal_v2/tests/test_risk_path_evaluation_integrity.py",
+      "test": "test_path_gate_cannot_pass_without_provenance",
+      "reason": "references removed workflow API"
+    },
+    {
+      "file": "formal_v2/tests/test_risk_path_evaluation_integrity.py",
+      "test": "test_path_gate_writes_fail_state_when_exact_swap_is_unavailable",
+      "reason": "references removed workflow API"
+    },
+    {
+      "file": "formal_v2/tests/test_risk_path_evaluation_integrity.py",
+      "test": "test_path_rejects_csv_changed_after_stage_manifest",
+      "reason": "references removed workflow API"
+    },
+    {
+      "file": "formal_v2/tests/test_risk_path_evaluation_integrity.py",
+      "test": "test_migrated_localization_rows_use_authenticated_legacy_evidence",
+      "reason": "references removed workflow API"
+    },
+    {
+      "file": "formal_v2/tests/test_risk_path_evaluation_integrity.py",
+      "test": "test_path_recomputes_effect_row_identity_from_dataset",
+      "reason": "references removed workflow API"
+    },
+    {
+      "file": "formal_v2/tests/test_risk_path_evaluation_integrity.py",
+      "test": "test_nonheadline_rows_cannot_inflate_headline_path_overlap",
+      "reason": "references removed workflow API"
+    },
+    {
+      "file": "formal_v2/tests/test_risk_path_evaluation_integrity.py",
+      "test": "test_path_slope_is_invariant_to_duplicate_rows_from_one_seed",
+      "reason": "references removed workflow API"
+    },
+    {
+      "file": "formal_v2/tests/test_risk_path_evaluation_integrity.py",
+      "test": "test_path_matching_never_borrows_a_bin_from_another_seed",
+      "reason": "references removed workflow API"
+    },
+    {
+      "file": "formal_v2/tests/test_formal_v2.py",
+      "test": "test_cli_exposes_all_fail_closed_stages",
+      "reason": "asserts deleted certification or launch workflow"
+    },
+    {
+      "file": "formal_v2/tests/test_formal_v2.py",
+      "test": "test_evidence_context_rejects_unlocked_main_runtime",
+      "reason": "asserts deleted certification or launch workflow"
+    },
+    {
+      "file": "formal_v2/tests/test_formal_v2.py",
+      "test": "test_fixture_runtime_cache_never_applies_to_nonfixture_data",
+      "reason": "asserts deleted certification or launch workflow"
+    },
+    {
+      "file": "formal_v2/tests/test_formal_v2.py",
+      "test": "test_prepare_stops_before_data_verification_when_resources_fail",
+      "reason": "asserts deleted certification or launch workflow"
+    },
+    {
+      "file": "formal_v2/tests/test_formal_v2.py",
+      "test": "test_dry_run_wrapper_accepts_only_authenticated_fixture_failure",
+      "reason": "asserts deleted certification or launch workflow"
+    },
+    {
+      "file": "formal_v2/tests/test_formal_v2.py",
+      "test": "test_approval_and_engineering_flags_are_mutually_exclusive",
+      "reason": "asserts deleted certification or launch workflow"
+    },
+    {
+      "file": "formal_v2/tests/test_formal_v2.py",
+      "test": "test_legacy_evaluator_requires_explicit_env",
+      "reason": "asserts deleted certification or launch workflow"
+    },
+    {
+      "file": "formal_v2/tests/test_formal_v2.py",
+      "test": "test_approval_and_accepted_migration_are_mutually_exclusive",
+      "reason": "asserts deleted certification or launch workflow"
+    },
+    {
+      "file": "formal_v2/tests/test_formal_v2.py",
+      "test": "test_full_run_shell_requires_an_explicit_two_phase_mode",
+      "reason": "asserts deleted certification or launch workflow"
+    },
+    {
+      "file": "formal_v2/tests/test_a100_dataset_package_v6.py",
+      "test": "test_server_and_anonymous_release_boundaries_are_explicit",
+      "reason": "asserts deleted certification or launch workflow"
+    },
+    {
+      "file": "formal_v2/tests/test_m4_candidate_evidence.py",
+      "test": "test_delivery_boundaries_include_internal_evidence_only",
+      "reason": "asserts deleted certification or launch workflow"
+    },
+    {
+      "file": "formal_v2/tests/test_evidence_integrity.py",
+      "test": "test_shipped_g8_manifest_binds_current_adapter_source",
+      "reason": "asserts deleted certification or launch workflow"
+    }
+  ],
+  "deleted_file_count": 58,
+  "deleted_file_lines": 37418,
+  "historical_artifacts_changed": false,
+  "validation": {
+    "passed": 614,
+    "skipped": 28,
+    "failed": 0,
+    "duration_seconds": 93.36,
+    "python_modules_parsed_excluding_vendor": 121,
+    "missing_relative_import_modules": 0,
+    "git_diff_check": "PASS",
+    "formal_server_experiments_run": false
+  }
+}

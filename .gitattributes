@@ -1,2 +1,7 @@
 *.pdf binary
 *.zip binary
+# Byte-bound adapter manifests and Linux scripts require stable checkout bytes.
+code/CSI-PAIRS-v2.0-server/formal_v2/**/*.py text eol=lf
+code/CSI-PAIRS-v2.0-server/formal_v2/**/*.json text eol=lf
+code/CSI-PAIRS-v2.0-server/formal_v2/**/*.sh text eol=lf
+code/CSI-PAIRS-v2.0-server/formal_v2/external_adapters/vendor/** -text

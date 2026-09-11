@@ -87,7 +87,7 @@ def resolve_production_devices(dataset, plan: dict | None = None) -> tuple[str, 
 
 
 @dataclass(frozen=True)
-class MigratedEvaluationExecution:
+class LocalEvaluationExecution:
     identity: EvaluationRunIdentity
     devices: tuple[str, ...]
     batch_size: int
@@ -160,9 +160,9 @@ def _require_fixture_binding(
 
 
 def _running_source_identity() -> dict[str, object]:
-    from .formal_migration import _source_identity
+    from .experiment_runtime import source_identity
 
-    return _source_identity(Path(__file__).resolve().parent)
+    return source_identity()
 
 
 def _fixture_checkpoint_inventory(
@@ -404,68 +404,6 @@ def run_fixture_streaming_evaluation(
     )
 
 
-def build_migrated_evaluation_execution(
-    config: dict, dataset, upstream: AuthenticatedUpstream
-) -> MigratedEvaluationExecution:
-    """Bind streaming execution to one authenticated migration and compute plan."""
-
-    migration = upstream.migration
-    if migration is None:
-        raise RuntimeError("streaming migration execution requires an accepted migration")
-    evidence = evidence_context(
-        config,
-        dataset,
-        "FORBIDDEN" if dataset.is_fixture else "CANDIDATE_NOT_CLAIM",
-    )
-    if bool(dataset.is_fixture):
-        raise RuntimeError("formal migration execution cannot use a fixture")
-    if evidence["source_tree_sha256"] != migration.new_source_tree_sha256:
-        raise RuntimeError("running source tree differs from the accepted migration")
-    for key in (
-        "dataset_sha256",
-        "config_sha256",
-        "requirements_lock_sha256",
-    ):
-        if evidence[key] != migration.factorial_evidence[key]:
-            raise RuntimeError(f"migrated evaluation {key} differs from legacy upstream")
-
-    plan = migration.new_compute_plan
-    # Fixture / subset-compare keep batch_size==1 and the two-GPU pin in
-    # build_fixture_evaluation_execution. Production / migrated / default
-    # streaming takes batch_size from config (default 256) and accepts 1 or
-    # 2 CUDA devices from CSI_PAIRS_DEVICES / the compute plan.
-    batch_size = resolve_production_batch_size(config, plan)
-    devices = resolve_production_devices(dataset, plan)
-    execution_profile = EvaluationExecutionProfile(
-        execution_devices=devices,
-        batch_size=batch_size,
-    )
-
-    qualification_sha256 = sha256_file(upstream.qualification_gate)
-    factorial_sha256 = sha256_file(upstream.factorial_gate)
-    identity = EvaluationRunIdentity(
-        code_revision=migration.new_source_git_commit,
-        source_tree_sha256=str(evidence["source_tree_sha256"]),
-        config_sha256=str(evidence["config_sha256"]),
-        dataset_sha256=str(evidence["dataset_sha256"]),
-        migration_accepted_sha256=migration.accepted_sha256,
-        legacy_checkpoint_inventory_sha256=(
-            migration.checkpoint_inventory_sha256
-        ),
-        qualification_gate_sha256=qualification_sha256,
-        factorial_gate_sha256=factorial_sha256,
-        runtime_provenance_sha256=str(evidence["runtime_provenance_sha256"]),
-        run_nonce=migration.new_run_nonce,
-        compute_plan_sha256=migration.new_compute_plan_sha256,
-        execution_profile=execution_profile,
-        output_schema_id=STREAMING_EVALUATION_SCHEMA,
-        output_schema_sha256=evaluation_output_schema_sha256(),
-    )
-    return MigratedEvaluationExecution(
-        identity=identity,
-        devices=devices,
-        batch_size=batch_size,
-    )
 
 
 def build_local_evaluation_execution(
@@ -473,7 +411,7 @@ def build_local_evaluation_execution(
     dataset,
     output_root: str | Path,
     upstream: AuthenticatedUpstream,
-) -> MigratedEvaluationExecution:
+) -> LocalEvaluationExecution:
     """Bind default streaming evaluation without an accepted migration."""
 
     evidence = evidence_context(
@@ -532,7 +470,7 @@ def build_local_evaluation_execution(
         output_schema_id=STREAMING_EVALUATION_SCHEMA,
         output_schema_sha256=evaluation_output_schema_sha256(),
     )
-    return MigratedEvaluationExecution(
+    return LocalEvaluationExecution(
         identity=identity,
         devices=devices,
         batch_size=batch_size,

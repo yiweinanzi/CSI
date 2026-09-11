@@ -226,9 +226,12 @@ def validate_formal_config(config: object) -> None:
     for name, section, expected in sections:
         if not isinstance(section, dict):
             raise ValueError(f"{name} must be an object")
-        _exact_keys(name, set(section), expected)
+        optional = {"factorial": {"loss_normalization"}, "localization": {"standardize"}, "teacher": {"readout_protocol"}}.get(name, set())
+        _exact_keys(name, set(section), expected | (set(section) & optional))
 
     data = config["data"]
+    if config["teacher"].get("readout_protocol", "full_batch") not in {"full_batch", "minibatch_updates"}:
+        raise ValueError("Unknown teacher readout protocol")
     if not isinstance(data["dataset"], str) or not data["dataset"].strip():
         raise ValueError("data.dataset must be a nonempty path")
     _positive_int(data["minimum_repeats"], "data.minimum_repeats", minimum=2)
@@ -381,6 +384,10 @@ def validate_formal_config(config: object) -> None:
         raise ValueError(
             "factorial.full_joint_loss must be 'uncertainty_weighting' or 'static_sum'"
         )
+    if factorial.get("loss_normalization", "loss") not in {"loss", "source_gradient"}:
+        raise ValueError("loss_normalization must be loss or source_gradient")
+    if "standardize" in config["localization"] and type(config["localization"]["standardize"]) is not bool:
+        raise ValueError("localization.standardize must be boolean")
     _finite_number(factorial["task_log_variance_init"], "factorial.task_log_variance_init")
     _positive_int(
         factorial["encoder_grad_cosine_interval"],

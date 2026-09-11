@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from formal_v2.tests.platform_support import symlink_or_skip
+
 import hashlib
 import itertools
 import json
@@ -539,7 +541,12 @@ class EvaluationResumeTests(unittest.TestCase):
         victim = self.root.parent / "victim"
         victim.write_bytes(b"preserve")
         linked_temporary = output / ".a.csv.link.tmp"
-        linked_temporary.symlink_to(victim)
+        try:
+            symlink_or_skip(linked_temporary, victim)
+        except OSError as error:
+            if getattr(error, "winerror", None) == 1314:
+                self.skipTest("Windows symlink privilege is unavailable")
+            raise
         with self.store.writer_lock():
             with self.assertRaisesRegex(EvaluationResumeError, "regular file"):
                 self.store.quarantine_final_output_temporaries((target,))
@@ -555,7 +562,7 @@ class EvaluationResumeTests(unittest.TestCase):
         self.assertTrue(directory_temporary.is_dir())
 
         directory_temporary.rmdir()
-        target.symlink_to(victim)
+        symlink_or_skip(target, victim)
         with self.store.writer_lock():
             with self.assertRaisesRegex(EvaluationResumeError, "regular file"):
                 self.store.quarantine_final_output_temporaries((target,))
@@ -601,7 +608,12 @@ class EvaluationResumeTests(unittest.TestCase):
         other_root.mkdir()
         victim = Path(self.temporary.name) / "victim"
         victim.write_bytes(b"preserve")
-        (other_root / ".evaluation-writer.lock").symlink_to(victim)
+        try:
+            symlink_or_skip(other_root / ".evaluation-writer.lock", victim)
+        except OSError as error:
+            if getattr(error, "winerror", None) == 1314:
+                self.skipTest("Windows symlink privilege is unavailable")
+            raise
         linked_store = EvaluationResumeStore(other_root, self.run)
         with self.assertRaises(WriterLockError):
             with linked_store.writer_lock():

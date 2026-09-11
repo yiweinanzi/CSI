@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from formal_v2.tests.platform_support import symlink_or_skip
+
 import copy
 import json
 import tempfile
@@ -1342,7 +1344,7 @@ class QualificationResumeSafetyTests(unittest.TestCase):
             receipt.unlink()
             target = root / "outside-receipt.json"
             target.write_text("{}\n", encoding="utf-8")
-            receipt.symlink_to(target)
+            symlink_or_skip(receipt, target)
             with self.assertRaisesRegex(RuntimeError, "regular authenticated artifact"):
                 _prepare_qualification_output(qualification, resume=True)
 
@@ -1432,7 +1434,7 @@ class QualificationResumeSafetyTests(unittest.TestCase):
             second = _reserve_qualification_probe_attempt(qualification)
             self.assertEqual(first.name, "attempt_0001")
             self.assertEqual(second.name, "attempt_0002")
-            (second.parent / "attempt_0003").symlink_to(Path(temporary) / "missing")
+            symlink_or_skip(second.parent / "attempt_0003", Path(temporary) / "missing")
             fourth = _reserve_qualification_probe_attempt(qualification)
             self.assertEqual(fourth.name, "attempt_0004")
 
@@ -1444,7 +1446,7 @@ class QualificationResumeSafetyTests(unittest.TestCase):
             checkpoints.mkdir(parents=True)
             outside = root / "outside"
             outside.mkdir()
-            (checkpoints / "qualification_probes").symlink_to(outside)
+            symlink_or_skip(checkpoints / "qualification_probes", outside)
             with self.assertRaisesRegex(RuntimeError, "probe directory"):
                 _reserve_qualification_probe_attempt(qualification)
 

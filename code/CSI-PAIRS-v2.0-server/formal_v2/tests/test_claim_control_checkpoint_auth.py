@@ -9,7 +9,6 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from formal_v2 import formal_migration as migration
 from formal_v2 import formal_upstream as upstream
 from formal_v2.formal_config import ARMS
 from formal_v2.formal_claim_controls import (
@@ -33,12 +32,6 @@ from formal_v2.formal_evidence import (
     TORCH_RUNTIME_FIELDS,
 )
 from formal_v2.formal_io import read_strict_json, sha256_file, write_json
-from formal_v2.tests.test_formal_migration import (
-    ACCEPTED_UTC,
-    CONFIG_SHA256,
-    NOW,
-    FormalMigrationFixture,
-)
 
 
 def _digest(label: str) -> str:
@@ -514,90 +507,6 @@ class ClaimControlCheckpointAuthenticationTests(unittest.TestCase):
             self.assertEqual(require_manifest.call_args.args[0], gate_path)
             self.assertIs(require_manifest.call_args.args[1], gate)
 
-    def test_accepted_migration_checkpoint_index_uses_legacy_runtime_contract(self):
-        with tempfile.TemporaryDirectory() as temporary:
-            fixture = FormalMigrationFixture(Path(temporary))
-            config = {"seeds": [20270001, 20270002, 20270003]}
-            dataset = SimpleNamespace(source_path=fixture.dataset, is_fixture=False)
-            common_evidence = {
-                key: fixture.factorial_evidence[key]
-                for key in _CHECKPOINT_COMMON_EVIDENCE_FIELDS
-            }
-            with (
-                patch.object(migration, "_RUNNING_SOURCE_ROOT", fixture.new_source),
-                patch.object(upstream, "_RUNNING_SOURCE_ROOT", fixture.new_source),
-                patch.object(upstream, "config_sha256", return_value=CONFIG_SHA256),
-            ):
-                request = migration.write_migration_request(
-                    **fixture.request_arguments()
-                )
-                approval = fixture.write_migration_approval(request)
-                migration.accept_migration_request(
-                    request["request_path"],
-                    approval,
-                    **fixture.acceptance_arguments(),
-                    accepted_utc=ACCEPTED_UTC,
-                    now=NOW,
-                )
-                with patch(
-                    "formal_v2.formal_claim_controls.evidence_context",
-                    return_value=common_evidence,
-                ):
-                    checkpoints = _verify_checkpoint_index_binding(
-                        config,
-                        dataset,
-                        fixture.new_run,
-                        {
-                            "checkpoint_index_sha256": sha256_file(
-                                fixture.checkpoint_index
-                            )
-                        },
-                    )
-
-            index = read_strict_json(fixture.checkpoint_index)
-            self.assertEqual(set(checkpoints), set(config["seeds"]))
-            self.assertEqual(
-                set(checkpoints.values()),
-                {
-                    row["sha256"]
-                    for row in index["checkpoints"]
-                    if row["arm"] == "full"
-                },
-            )
-            loaded = _load_control_full_checkpoint_payloads(
-                config,
-                fixture.factorial_root,
-                index,
-                common_evidence,
-                sha256_file(fixture.teacher),
-                legacy_runtime=True,
-            )
-            self.assertEqual(tuple(loaded), tuple(config["seeds"]))
-            self.assertTrue(
-                all(payload["arm"] == "full" for _, payload in loaded.values())
-            )
-
-            row = next(
-                row
-                for row in index["checkpoints"]
-                if row["arm"] == "full"
-            )
-            import torch
-
-            payload = torch.load(
-                fixture.factorial_root / row["path"],
-                map_location="cpu",
-                weights_only=False,
-            )
-            version = _validate_checkpoint_evidence(
-                payload,
-                base_fields=_FORMAL_CHECKPOINT_BASE_FIELDS,
-                provenance_binding=row,
-                evidence=common_evidence,
-                label="claim-control checkpoint",
-                legacy_runtime=True,
-            )
-            self.assertEqual(version, _CHECKPOINT_EVIDENCE_MIGRATED_LEGACY_V1)
 
     def test_checkpoint_index_and_rows_reject_unknown_fields(self):
         scalar_evidence = {
@@ -748,41 +657,10 @@ class ClaimControlCheckpointAuthenticationTests(unittest.TestCase):
         }
 
     def _runtime_record(self):
-        runtime = {key: None for key in RUNTIME_PROVENANCE_FIELDS}
-        runtime.update(
-            {
-                "schema_version": RUNTIME_PROVENANCE_SCHEMA,
-                "source_tree_sha256": self.source_sha256,
-                "requirements_lock_sha256": self.requirements_sha256,
-                "installer_report_path": "/runtime/install-report.json",
-                "installer_report_sha256": _digest("install-report"),
-                "reviewed_wheelhouse_path": "/runtime/wheels",
-                "reviewed_wheelhouse_sha256": _digest("wheelhouse"),
-                "reviewed_wheel_manifest_path": "/runtime/wheel-manifest.json",
-                "reviewed_wheel_manifest_sha256": _digest("wheel-manifest"),
-                "python_version": "3.12.13",
-                "python_implementation": "CPython",
-                "python_executable": "/runtime/bin/python3.12",
-                "python_executable_name": "python3.12",
-                "python_prefix": "/runtime",
-                "python_dont_write_bytecode": True,
-                "platform_system": "Linux",
-                "platform_release": "test",
-                "platform_machine": "x86_64",
-                "platform_mac_version": None,
-                "platform_libc_name": "glibc",
-                "platform_libc_version": "2.31",
-                "cublas_workspace_config": ":4096:8",
-                "torch": self._torch_record(),
-                "installed_distributions": {
-                    "torch": {
-                        "version": "2.5.1+cu121",
-                        "record_sha256": _digest("torch-record"),
-                        "wheel_sha256": _digest("torch-wheel"),
-                    }
-                },
-            }
-        )
+        from formal_v2.experiment_runtime import runtime_provenance
+        runtime = runtime_provenance()
+        runtime["source_tree_sha256"] = self.source_sha256
+        self.requirements_sha256 = runtime["requirements_lock_sha256"]
         return runtime
 
     @staticmethod

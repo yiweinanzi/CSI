@@ -29,6 +29,19 @@ class HeteroscedasticPositionHead(nn.Module):
         return self.mean(hidden), self.raw_scale(hidden)
 
 
+class StandardizedPositionHead(HeteroscedasticPositionHead):
+    """Keep source-fitted feature/coordinate units fixed during adaptation."""
+
+    def __init__(self, features, positions, hidden_dim):
+        super().__init__(features.shape[1], hidden_dim)
+        for name, values in (("feature", features), ("position", positions)):
+            self.register_buffer(name + "_mean", torch.as_tensor(values.mean(axis=0), dtype=torch.float32))
+            self.register_buffer(name + "_scale", torch.as_tensor(np.maximum(values.std(axis=0), 1e-3), dtype=torch.float32))
+
+    def forward(self, representation):
+        return super().forward((representation - self.feature_mean) / self.feature_scale)
+
+
 def scheduled_head_steps(config: dict, labeled_count: int) -> int:
     labeled = int(labeled_count)
     if labeled <= 0:
@@ -69,8 +82,11 @@ def fit_source_position_head(
 ) -> HeteroscedasticPositionHead:
     torch.manual_seed(int(seed))
     hidden = max(8, int(config["model"]["hidden_dim"]) // 2)
-    head = HeteroscedasticPositionHead(representations.shape[1], hidden)
     features = np.asarray(representations, dtype=np.float32)
+    positions = np.asarray(positions, dtype=np.float32)
+    head = (StandardizedPositionHead(features, positions, hidden)
+            if config["localization"].get("standardize", False)
+            else HeteroscedasticPositionHead(representations.shape[1], hidden))
     _optimize_head(
         head,
         features,
@@ -108,6 +124,9 @@ def predict_position_distribution(
         mean, raw_scale = head(torch.as_tensor(representations, dtype=torch.float32))
         scale = functional.softplus(raw_scale) + float(sigma_min)
         variance = scale**2
+        if isinstance(head, StandardizedPositionHead):
+            mean = mean * head.position_scale + head.position_mean
+            variance = variance * head.position_scale.square()
         uncertainty = torch.sum(torch.log(variance), dim=1)
     return mean.numpy(), variance.numpy(), uncertainty.numpy()
 
@@ -126,6 +145,8 @@ def _optimize_head(
     head.train()
     x = torch.as_tensor(representations, dtype=torch.float32)
     y = torch.as_tensor(positions, dtype=torch.float32)
+    if isinstance(head, StandardizedPositionHead):
+        y = (y - head.position_mean) / head.position_scale
     optimizer = torch.optim.AdamW(
         head.parameters(),
         lr=float(learning_rate),
@@ -142,11 +163,9 @@ def _optimize_head(
         gaussian_nll = torch.mean(torch.sum(torch.log(scale) + 0.5 * ((y - mean) / scale) ** 2, dim=1))
         huber = functional.huber_loss(mean, y)
         loss = gaussian_nll + huber
-        optimizer.zero_grad(set_to_none=True)
-        loss.backward()
-        optimizer.step()
-        taken += 1
         current = float(loss.detach())
+        if not np.isfinite(current):
+            raise FloatingPointError("Position-head objective became nonfinite")
         if current < best - 1e-8:
             best = current
             best_state = {
@@ -158,6 +177,22 @@ def _optimize_head(
             stale += 1
             if stale >= patience:
                 break
+        # The loss describes the state BEFORE optimizer.step(). Save that exact
+        # state, not the next iterate (which may overshoot on a tiny support set).
+        optimizer.zero_grad(set_to_none=True)
+        loss.backward()
+        optimizer.step()
+        taken += 1
+    # Include the final updated iterate; there is no subsequent loop iteration
+    # to score it. This adds only one forward pass to the optimization schedule.
+    with torch.no_grad():
+        mean, raw_scale = head(x)
+        scale = functional.softplus(raw_scale) + float(sigma_min)
+        final_loss = torch.mean(torch.sum(torch.log(scale) + 0.5 * ((y - mean) / scale) ** 2, dim=1)) + functional.huber_loss(mean, y)
+        if not torch.isfinite(final_loss):
+            raise FloatingPointError("Final position-head objective became nonfinite")
+        if float(final_loss) < best:
+            best_state = {name: tensor.detach().clone() for name, tensor in head.state_dict().items()}
     if best_state is not None:
         head.load_state_dict(best_state)
     head.eval()

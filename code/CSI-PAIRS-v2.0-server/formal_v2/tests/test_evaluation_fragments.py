@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from formal_v2.tests.platform_support import symlink_or_skip
+
 import gzip
 import hashlib
 import os
@@ -400,14 +402,14 @@ class EvaluationFragmentTests(unittest.TestCase):
         fragment = self.root / "real.csv.gz"
         write_csv_fragment(fragment, [{"a": 1}], fieldnames=["a"])
         linked = self.root / "linked.csv.gz"
-        linked.symlink_to(fragment)
+        symlink_or_skip(linked, fragment)
         with self.assertRaisesRegex(CsvFragmentError, "regular file"):
             inspect_csv_fragment(linked, fieldnames=["a"])
 
         victim = self.root / "victim.csv"
         victim.write_bytes(b"do-not-replace")
         linked_output = self.root / "linked-output.csv"
-        linked_output.symlink_to(victim)
+        symlink_or_skip(linked_output, victim)
         with self.assertRaisesRegex(CsvFragmentError, "regular file"):
             merge_csv_fragments(
                 [fragment], linked_output, fieldnames=["a"]

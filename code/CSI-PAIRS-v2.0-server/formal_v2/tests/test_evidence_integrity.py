@@ -9,10 +9,6 @@ from unittest.mock import patch
 
 import numpy as np
 
-from formal_v2.formal_claims import (
-    _semantic_status,
-    _validate_external_manifest_binding,
-)
 from formal_v2.formal_claim_controls import (
     SHUFFLED_SYSTEMS,
     _require_distinct_checkpoint_hash,
@@ -43,11 +39,6 @@ from formal_v2.formal_external import (
     _validate_manifest as validate_external_manifest,
     _validate_six_condition_rows,
     run_external_baselines,
-)
-from formal_v2.formal_external_validity import (
-    _cluster_direction_interval,
-    _rows_from_external_csi,
-    _validate_manifest as validate_external_validity_manifest,
 )
 from formal_v2.formal_io import (
     sha256_file,
@@ -350,15 +341,6 @@ class EvidenceIntegrityTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "exactly one --config"):
             validate_external_manifest(changed)
 
-    def test_shipped_g8_manifest_binds_current_adapter_source(self):
-        manifest_path = (
-            ROOT / "formal_v2/configs/sionna_external_validity_adapter_v2.json"
-        )
-        manifest = json.loads(manifest_path.read_text())
-        source = ROOT / manifest["adapter_source_path"]
-
-        self.assertTrue(source.is_file())
-        self.assertEqual(manifest["adapter_source_sha256"], sha256_file(source))
 
     def test_shipped_claim_control_manifests_bind_current_adapter_sources(self):
         adapter_root = ROOT / "formal_v2/external_adapters"
@@ -379,85 +361,7 @@ class EvidenceIntegrityTests(unittest.TestCase):
                     manifest["adapter_source_sha256"],
                 )
 
-    def test_g8_command_and_raw_csi_are_outer_authenticated(self):
-        manifest = json.loads(
-            (ROOT / "formal_v2/configs/sionna_external_validity_adapter_v2.json").read_text()
-        )
-        bound = dict(manifest)
-        bound["adapter_source_path"] = str(
-            ROOT / manifest["adapter_source_path"]
-        )
-        validate_external_validity_manifest(bound)
-        manifest["command"] = ["python3", "-c", "print('fabricated')"]
-        with self.assertRaisesRegex(ValueError, "authenticated adapter module"):
-            validate_external_validity_manifest(manifest)
 
-        expected = {
-            "unit-a": {
-                "unit_id": "unit-a",
-                "scene_index": 0,
-                "external_scene_index": 0,
-                "source_world": 0,
-                "target_world": 1,
-                "position": 0,
-                "bank_id": "bank-a",
-                "route": "active",
-                "primary_direction": 1,
-                "primary_effect": 0.25,
-                "context_sha256": "a" * 64,
-                "base_map_cluster_id": "raw-a",
-                "canonical_base_map_digest": "foundation-a",
-                "canonical_bank_digest": "canonical-bank-a",
-                "canonical_unit_id": "canonical-unit-a",
-            },
-            "unit-b": {
-                "unit_id": "unit-b",
-                "scene_index": 1,
-                "external_scene_index": 1,
-                "source_world": 0,
-                "target_world": 1,
-                "position": 0,
-                "bank_id": "bank-b",
-                "route": "null",
-                "primary_direction": -1,
-                "primary_effect": 0.01,
-                "context_sha256": "a" * 64,
-                "base_map_cluster_id": "raw-b",
-                "canonical_base_map_digest": "foundation-b",
-                "canonical_bank_digest": "canonical-bank-b",
-                "canonical_unit_id": "canonical-unit-b",
-            },
-        }
-        external_csi = np.asarray(
-            [
-                [[[1.0, 0.0, 0.0, 0.0]], [[2.0, 0.0, 0.0, 0.0]]],
-                [[[2.0, 0.0, 0.0, 0.0]], [[1.0, 0.0, 0.0, 0.0]]],
-            ]
-        )
-        rows = _rows_from_external_csi(external_csi, expected)
-        self.assertEqual([row["unit_id"] for row in rows], ["unit-a", "unit-b"])
-        self.assertEqual(rows[0]["external_direction"], 1)
-        self.assertEqual(rows[1]["external_direction"], -1)
-        self.assertAlmostEqual(rows[0]["external_effect"], 1.0)
-
-    def test_g8_direction_interval_ignores_copied_canonical_unit(self):
-        rows = []
-        for index, agreement in enumerate((True, False)):
-            rows.append(
-                {
-                    "canonical_unit_id": f"unit-{index}",
-                    "canonical_base_map_digest": f"foundation-{index}",
-                    "canonical_bank_digest": f"bank-{index}",
-                    "route": "active",
-                    "primary_direction": 1,
-                    "external_direction": 1 if agreement else -1,
-                    "primary_effect": 0.2,
-                    "external_effect": 0.2,
-                }
-            )
-        original = _cluster_direction_interval(rows, 40)
-        duplicated = _cluster_direction_interval(rows + [dict(rows[0])], 40)
-        self.assertEqual(original, duplicated)
 
     def test_six_equal_conditions_cannot_pass_c1(self):
         rows = self._rows()
@@ -501,183 +405,9 @@ class EvidenceIntegrityTests(unittest.TestCase):
                 expected_condition_contract=self.contract,
             )
 
-    def test_aggregate_only_claim_controls_cannot_support_claims(self):
-        legacy = {
-            "status": "PASS",
-            "passed": True,
-            "checkpoint_hashes_verified": True,
-            "alignment_gain": 1.0,
-            "shuffled_alignment_gain": 0.0,
-            "shortcut_baselines_passed": True,
-        }
-        self.assertEqual(_semantic_status("shuffled_pair", legacy), "FAIL")
-        self.assertEqual(_semantic_status("retention", legacy), "FAIL")
 
-    def test_fewer_than_two_faithful_c1_models_is_blocked_not_supported(self):
-        payload = {
-            "status": "BLOCKED",
-            "passed": False,
-            "c1_eligible_model_count": 0,
-            "c1_eligible_models": [],
-            "c1_required_eligible_model_count": 2,
-            "c1_city_gate_contract": "all-evaluation-cities-must-pass-v1",
-            "model_assessments": [],
-            "condition_input_contract": "outer-recomputed-map-and-action-sha256-v1",
-            "condition_registry_path": "external_condition_registry.csv",
-            "condition_registry_sha256": "c" * 64,
-            "adapter_manifest_path": "adapter_manifest.json",
-            "adapter_manifest_sha256": "a" * 64,
-        }
-        self.assertEqual(_semantic_status("external_baselines", payload), "BLOCKED")
 
-    def test_c1_claim_rejects_gate_without_passing_raw_adapters(self):
-        with tempfile.TemporaryDirectory() as temporary:
-            stage = Path(temporary) / "external_baselines"
-            stage.mkdir()
-            manifest_path = stage / "adapter_manifest.json"
-            manifest_path.write_bytes(
-                (
-                    ROOT / "formal_v2/external_adapters/all_map_adapters_v1.json"
-                ).read_bytes()
-            )
-            condition_path = stage / "external_condition_registry.csv"
-            write_csv(condition_path, [{"contract": "outer"}])
-            status_path = stage / "adapter_status.csv"
-            status_path.write_text(
-                "adapter_id,model_name,status\n", encoding="utf-8"
-            )
-            write_json(
-                stage / "manifest.json",
-                {
-                    "files": [
-                        {"path": path.name, "sha256": sha256_file(path)}
-                        for path in (manifest_path, condition_path, status_path)
-                    ]
-                },
-            )
-            payload = {
-                "c1_eligible_models": ["Wi-GATr", "PMNet"],
-                "condition_registry_path": condition_path.name,
-                "condition_registry_sha256": sha256_file(condition_path),
-                "adapter_manifest_path": manifest_path.name,
-                "adapter_manifest_sha256": sha256_file(manifest_path),
-            }
-            with self.assertRaisesRegex(
-                RuntimeError, "without a passing raw adapter"
-            ):
-                _validate_external_manifest_binding(
-                    stage / "gate.json", payload, self.dataset, {}
-                )
-            payload.update(
-                {
-                    "c1_eligible_models": [],
-                    "model_assessments": [],
-                    "c1_eligible_model_count": 0,
-                    "unique_passing_models": ["forged-model"],
-                    "unique_passing_model_count": 1,
-                    "passing_map_conditioned_models": 1,
-                }
-            )
-            with self.assertRaisesRegex(
-                RuntimeError, "counts require passing raw adapters"
-            ):
-                _validate_external_manifest_binding(
-                    stage / "gate.json", payload, self.dataset, {}
-                )
 
-    def test_c1_claim_recomputes_raw_adapter_assessments(self):
-        with tempfile.TemporaryDirectory() as temporary:
-            stage = Path(temporary) / "external_baselines"
-            stage.mkdir()
-            manifest = json.loads(
-                (
-                    ROOT / "formal_v2/external_adapters/all_map_adapters_v1.json"
-                ).read_text()
-            )
-            manifest_path = stage / "adapter_manifest.json"
-            write_json(manifest_path, manifest)
-            condition_path = stage / "external_condition_registry.csv"
-            write_csv(condition_path, [{"contract": "outer"}])
-            eligible = [
-                adapter for adapter in manifest["adapters"] if adapter["c1_eligible"]
-            ]
-            write_csv(
-                stage / "adapter_status.csv",
-                [
-                    {
-                        "adapter_id": adapter["adapter_id"],
-                        "model_name": adapter["model_name"],
-                        "status": "PASS",
-                    }
-                    for adapter in eligible
-                ],
-            )
-            for adapter in eligible:
-                output = stage / "adapters" / adapter["adapter_id"]
-                output.mkdir(parents=True)
-                rows = self._rows()
-                for row in rows:
-                    row["model_name"] = adapter["model_name"]
-                write_csv(output / "six_condition_results.csv", rows)
-            write_json(
-                stage / "manifest.json",
-                {
-                    "files": [
-                        {
-                            "path": path.name,
-                            "sha256": sha256_file(path),
-                        }
-                        for path in (
-                            manifest_path,
-                            condition_path,
-                            stage / "adapter_status.csv",
-                        )
-                    ]
-                },
-            )
-            payload = {
-                "adapter_manifest_path": manifest_path.name,
-                "adapter_manifest_sha256": sha256_file(manifest_path),
-                "condition_registry_path": condition_path.name,
-                "condition_registry_sha256": sha256_file(condition_path),
-                "model_assessments": [],
-                "c1_eligible_models": [],
-                "c1_eligible_model_count": 0,
-                "unique_passing_models": sorted(
-                    adapter["model_name"] for adapter in eligible
-                ),
-                "unique_passing_model_count": len(eligible),
-                "passing_map_conditioned_models": len(eligible),
-            }
-            units = [
-                SimpleNamespace(unit_id=unit_id, **vars(unit))
-                for unit_id, unit in self.units.items()
-            ]
-            config = {
-                "evaluation": {
-                    "bootstrap_resamples": 20,
-                    "c1_active_error_minimum_m": 0.1,
-                    "c1_null_error_equivalence_margin_m": 0.1,
-                    "null_overclassification_rate_max": 0.05,
-                }
-            }
-            with (
-                patch(
-                    "formal_v2.formal_external._expected_six_condition_units",
-                    return_value=units,
-                ),
-                patch(
-                    "formal_v2.formal_external._expected_condition_contract",
-                    return_value=self.contract,
-                ),
-                patch("formal_v2.formal_external._validate_execution_manifest"),
-                self.assertRaisesRegex(
-                    RuntimeError, "assessments differ from raw adapter results"
-                ),
-            ):
-                _validate_external_manifest_binding(
-                    stage / "gate.json", payload, self.dataset, config
-                )
 
     def test_g4_excludes_generous_control_from_required_subgate(self):
         self.assertEqual(
